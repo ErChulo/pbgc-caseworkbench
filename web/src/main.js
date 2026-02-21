@@ -1,14 +1,21 @@
 // web/src/main.js
 import "./style.css";
 
+import Ajv from "ajv";
+import planMetadataSchema from "./planMetadata.schema.json";
+
 // ---- version (temporary; we will move to shared file next) ----
 const APP_VERSION = "0.7.0";
+
+const ajv = new Ajv({ allErrors: true, strict: false });
+const validatePlanMetadata = ajv.compile(planMetadataSchema);
 
 // ---- simple global state ----
 const state = {
   appVersion: APP_VERSION,
   planMetadata: null,
   lastManifest: null,
+  lastError: null,
 };
 
 // ---- hash router ----
@@ -71,6 +78,8 @@ function renderMetadata(container) {
   container.innerHTML = `
     <h2>Plan Metadata</h2>
 
+    ${state.lastError ? `<pre style="background:#fee; color:#900; padding:12px; border-radius:8px; white-space:pre-wrap;">${escapeHtml(state.lastError)}</pre>` : ""}
+
     <div style="display:grid; grid-template-columns: 160px 1fr; gap:8px; max-width: 720px;">
       <label>Plan name</label>
       <input id="plan_name" value="${escapeHtml(pm.case.plan_name ?? "")}" />
@@ -128,12 +137,31 @@ ${escapeHtml(JSON.stringify(pm, null, 2))}
     const f = e.target.files?.[0];
     if (!f) return;
     const text = await f.text();
-    state.planMetadata = JSON.parse(text);
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (err) {
+      state.lastError = `Invalid JSON: ${err.message}`;
+      render();
+      return;
+    }
+
+    const ok = validatePlanMetadata(parsed);
+    if (!ok) {
+      state.lastError =
+        "Metadata schema validation failed:\n" +
+        validatePlanMetadata.errors.map(e => `- ${e.instancePath || "/"} ${e.message}`).join("\n");
+      render();
+      return;
+    }
+
+    state.lastError = null;
+    state.planMetadata = parsed;
     state.lastManifest = {
       app_version: state.appVersion,
       module: "metadata",
       generated_at_utc: new Date().toISOString(),
-      input_file: f.name,
+      input_file: f.name
     };
     render();
   });

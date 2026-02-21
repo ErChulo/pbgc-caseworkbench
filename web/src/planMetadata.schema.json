@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlanMetadata",
+  "type": "object",
+  "required": ["case", "documents"],
+  "properties": {
+    "case": {
+      "type": "object",
+      "required": ["plan_name", "case_number", "dopt"],
+      "properties": {
+        "plan_name": { "type": "string" },
+        "case_number": { "type": ["integer", "string"] },
+        "dopt": { "type": "string" },
+        "dotr": { "type": "string" },
+        "bpd": { "type": "string" },
+        "ein": { "type": "string" },
+        "pn": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "dependent_fields": {
+      "type": "object",
+      "additionalProperties": { "type": ["string", "number", "boolean", "null"] }
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["doc_id", "name"],
+        "properties": {
+          "source_file": { "type": "string" },
+          "doc_id": { "type": "string" },
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "effective_date": { "type": "string" },
+          "adoption_date": { "type": "string" },
+          "applicable_period": { "type": "string" },
+          "phase_in": { "type": "string" },
+          "image_viewer": { "type": "string" },
+          "notes": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
