@@ -21,6 +21,7 @@ const state = {
 // ---- hash router ----
 const routes = [
   { path: "#/metadata", title: "Metadata", render: renderMetadata },
+  { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
   { path: "#/audit", title: "Audit", render: renderAudit },
 ];
 
@@ -190,6 +191,13 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
+async function sha256Hex(file) {
+  const buf = await file.arrayBuffer();
+  const hashBuf = await crypto.subtle.digest("SHA-256", buf);
+  const bytes = Array.from(new Uint8Array(hashBuf));
+  return bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function escapeHtml(s) {
   return String(s)
     .replaceAll("&", "&amp;")
@@ -197,6 +205,116 @@ function escapeHtml(s) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function renderPlanSummary(container) {
+  if (!state.planMetadata) {
+    container.innerHTML = `<h2>Plan Summary</h2><p style="color:#900;">Load Plan Metadata first.</p>`;
+    return;
+  }
+
+  const planName = state.planMetadata?.case?.plan_name ?? "";
+  const caseNo = state.planMetadata?.case?.case_number ?? "";
+
+  container.innerHTML = `
+    <h2>Plan Summary</h2>
+    <p><b>Case:</b> ${escapeHtml(planName)} (Case ${escapeHtml(caseNo)})</p>
+
+    <div style="margin-top:12px; display:grid; gap:10px; max-width: 720px;">
+      <div>
+        <label><b>Plan Summary DOCX template</b></label><br/>
+        <input id="ps_docx" type="file" accept=".docx" />
+        <div id="ps_docx_name" style="opacity:0.7; margin-top:4px;"></div>
+      </div>
+
+      <div>
+        <label><b>R5 JSON</b></label><br/>
+        <input id="ps_r5json" type="file" accept="application/json,.json" />
+        <div id="ps_r5json_name" style="opacity:0.7; margin-top:4px;"></div>
+      </div>
+
+      <div>
+        <button id="ps_generate" disabled>Generate filled Plan Summary (stub)</button>
+<button id="ps_manifest" disabled style="margin-left:8px;">Download manifest.json</button>
+        <div style="opacity:0.7; margin-top:6px;">
+          (Next step will actually fill the DOCX. For now we just validate inputs and create a manifest.)
+        </div>
+      </div>
+
+      <pre id="ps_status" style="background:#111; color:#eee; padding:12px; border-radius:8px; overflow:auto; white-space:pre-wrap;"></pre>
+    </div>
+  `;
+
+  const psDocx = container.querySelector("#ps_docx");
+  const psJson = container.querySelector("#ps_r5json");
+  const btn = container.querySelector("#ps_generate");
+  const btnManifest = container.querySelector("#ps_manifest");
+  const status = container.querySelector("#ps_status");
+
+  let docxFile = null;
+  let r5File = null;
+
+  function update() {
+    container.querySelector("#ps_docx_name").textContent = docxFile ? docxFile.name : "";
+    container.querySelector("#ps_r5json_name").textContent = r5File ? r5File.name : "";
+    btnManifest.disabled = !state.lastManifest;
+    btn.disabled = !(docxFile && r5File);
+  }
+
+  psDocx.addEventListener("change", (e) => {
+    docxFile = e.target.files?.[0] ?? null;
+    update();
+  });
+
+  psJson.addEventListener("change", (e) => {
+    r5File = e.target.files?.[0] ?? null;
+    update();
+  });
+
+  btn.addEventListener("click", async () => {
+    status.textContent = "Reading inputs...";
+    try {
+      const r5Text = await r5File.text();
+      JSON.parse(r5Text); // basic sanity check
+
+      // minimal manifest stub (we’ll add hashing next)
+      const [docxHash, r5Hash] = await Promise.all([
+        sha256Hex(docxFile),
+        sha256Hex(r5File),
+      ]);
+
+      state.lastManifest = {
+        app_version: state.appVersion,
+        module: "plan-summary",
+        generated_at_utc: new Date().toISOString(),
+        plan_metadata: {
+          plan_name: planName,
+          case_number: caseNo
+        },
+        input_hashes: {
+          [docxFile.name]: docxHash,
+          [r5File.name]: r5Hash
+        }
+      };
+      status.textContent =
+        "OK. Inputs loaded.\n\nNext: implement DOCX fill + download.\n\nManifest:\n" +
+        JSON.stringify(state.lastManifest, null, 2);
+    } catch (err) {
+      status.textContent = "ERROR: " + err.message;
+    }
+  }
+
+  );
+
+  btnManifest.addEventListener("click", () => {
+    if (!state.lastManifest) return;
+    const blob = new Blob([JSON.stringify(state.lastManifest, null, 2)], {
+      type: "application/json",
+    });
+    downloadBlob(blob, "manifest.plan-summary.json");
+  });
+
+  update();
 }
 
 // ---- boot ----
