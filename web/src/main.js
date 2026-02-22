@@ -1,10 +1,11 @@
-
+﻿
 import "./style.css";
 
 import JSZip from "jszip";
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import r5BuilderLegacyHtml from "./legacy/r5-builder.v0.7.9.html?raw";
 import logoSvg from "./assets/logo.svg?raw";
+import metadataScraperPrompt from "./assets/metadata-scraper-prompt.txt?raw";
 
 import Ajv from "ajv";
 import planMetadataSchema from "./planMetadata.schema.json";
@@ -103,6 +104,7 @@ function renderShell() {
           ${nav}
         </nav>
         <div class="header-actions">
+          <button class="nav-button resources-btn" id="open_resources" aria-label="Open resources">Resources</button>
           <div class="theme-toggle" role="group" aria-label="Theme">
             <button data-theme="light">Light</button>
             <button data-theme="dark">Dark</button>
@@ -111,6 +113,20 @@ function renderShell() {
           <div class="version-label">v${state.appVersion}</div>
         </div>
       </header>
+      <div id="resources_backdrop" class="drawer-backdrop"></div>
+      <aside id="resources_drawer" class="drawer-panel drawer-left">
+        <div class="drawer-header">
+          <div class="drawer-title">Resources</div>
+          <button class="icon-button" id="close_resources" aria-label="Close resources">x</button>
+        </div>
+        <div class="drawer-body">
+          <p class="muted">Quick access to built-in assets for the Metadata module.</p>
+          <div class="button-row">
+            <button id="resources_prompt_download">Download Scraper Prompt</button>
+          </div>
+          <div class="meta-line">File: metadata-scraper-prompt.txt</div>
+        </div>
+      </aside>
       <main id="page" class="page-content"></main>
     </div>
   `;
@@ -127,6 +143,30 @@ function renderShell() {
         b.classList.toggle("active", b.dataset.theme === theme);
       });
     });
+  });
+
+  const resourcesBtn = app.querySelector("#open_resources");
+  const resourcesDrawer = app.querySelector("#resources_drawer");
+  const resourcesBackdrop = app.querySelector("#resources_backdrop");
+  const resourcesClose = app.querySelector("#close_resources");
+  const resourcesPromptDownload = app.querySelector("#resources_prompt_download");
+
+  function closeResources() {
+    resourcesDrawer.classList.remove("open");
+    resourcesBackdrop.classList.remove("show");
+  }
+
+  resourcesBtn.addEventListener("click", () => {
+    resourcesDrawer.classList.add("open");
+    resourcesBackdrop.classList.add("show");
+  });
+
+  resourcesClose.addEventListener("click", closeResources);
+  resourcesBackdrop.addEventListener("click", closeResources);
+
+  resourcesPromptDownload.addEventListener("click", () => {
+    const blob = new Blob([metadataScraperPrompt], { type: "text/plain" });
+    downloadBlob(blob, "metadata-scraper-prompt.txt");
   });
 }
 
@@ -166,7 +206,6 @@ function defaultPlanMetadata() {
       plan_name: { ...empty },
       plan_number: { ...empty },
       ein: { ...empty },
-      case_processing_section: { ...empty },
       actuary: { ...empty },
       auditor: { ...empty },
       plan_sponsor_name: { ...empty },
@@ -223,21 +262,13 @@ async function sha256HexString(text) {
   return bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 function renderMetadata(container) {
-  const promptState = { file: null, text: "", name: "" };
-  const schemaState = {
-    file: null,
-    text: JSON.stringify(planMetadataSchema, null, 2),
-    name: "Built-in schema"
-  };
-  const docsState = [];
-
   const initialJson = state.planMetadata ?? defaultPlanMetadata();
 
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
         <h2>Plan Metadata Builder</h2>
-        <p>Upload the scraper prompt and plan documents, generate an LLM bundle, then import or manually complete PlanMetadata JSON.</p>
+        <p>Import the LLM output JSON, edit as needed, then save the final PlanMetadata for downstream modules.</p>
       </div>
       <div class="page-actions">
         <button class="icon-button help" id="toggle_instructions" aria-label="Toggle instructions" data-help="Show quick instructions">i</button>
@@ -245,64 +276,43 @@ function renderMetadata(container) {
       </div>
     </section>
 
-    <div class="card instructions hidden" id="instructions_panel">
-      <h3>How To Use This Module</h3>
-      <ol class="instruction-list">
-        <li>Upload the scraper prompt and plan documents, then download the LLM bundle.</li>
-        <li>Run your chosen LLM offline and upload the resulting PlanMetadata JSON.</li>
-        <li>Use Manual Entry to fill or override any fields (citations required for known facts).</li>
-        <li>Review, validate, and save; download plan-metadata.json for other modules.</li>
-      </ol>
-      <div class="muted">This workbench is a single-page app with hash routing and no server calls. All processing stays in your browser.</div>
+    <div class="card focus-card">
+      <h3>Start Here</h3>
+      <p class="muted">Step 1: Upload the PlanMetadata JSON produced by your LLM. If you don't have it yet, use the blank template. Need the scrape prompt? Use Resources.</p>
+      <div class="button-row">
+        <label class="file-pill">
+          <input id="metadata_file_focus" type="file" accept="application/json,.json" />
+          Upload PlanMetadata JSON
+        </label>
+        <button id="use_template_focus" class="ghost">Use Blank Template</button>
+      </div>
+      <div id="metadata_status_focus" class="meta-line"></div>
     </div>
+
+    <div id="instructions_backdrop" class="drawer-backdrop"></div>
+    <aside class="drawer-panel drawer-left" id="instructions_panel">
+      <div class="drawer-header">
+        <div class="drawer-title">How To Use This Module</div>
+        <button class="icon-button" id="close_instructions" aria-label="Close instructions">x</button>
+      </div>
+      <div class="drawer-body">
+        <ol class="instruction-list">
+          <li>Upload the PlanMetadata JSON produced by your LLM.</li>
+          <li>Use Manual Entry to fill or override any fields (citations required for known facts).</li>
+          <li>Review, validate, and save; download plan-metadata.json for other modules.</li>
+        </ol>
+        <div class="muted">This workbench runs fully offline with hash-based routing. All processing stays in your browser.</div>
+      </div>
+    </aside>
 
     ${state.lastError ? `<div class="alert error">${escapeHtml(state.lastError)}</div>` : ""}
 
-    <div class="grid two">
-      <div class="card">
-        <h3>1) Scraper Prompt</h3>
-        <p class="muted">Upload the prompt used by your LLM. This file is packaged into the LLM bundle.</p>
-        <input id="prompt_file" type="file" accept=".txt" />
-        <div id="prompt_meta" class="meta-line"></div>
-        <textarea id="prompt_preview" class="code" rows="10" placeholder="Prompt preview will appear here..."></textarea>
-      </div>
-
-      <div class="card">
-        <h3>2) Plan Metadata Schema</h3>
-        <p class="muted">Optional. Replace the built-in schema if you need a different data model.</p>
-        <input id="schema_file" type="file" accept="application/json,.json" />
-        <div id="schema_meta" class="meta-line"></div>
-        <textarea id="schema_preview" class="code" rows="10"></textarea>
-      </div>
-    </div>
-
     <div class="card" style="margin-top: 16px;">
-      <h3>3) Plan Documents</h3>
-      <p class="muted">Add one or more documents. Provide a stable doc_id for citations.</p>
-      <input id="doc_files" type="file" multiple />
-      <div id="docs_list" class="docs-list"></div>
-    </div>
-
-    <div class="grid two" style="margin-top: 16px;">
-      <div class="card">
-        <h3>4) Generate LLM Bundle</h3>
-        <p class="muted">Bundle prompt, schema, and documents for your offline LLM workflow.</p>
-        <button id="bundle_btn">Download LLM Bundle</button>
-        <div id="bundle_status" class="meta-line"></div>
-      </div>
-
-      <div class="card">
-        <h3>5) Import PlanMetadata JSON</h3>
-        <p class="muted">Upload the JSON produced by your LLM. It must match the schema.</p>
-        <input id="metadata_file" type="file" accept="application/json,.json" />
-        <div id="metadata_status" class="meta-line"></div>
-        <button id="use_template" class="ghost">Use Blank Template</button>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top: 16px;">
-      <h3>Manual Entry (Core Fields)</h3>
+      <h3>2) Manual Entry (Core Fields)</h3>
       <p class="muted">Enter or override fields from the Plan Summary Shell. Include citations for known facts.</p>
+      <div class="button-row" style="margin-top:0;">
+        <button id="toggle_citations" class="ghost">Show citations</button>
+      </div>
       <div id="manual_fields" class="manual-grid"></div>
       <div class="button-row">
         <button id="manual_apply" class="primary">Apply Manual Fields to JSON</button>
@@ -312,8 +322,11 @@ function renderMetadata(container) {
     </div>
 
     <div class="card" style="margin-top: 16px;">
-      <h3>Document Registry (Manual)</h3>
-      <p class="muted">Add plan documents and optional citations. Values left blank become \"unknown\".</p>
+      <h3>3) Document Registry (Manual)</h3>
+      <p class="muted">Add plan documents and optional citations. Values left blank become "unknown".</p>
+      <div class="button-row" style="margin-top:0;">
+        <button id="toggle_doc_citations" class="ghost">Show citations</button>
+      </div>
       <div id="doc_registry" class="docs-list"></div>
       <div class="button-row">
         <button id="doc_add">Add Document</button>
@@ -322,7 +335,7 @@ function renderMetadata(container) {
     </div>
 
     <div class="card" style="margin-top: 16px;">
-      <h3>6) Review and Save</h3>
+      <h3>4) Review and Save</h3>
       <p class="muted">Review or edit JSON, then save to the workbench state.</p>
       <textarea id="metadata_editor" class="code" rows="16"></textarea>
       <div class="button-row">
@@ -334,23 +347,9 @@ function renderMetadata(container) {
     </div>
   `;
 
-  const promptFileInput = container.querySelector("#prompt_file");
-  const promptMeta = container.querySelector("#prompt_meta");
-  const promptPreview = container.querySelector("#prompt_preview");
-
-  const schemaFileInput = container.querySelector("#schema_file");
-  const schemaMeta = container.querySelector("#schema_meta");
-  const schemaPreview = container.querySelector("#schema_preview");
-
-  const docsInput = container.querySelector("#doc_files");
-  const docsList = container.querySelector("#docs_list");
-
-  const bundleBtn = container.querySelector("#bundle_btn");
-  const bundleStatus = container.querySelector("#bundle_status");
-
-  const metadataFileInput = container.querySelector("#metadata_file");
-  const metadataStatus = container.querySelector("#metadata_status");
-  const useTemplateBtn = container.querySelector("#use_template");
+  const metadataFileInput = container.querySelector("#metadata_file_focus");
+  const metadataStatus = container.querySelector("#metadata_status_focus");
+  const useTemplateBtn = container.querySelector("#use_template_focus");
 
   const editor = container.querySelector("#metadata_editor");
   const validateBtn = container.querySelector("#validate_btn");
@@ -362,15 +361,17 @@ function renderMetadata(container) {
   const manualApplyBtn = container.querySelector("#manual_apply");
   const manualReloadBtn = container.querySelector("#manual_reload");
   const manualStatus = container.querySelector("#manual_status");
+  const toggleCitationsBtn = container.querySelector("#toggle_citations");
 
   const docRegistryEl = container.querySelector("#doc_registry");
   const docAddBtn = container.querySelector("#doc_add");
+  const toggleDocCitationsBtn = container.querySelector("#toggle_doc_citations");
 
   const clearBtn = container.querySelector("#clear_workspace");
   const instructionsBtn = container.querySelector("#toggle_instructions");
   const instructionsPanel = container.querySelector("#instructions_panel");
-
-  schemaPreview.value = schemaState.text;
+  const instructionsBackdrop = container.querySelector("#instructions_backdrop");
+  const instructionsClose = container.querySelector("#close_instructions");
   editor.value = stringifyStable(initialJson);
 
   clearBtn.addEventListener("click", () => {
@@ -379,18 +380,17 @@ function renderMetadata(container) {
   });
 
   instructionsBtn.addEventListener("click", () => {
-    instructionsPanel.classList.toggle("hidden");
+    instructionsPanel.classList.add("open");
+    instructionsBackdrop.classList.add("show");
   });
 
-  promptFileInput.addEventListener("change", async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    promptState.file = f;
-    promptState.name = f.name;
-    promptState.text = await f.text();
-    promptMeta.textContent = `${f.name} (${(f.size / 1024).toFixed(1)} KB)`;
-    promptPreview.value = promptState.text;
-  });
+  function closeInstructions() {
+    instructionsPanel.classList.remove("open");
+    instructionsBackdrop.classList.remove("show");
+  }
+
+  instructionsClose.addEventListener("click", closeInstructions);
+  instructionsBackdrop.addEventListener("click", closeInstructions);
 
   const manualFields = [
     { id: "plan_name", label: "Plan Name", target: { type: "plan", key: "plan_name" } },
@@ -433,10 +433,6 @@ function renderMetadata(container) {
     if (target.type === "meta") {
       return json?.meta?.[target.key] ?? { value: "unknown", citations: [] };
     }
-    if (target.type === "other") {
-      const found = (json?.other_attributes ?? []).find((x) => x.name === target.name);
-      return found ? { value: found.value, citations: found.citations ?? [] } : { value: "unknown", citations: [] };
-    }
     return { value: "unknown", citations: [] };
   }
 
@@ -450,9 +446,9 @@ function renderMetadata(container) {
           <div class="manual-row">
             <div class="manual-label">${escapeHtml(field.label)}</div>
             <input data-field="${field.id}" class="manual-value" placeholder="value" value="${escapeHtml(current.value ?? "")}" />
-            <input data-field="${field.id}" class="manual-doc" placeholder="doc_id" value="${escapeHtml(c.doc_id ?? "")}" />
-            <input data-field="${field.id}" class="manual-page" placeholder="page" value="${escapeHtml(String(c.page ?? ""))}" />
-            <input data-field="${field.id}" class="manual-loc" placeholder="locator/snippet" value="${escapeHtml(c.locator ?? "")}" />
+            <input data-field="${field.id}" class="manual-doc citation-field hidden" placeholder="doc_id" value="${escapeHtml(c.doc_id ?? "")}" />
+            <input data-field="${field.id}" class="manual-page citation-field hidden" placeholder="page" value="${escapeHtml(String(c.page ?? ""))}" />
+            <input data-field="${field.id}" class="manual-loc citation-field hidden" placeholder="locator/snippet" value="${escapeHtml(c.locator ?? "")}" />
           </div>
         `;
       })
@@ -487,9 +483,7 @@ function renderMetadata(container) {
     const json = parseEditorOrDefault();
     if (!json.plan) json.plan = defaultPlanMetadata().plan;
     if (!json.meta) json.meta = defaultPlanMetadata().meta;
-    if (!json.other_attributes) json.other_attributes = [];
     const values = readManualFields();
-    const otherAttributes = (json.other_attributes ?? []).filter((attr) => !manualFields.some((f) => f.target.type === "other" && f.target.name === attr.name));
     for (const field of manualFields) {
       const entry = values[field.id] ?? { value: "", citations: [] };
       const val = entry.value === "" ? "unknown" : entry.value;
@@ -497,17 +491,8 @@ function renderMetadata(container) {
         json.plan[field.target.key] = { value: val, citations: entry.citations ?? [] };
       } else if (field.target.type === "meta") {
         json.meta[field.target.key] = { value: val, citations: entry.citations ?? [] };
-      } else if (field.target.type === "other") {
-        if (entry.value !== "" || entry.citations.length) {
-          otherAttributes.push({
-            name: field.target.name,
-            value: val,
-            citations: entry.citations ?? []
-          });
-        }
       }
     }
-    json.other_attributes = otherAttributes;
     editor.value = stringifyStable(json);
     manualStatus.textContent = "Manual fields applied to JSON.";
   }
@@ -563,9 +548,9 @@ function renderMetadata(container) {
           <input class="doc-field" data-key="source_file" placeholder="source_file" value="${escapeHtml(doc.source_file)}" />
           <input class="doc-field" data-key="notes" placeholder="notes" value="${escapeHtml(doc.notes)}" />
           <input class="doc-field" data-key="viewer_id" placeholder="viewer_id" value="${escapeHtml(doc.viewer_id)}" />
-          <input class="doc-field" data-key="citation_doc" placeholder="citation doc_id" value="${escapeHtml(doc.citation.doc_id)}" />
-          <input class="doc-field" data-key="citation_page" placeholder="citation page" value="${escapeHtml(String(doc.citation.page ?? ""))}" />
-          <input class="doc-field" data-key="citation_loc" placeholder="citation locator" value="${escapeHtml(doc.citation.locator)}" />
+          <input class="doc-field citation-field hidden" data-key="citation_doc" placeholder="citation doc_id" value="${escapeHtml(doc.citation.doc_id)}" />
+          <input class="doc-field citation-field hidden" data-key="citation_page" placeholder="citation page" value="${escapeHtml(String(doc.citation.page ?? ""))}" />
+          <input class="doc-field citation-field hidden" data-key="citation_loc" placeholder="citation locator" value="${escapeHtml(doc.citation.locator)}" />
         </div>
         <button class="ghost" data-remove="${doc.id}">Remove</button>
       `;
@@ -590,7 +575,6 @@ function renderMetadata(container) {
 
   function applyDocRegistryToJson() {
     const json = parseEditorOrDefault();
-    if (!json.documents) json.documents = [];
     const documents = [];
     for (const doc of docRegistryState) {
       if (!doc.doc_id) {
@@ -649,113 +633,21 @@ function renderMetadata(container) {
     renderDocRegistry();
   });
 
-  schemaFileInput.addEventListener("change", async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    schemaState.file = f;
-    schemaState.name = f.name;
-    schemaState.text = await f.text();
-    schemaMeta.textContent = `${f.name} (${(f.size / 1024).toFixed(1)} KB)`;
-    schemaPreview.value = schemaState.text;
+  toggleCitationsBtn.addEventListener("click", () => {
+    const fields = manualFieldsEl.querySelectorAll(".citation-field");
+    const isHidden = fields.length ? fields[0].classList.contains("hidden") : true;
+    fields.forEach((f) => f.classList.toggle("hidden", !isHidden));
+    manualFieldsEl.querySelectorAll(".manual-row").forEach((row) => {
+      row.classList.toggle("show-citations", isHidden);
+    });
+    toggleCitationsBtn.textContent = isHidden ? "Hide citations" : "Show citations";
   });
 
-  docsInput.addEventListener("change", (e) => {
-    const files = Array.from(e.target.files ?? []);
-    files.forEach((file) => {
-      docsState.push({
-        id: crypto.randomUUID(),
-        doc_id: "",
-        file
-      });
-    });
-    renderDocs();
-  });
-
-  function renderDocs() {
-    docsList.innerHTML = "";
-    if (!docsState.length) {
-      docsList.innerHTML = `<div class="muted">No documents added yet.</div>`;
-      return;
-    }
-
-    docsState.forEach((doc) => {
-      const row = document.createElement("div");
-      row.className = "doc-row";
-      row.innerHTML = `
-        <div>
-          <div class="doc-name">${escapeHtml(doc.file.name)}</div>
-          <div class="doc-meta">${(doc.file.size / 1024).toFixed(1)} KB</div>
-        </div>
-        <input class="doc-id" placeholder="doc_id" value="${escapeHtml(doc.doc_id)}" />
-        <button class="ghost" data-remove="${doc.id}">Remove</button>
-      `;
-
-      row.querySelector(".doc-id").addEventListener("input", (e) => {
-        doc.doc_id = e.target.value.trim();
-      });
-
-      row.querySelector("button[data-remove]").addEventListener("click", () => {
-        const idx = docsState.findIndex((d) => d.id === doc.id);
-        if (idx >= 0) docsState.splice(idx, 1);
-        renderDocs();
-      });
-
-      docsList.appendChild(row);
-    });
-  }
-
-  async function buildBundle() {
-    if (!promptState.text) {
-      throw new Error("Upload the scraper prompt first.");
-    }
-
-    const schemaText = schemaPreview.value.trim();
-    if (!schemaText) {
-      throw new Error("Schema is empty.");
-    }
-
-    const docsPayload = [];
-    for (const doc of docsState) {
-      if (!doc.doc_id) {
-        throw new Error(`Missing doc_id for ${doc.file.name}`);
-      }
-      const base64 = await fileToBase64(doc.file);
-      const hash = await sha256Hex(doc.file);
-      docsPayload.push({
-        doc_id: doc.doc_id,
-        filename: doc.file.name,
-        mime: doc.file.type || "application/octet-stream",
-        sha256: hash,
-        base64
-      });
-    }
-
-    return {
-      meta: {
-        app_version: state.appVersion,
-        generated_at_utc: new Date().toISOString()
-      },
-      prompt: {
-        name: promptState.name || "metadata-scraper-prompt.txt",
-        text: promptState.text
-      },
-      schema: JSON.parse(schemaText),
-      documents: docsPayload
-    };
-  }
-
-  bundleBtn.addEventListener("click", async () => {
-    bundleStatus.textContent = "";
-    try {
-      const bundle = await buildBundle();
-      const blob = new Blob([JSON.stringify(bundle, null, 2)], {
-        type: "application/json"
-      });
-      downloadBlob(blob, "metadata-llm-bundle.json");
-      bundleStatus.textContent = "LLM bundle downloaded.";
-    } catch (err) {
-      bundleStatus.textContent = `Error: ${err.message}`;
-    }
+  toggleDocCitationsBtn.addEventListener("click", () => {
+    const fields = docRegistryEl.querySelectorAll(".citation-field");
+    const isHidden = fields.length ? fields[0].classList.contains("hidden") : true;
+    fields.forEach((f) => f.classList.toggle("hidden", !isHidden));
+    toggleDocCitationsBtn.textContent = isHidden ? "Hide citations" : "Show citations";
   });
 
   metadataFileInput.addEventListener("change", async (e) => {
@@ -782,9 +674,23 @@ function renderMetadata(container) {
     }
   });
 
+  metadataFileFocus.addEventListener("change", async (e) => {
+    metadataFileInput.files = e.target.files;
+    metadataFileInput.dispatchEvent(new Event("change"));
+    metadataStatusFocus.textContent = "Loaded in main import panel.";
+  });
+
+  useTemplateFocus.addEventListener("click", () => {
+    useTemplateBtn.click();
+    metadataStatusFocus.textContent = "Blank template loaded.";
+  });
+
   useTemplateBtn.addEventListener("click", () => {
     const blank = defaultPlanMetadata();
     editor.value = stringifyStable(blank);
+    renderManualFieldsFromJson();
+    loadDocRegistryFromJson();
+    renderDocRegistry();
     validationOutput.textContent = "Blank template loaded.";
   });
 
@@ -858,8 +764,8 @@ function renderMetadata(container) {
   renderManualFieldsFromJson();
   loadDocRegistryFromJson();
   renderDocRegistry();
-  renderDocs();
 }
+
 function renderAudit(container) {
   container.innerHTML = `
     <section class="page-hero">
@@ -872,13 +778,19 @@ function renderAudit(container) {
       </div>
     </section>
 
-    <div class="card instructions hidden" id="instructions_panel">
-      <h3>How To Use This Module</h3>
-      <ol class="instruction-list">
-        <li>Review the latest manifest for each module run.</li>
-        <li>Use these hashes for audit trails and deterministic validation.</li>
-      </ol>
-    </div>
+    <div id="instructions_backdrop" class="drawer-backdrop"></div>
+    <aside class="drawer-panel drawer-left" id="instructions_panel">
+      <div class="drawer-header">
+        <div class="drawer-title">How To Use This Module</div>
+        <button class="icon-button" id="close_instructions" aria-label="Close instructions">x</button>
+      </div>
+      <div class="drawer-body">
+        <ol class="instruction-list">
+          <li>Review the latest manifest for each module run.</li>
+          <li>Use these hashes for audit trails and deterministic validation.</li>
+        </ol>
+      </div>
+    </aside>
 
     <div class="card">
       <p class="muted">Last action manifest:</p>
@@ -891,9 +803,18 @@ function renderAudit(container) {
 
   const instructionsBtn = container.querySelector("#toggle_instructions");
   const instructionsPanel = container.querySelector("#instructions_panel");
+  const instructionsBackdrop = container.querySelector("#instructions_backdrop");
+  const instructionsClose = container.querySelector("#close_instructions");
   instructionsBtn.addEventListener("click", () => {
-    instructionsPanel.classList.toggle("hidden");
+    instructionsPanel.classList.add("open");
+    instructionsBackdrop.classList.add("show");
   });
+  function closeInstructions() {
+    instructionsPanel.classList.remove("open");
+    instructionsBackdrop.classList.remove("show");
+  }
+  instructionsClose.addEventListener("click", closeInstructions);
+  instructionsBackdrop.addEventListener("click", closeInstructions);
 
   const hashEl = container.querySelector("#audit_hash");
   if (!state.planMetadata || !hashEl) return;
@@ -919,13 +840,19 @@ function renderR5Builder(container) {
       </div>
     </section>
 
-    <div class="card instructions hidden" id="instructions_panel">
-      <h3>How To Use This Module</h3>
-      <ol class="instruction-list">
-        <li>Use the embedded legacy builder to produce R5 JSON.</li>
-        <li>Export the JSON and use it in downstream modules.</li>
-      </ol>
-    </div>
+    <div id="instructions_backdrop" class="drawer-backdrop"></div>
+    <aside class="drawer-panel drawer-left" id="instructions_panel">
+      <div class="drawer-header">
+        <div class="drawer-title">How To Use This Module</div>
+        <button class="icon-button" id="close_instructions" aria-label="Close instructions">x</button>
+      </div>
+      <div class="drawer-body">
+        <ol class="instruction-list">
+          <li>Use the embedded legacy builder to produce R5 JSON.</li>
+          <li>Export the JSON and use it in downstream modules.</li>
+        </ol>
+      </div>
+    </aside>
 
     <iframe
       title="Legacy R5 Builder"
@@ -937,9 +864,18 @@ function renderR5Builder(container) {
 
   const instructionsBtn = container.querySelector("#toggle_instructions");
   const instructionsPanel = container.querySelector("#instructions_panel");
+  const instructionsBackdrop = container.querySelector("#instructions_backdrop");
+  const instructionsClose = container.querySelector("#close_instructions");
   instructionsBtn.addEventListener("click", () => {
-    instructionsPanel.classList.toggle("hidden");
+    instructionsPanel.classList.add("open");
+    instructionsBackdrop.classList.add("show");
   });
+  function closeInstructions() {
+    instructionsPanel.classList.remove("open");
+    instructionsBackdrop.classList.remove("show");
+  }
+  instructionsClose.addEventListener("click", closeInstructions);
+  instructionsBackdrop.addEventListener("click", closeInstructions);
 }
 
 function getPlanValue(planMetadata, key) {
@@ -959,22 +895,37 @@ function renderPlanSummary(container) {
         </div>
       </section>
 
-      <div class="card instructions hidden" id="instructions_panel">
-        <h3>How To Use This Module</h3>
-        <ol class="instruction-list">
-          <li>Load Plan Metadata first from the Metadata module.</li>
-          <li>Upload the Plan Summary DOCX template and R5 JSON.</li>
-          <li>Generate the filled DOCX and download the manifest.</li>
-        </ol>
-      </div>
+      <div id="instructions_backdrop" class="drawer-backdrop"></div>
+      <aside class="drawer-panel drawer-left" id="instructions_panel">
+        <div class="drawer-header">
+          <div class="drawer-title">How To Use This Module</div>
+          <button class="icon-button" id="close_instructions" aria-label="Close instructions">x</button>
+        </div>
+        <div class="drawer-body">
+          <ol class="instruction-list">
+            <li>Load Plan Metadata first from the Metadata module.</li>
+            <li>Upload the Plan Summary DOCX template and R5 JSON.</li>
+            <li>Generate the filled DOCX and download the manifest.</li>
+          </ol>
+        </div>
+      </aside>
 
       <div class="alert error">Load Plan Metadata first.</div>
     `;
     const instructionsBtn = container.querySelector("#toggle_instructions");
     const instructionsPanel = container.querySelector("#instructions_panel");
+    const instructionsBackdrop = container.querySelector("#instructions_backdrop");
+    const instructionsClose = container.querySelector("#close_instructions");
     instructionsBtn.addEventListener("click", () => {
-      instructionsPanel.classList.toggle("hidden");
+      instructionsPanel.classList.add("open");
+      instructionsBackdrop.classList.add("show");
     });
+    function closeInstructions() {
+      instructionsPanel.classList.remove("open");
+      instructionsBackdrop.classList.remove("show");
+    }
+    instructionsClose.addEventListener("click", closeInstructions);
+    instructionsBackdrop.addEventListener("click", closeInstructions);
     return;
   }
 
@@ -992,13 +943,19 @@ function renderPlanSummary(container) {
       </div>
     </section>
 
-    <div class="card instructions hidden" id="instructions_panel">
-      <h3>How To Use This Module</h3>
-      <ol class="instruction-list">
-        <li>Upload the Plan Summary DOCX template and R5 JSON.</li>
-        <li>Generate the filled DOCX and download the manifest.</li>
-      </ol>
-    </div>
+    <div id="instructions_backdrop" class="drawer-backdrop"></div>
+    <aside class="drawer-panel drawer-left" id="instructions_panel">
+      <div class="drawer-header">
+        <div class="drawer-title">How To Use This Module</div>
+        <button class="icon-button" id="close_instructions" aria-label="Close instructions">x</button>
+      </div>
+      <div class="drawer-body">
+        <ol class="instruction-list">
+          <li>Upload the Plan Summary DOCX template and R5 JSON.</li>
+          <li>Generate the filled DOCX and download the manifest.</li>
+        </ol>
+      </div>
+    </aside>
 
     <div class="card">
       <div class="grid two">
@@ -1026,9 +983,18 @@ function renderPlanSummary(container) {
 
   const instructionsBtn = container.querySelector("#toggle_instructions");
   const instructionsPanel = container.querySelector("#instructions_panel");
+  const instructionsBackdrop = container.querySelector("#instructions_backdrop");
+  const instructionsClose = container.querySelector("#close_instructions");
   instructionsBtn.addEventListener("click", () => {
-    instructionsPanel.classList.toggle("hidden");
+    instructionsPanel.classList.add("open");
+    instructionsBackdrop.classList.add("show");
   });
+  function closeInstructions() {
+    instructionsPanel.classList.remove("open");
+    instructionsBackdrop.classList.remove("show");
+  }
+  instructionsClose.addEventListener("click", closeInstructions);
+  instructionsBackdrop.addEventListener("click", closeInstructions);
 
   const psDocx = container.querySelector("#ps_docx");
   const psJson = container.querySelector("#ps_r5json");
@@ -1435,3 +1401,5 @@ loadState();
 renderShell();
 applyTheme("auto");
 renderRoute();
+
+

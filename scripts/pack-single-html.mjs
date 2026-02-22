@@ -11,6 +11,24 @@ function read(p) {
 }
 
 function inlineAll(html) {
+  // Inline <link rel="icon" href="/assets/...">
+  html = html.replace(
+    /<link[^>]+rel="icon"[^>]+href="([^"]+)"[^>]*>/g,
+    (m, href) => {
+      if (!href.startsWith("/assets/")) return m;
+      const p = path.join(WEB_DIST, href.replace(/^\//, ""));
+      const ext = path.extname(p).slice(1) || "svg+xml";
+      const mime =
+        ext === "svg" ? "image/svg+xml" :
+        ext === "png" ? "image/png" :
+        ext === "ico" ? "image/x-icon" :
+        `image/${ext}`;
+      const data = fs.readFileSync(p);
+      const b64 = data.toString("base64");
+      return `<link rel="icon" href="data:${mime};base64,${b64}">`;
+    }
+  );
+
   // Inline <link rel="stylesheet" href="/assets/..css">
   html = html.replace(
     /<link[^>]+rel="stylesheet"[^>]+href="([^"]+\.css)"[^>]*>/g,
