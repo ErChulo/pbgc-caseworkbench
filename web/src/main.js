@@ -444,6 +444,10 @@ function renderMetadata(container) {
         <div class="button-row" style="margin-top:0;">
           <button id="toggle_citations" class="ghost">Show citations</button>
         </div>
+        <label class="inline-toggle">
+          <input type="checkbox" id="overwrite_toggle" />
+          Overwrite existing values
+        </label>
         <div id="manual_fields" class="manual-grid"></div>
         <div class="button-row">
         <button id="manual_apply" class="primary">Apply Manual Fields</button>
@@ -500,6 +504,7 @@ function renderMetadata(container) {
   const requiredStatus = container.querySelector("#required_status");
   const requiredStatusFocus = container.querySelector("#required_status_focus");
   const metadataSummaryFocus = container.querySelector("#metadata_summary_focus");
+  const overwriteToggle = container.querySelector("#overwrite_toggle");
 
   const docRegistryEl = container.querySelector("#doc_registry");
   const docAddBtn = container.querySelector("#doc_add");
@@ -684,13 +689,22 @@ function renderMetadata(container) {
     if (!hasAnyManual) {
       return { applied: false, createdNew: false };
     }
+    const allowOverwrite = overwriteToggle?.checked ?? false;
     for (const field of manualFields) {
       const entry = values[field.id] ?? { value: "", citations: [] };
       const val = entry.value === "" ? "unknown" : entry.value;
       if (field.target.type === "plan") {
-        json.plan[field.target.key] = { value: val, citations: entry.citations ?? [] };
+        const current = json.plan[field.target.key]?.value ?? "unknown";
+        const canSet = allowOverwrite || String(current).trim().toLowerCase() === "unknown" || String(current).trim() === "";
+        if (canSet && entry.value !== "") {
+          json.plan[field.target.key] = { value: val, citations: entry.citations ?? [] };
+        }
       } else if (field.target.type === "meta") {
-        json.meta[field.target.key] = { value: val, citations: entry.citations ?? [] };
+        const current = json.meta[field.target.key]?.value ?? "unknown";
+        const canSet = allowOverwrite || String(current).trim().toLowerCase() === "unknown" || String(current).trim() === "";
+        if (canSet && entry.value !== "") {
+          json.meta[field.target.key] = { value: val, citations: entry.citations ?? [] };
+        }
       }
     }
     editor.value = stringifyStable(json);
@@ -822,7 +836,9 @@ function renderMetadata(container) {
     if (manualResult.applied && !docApplied) {
       manualStatus.textContent = manualResult.createdNew
         ? "Started a new JSON from manual fields."
-        : "Manual fields applied to the JSON text area.";
+        : overwriteToggle?.checked
+          ? "Manual fields overwrote existing values."
+          : "Manual fields filled missing values.";
       return;
     }
     manualStatus.textContent = "Document registry applied to the JSON text area.";

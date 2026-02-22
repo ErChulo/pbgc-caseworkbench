@@ -564,6 +564,19 @@ textarea.code {
   margin-top: 0.2rem;
 }
 
+.inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin: 0.35rem 0 0.6rem;
+}
+
+.inline-toggle input {
+  accent-color: var(--accent);
+}
+
 .doc-name {
   font-weight: 600;
 }
