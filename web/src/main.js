@@ -354,7 +354,7 @@ function renderMetadata(container) {
           <input id="metadata_file_focus" type="file" accept="application/json,.json" />
           Upload PlanMetadata JSON
         </label>
-        <button id="use_template_focus" class="ghost">Use Blank Template</button>
+        <button id="use_template_focus" class="ghost">Load Blank Template</button>
         <button id="save_btn_focus" class="primary">Save Metadata</button>
       </div>
       <div id="metadata_status_focus" class="meta-line"></div>
@@ -392,8 +392,8 @@ function renderMetadata(container) {
         </div>
         <div id="manual_fields" class="manual-grid"></div>
         <div class="button-row">
-          <button id="manual_apply" class="primary">Apply Manual Fields to JSON</button>
-          <button id="manual_reload" class="ghost">Load From JSON</button>
+        <button id="manual_apply" class="primary">Apply Manual Fields</button>
+        <button id="manual_reload" class="ghost">Refresh From Editor</button>
         </div>
         <div id="manual_status" class="meta-line"></div>
 
@@ -545,6 +545,16 @@ function renderMetadata(container) {
     }
   }
 
+  function parseEditorOrNull() {
+    const raw = editor.value.trim();
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
   function readManualFields() {
     const rows = manualFieldsEl.querySelectorAll(".manual-row");
     const values = {};
@@ -562,7 +572,8 @@ function renderMetadata(container) {
   }
 
   function applyManualFieldsToJson() {
-    const json = parseEditorOrDefault();
+    const existing = parseEditorOrNull();
+    const json = existing ?? defaultPlanMetadata();
     if (!json.plan) json.plan = defaultPlanMetadata().plan;
     if (!json.meta) json.meta = defaultPlanMetadata().meta;
     const values = readManualFields();
@@ -576,7 +587,9 @@ function renderMetadata(container) {
       }
     }
     editor.value = stringifyStable(json);
-    manualStatus.textContent = "Manual fields applied to JSON.";
+    manualStatus.textContent = existing
+      ? "Manual fields applied to the editor JSON."
+      : "Started a new JSON from manual fields.";
   }
 
   const docRegistryState = [];
@@ -692,6 +705,11 @@ function renderMetadata(container) {
   });
 
   manualReloadBtn.addEventListener("click", () => {
+    const existing = parseEditorOrNull();
+    if (!existing) {
+      manualStatus.textContent = "Editor is empty or invalid. Paste or upload JSON first.";
+      return;
+    }
     renderManualFieldsFromJson();
     loadDocRegistryFromJson();
     renderDocRegistry();
@@ -708,7 +726,7 @@ function renderMetadata(container) {
     }
     manualFieldsEl.classList.add("pulse");
     setTimeout(() => manualFieldsEl.classList.remove("pulse"), 650);
-    manualStatus.textContent = "Loaded from JSON.";
+    manualStatus.textContent = "Loaded fields from the editor JSON.";
   });
 
   docAddBtn.addEventListener("click", () => {
@@ -779,7 +797,7 @@ function renderMetadata(container) {
     renderManualFieldsFromJson();
     loadDocRegistryFromJson();
     renderDocRegistry();
-    validationOutput.textContent = "Blank template loaded.";
+    validationOutput.textContent = "Blank template loaded into the editor.";
   });
 
   validateBtn.addEventListener("click", () => {
