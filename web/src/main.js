@@ -3,6 +3,8 @@ import "./style.css";
 
 import JSZip from "jszip";
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
+import r5BuilderLegacyHtml from "./legacy/r5-builder.v0.7.9.html?raw";
+import logoSvg from "./assets/logo.svg?raw";
 
 import Ajv from "ajv";
 import planMetadataSchema from "./planMetadata.schema.json";
@@ -53,6 +55,7 @@ function saveState() {
 // ---- hash router ----
 const routes = [
   { path: "#/metadata", title: "Metadata", render: renderMetadata },
+  { path: "#/r5-builder", title: "R5 Builder", render: renderR5Builder },
   { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
   { path: "#/audit", title: "Audit", render: renderAudit },
 ];
@@ -71,20 +74,23 @@ function renderShell() {
   const app = document.querySelector("#app");
   const nav = routes
     .map(
-      (r) => `<button data-route="${r.path}" style="margin-right:8px;">${r.title}</button>`
+      (r) => `<button class="nav-button" data-route="${r.path}">${r.title}</button>`
     )
     .join("");
 
   app.innerHTML = `
-    <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          ${nav}
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="brand-block">
+          <div class="brand-logo" aria-hidden="true">${logoSvg}</div>
+          <div class="brand-title">PBGC Caseworkbench</div>
         </div>
-        <div style="opacity:0.7;">v${state.appVersion}</div>
-      </div>
-      <hr style="margin:12px 0;" />
-      <div id="page"></div>
+        <nav class="app-nav" aria-label="Workbench sections">
+          ${nav}
+        </nav>
+        <div class="version-label">v${state.appVersion}</div>
+      </header>
+      <main id="page" class="page-content"></main>
     </div>
   `;
 
@@ -93,12 +99,22 @@ function renderShell() {
   });
 }
 
-function render() {
-  renderShell();
+function renderRoute() {
   const page = document.querySelector("#page");
+  if (!page) return;
   const route = currentRoute();
+  document.querySelectorAll("button[data-route]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.route === route.path);
+  });
   route.render(page);
 }
+
+const legacyR5SrcDoc = r5BuilderLegacyHtml
+  .replace(/<script[^>]*cdnjs\.cloudflare\.com\/ajax\/libs\/jszip[^>]*><\/script>\s*/gi, "")
+  .replace(
+    /<head([^>]*)>/i,
+    `<head$1><script>window.JSZip = parent.JSZip;<\/script>`
+  );
 
 // ---- Metadata page ----
 function renderMetadata(container) {
@@ -153,7 +169,7 @@ ${escapeHtml(JSON.stringify(pm, null, 2))}
       generated_at_utc: new Date().toISOString(),
     };
     saveState()
-    render();
+    renderRoute();
   });
 
   container.querySelector("#export").addEventListener("click", () => {
@@ -176,7 +192,7 @@ ${escapeHtml(JSON.stringify(pm, null, 2))}
       parsed = JSON.parse(text);
     } catch (err) {
       state.lastError = `Invalid JSON: ${err.message}`;
-      render();
+      renderRoute();
       return;
     }
 
@@ -185,7 +201,7 @@ ${escapeHtml(JSON.stringify(pm, null, 2))}
       state.lastError =
         "Metadata schema validation failed:\n" +
         validatePlanMetadata.errors.map(e => `- ${e.instancePath || "/"} ${e.message}`).join("\n");
-      render();
+      renderRoute();
       return;
     }
 
@@ -197,7 +213,7 @@ ${escapeHtml(JSON.stringify(pm, null, 2))}
       generated_at_utc: new Date().toISOString(),
       input_file: f.name
     };
-    render();
+    renderRoute();
   });
 }
 
@@ -209,6 +225,19 @@ function renderAudit(container) {
     <pre style="background:#111; color:#eee; padding:12px; border-radius:8px; overflow:auto;">
 ${escapeHtml(JSON.stringify(state.lastManifest ?? { note: "No actions yet." }, null, 2))}
     </pre>
+  `;
+}
+
+function renderR5Builder(container) {
+  container.innerHTML = `
+    <h2>R5 Builder</h2>
+    <p>Embedded legacy R5 builder (offline via srcdoc).</p>
+    <iframe
+      title="Legacy R5 Builder"
+      class="legacy-frame"
+      srcdoc="${escapeHtml(legacyR5SrcDoc)}"
+      loading="eager"
+    ></iframe>
   `;
 }
 
@@ -633,7 +662,9 @@ function renderPlanSummary(container) {
 }
 
 // ---- boot ----
-window.addEventListener("hashchange", render);
+window.JSZip = JSZip;
+window.addEventListener("hashchange", renderRoute);
 if (!location.hash) location.hash = "#/metadata";
 loadState();
-render();
+renderShell();
+renderRoute();
