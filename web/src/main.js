@@ -339,23 +339,30 @@ function normalizeValueEntry(entry) {
 
 function normalizePlanMetadata(input) {
   const base = defaultPlanMetadata();
+  const source = input?.plan_metadata ?? input?.planMetadata ?? input;
+  const planSource = source?.plan && typeof source.plan === "object" ? source.plan : source;
+  const metaSource = source?.meta && typeof source.meta === "object" ? source.meta : source;
   const normalized = {
-    schema_version: input?.schema_version ?? base.schema_version,
+    schema_version: source?.schema_version ?? base.schema_version,
     meta: { ...base.meta },
     plan: { ...base.plan },
-    documents: Array.isArray(input?.documents) ? input.documents : [],
-    other_attributes: Array.isArray(input?.other_attributes) ? input.other_attributes : []
+    documents: Array.isArray(source?.documents) ? source.documents : [],
+    other_attributes: Array.isArray(source?.other_attributes) ? source.other_attributes : []
   };
-  if (input?.meta && typeof input.meta === "object") {
-    Object.keys(base.meta).forEach((key) => {
-      if (key in input.meta) normalized.meta[key] = normalizeValueEntry(input.meta[key]);
-    });
-  }
-  if (input?.plan && typeof input.plan === "object") {
-    Object.keys(base.plan).forEach((key) => {
-      if (key in input.plan) normalized.plan[key] = normalizeValueEntry(input.plan[key]);
-    });
-  }
+  Object.keys(base.meta).forEach((key) => {
+    if (metaSource && key in metaSource) {
+      normalized.meta[key] = normalizeValueEntry(metaSource[key]);
+    } else if (source && key in source) {
+      normalized.meta[key] = normalizeValueEntry(source[key]);
+    }
+  });
+  Object.keys(base.plan).forEach((key) => {
+    if (planSource && key in planSource) {
+      normalized.plan[key] = normalizeValueEntry(planSource[key]);
+    } else if (source && key in source) {
+      normalized.plan[key] = normalizeValueEntry(source[key]);
+    }
+  });
   return normalized;
 }
 
