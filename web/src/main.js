@@ -18,6 +18,7 @@ const validatePlanMetadata = ajv.compile(planMetadataSchema);
 const state = {
   appVersion: APP_VERSION,
   planMetadata: null,
+  planMetadataApproved: false,
   lastManifest: null,
   lastError: null,
   theme: "auto"
@@ -31,6 +32,7 @@ function loadState() {
     if (!raw) return;
     const saved = JSON.parse(raw);
     state.planMetadata = saved.planMetadata ?? null;
+    state.planMetadataApproved = saved.planMetadataApproved ?? false;
     state.lastManifest = saved.lastManifest ?? null;
   } catch {
     // ignore
@@ -43,6 +45,7 @@ function saveState() {
       STORAGE_KEY,
       JSON.stringify({
         planMetadata: state.planMetadata,
+        planMetadataApproved: state.planMetadataApproved,
         lastManifest: state.lastManifest
       })
     );
@@ -53,6 +56,7 @@ function saveState() {
 
 function clearState() {
   state.planMetadata = null;
+  state.planMetadataApproved = false;
   state.lastManifest = null;
   state.lastError = null;
   localStorage.removeItem(STORAGE_KEY);
@@ -76,8 +80,44 @@ function currentRoute() {
 
 function isMetadataReady() {
   if (!state.planMetadata) return false;
+  if (!state.planMetadataApproved) return false;
   try {
-    return !!validatePlanMetadata(state.planMetadata);
+    const ok = !!validatePlanMetadata(state.planMetadata);
+    if (!ok) return false;
+    return isMetadataReadyCandidate(state.planMetadata);
+  } catch {
+    return false;
+  }
+}
+
+function isMetadataReadyCandidate(metadata) {
+  try {
+    const required = [
+      { path: ["plan", "plan_name"] },
+      { path: ["meta", "case_number"] },
+      { path: ["meta", "case_processing_section"] },
+      { path: ["plan", "actuary"] },
+      { path: ["plan", "auditor"] },
+      { path: ["plan", "termination_date"] },
+      { path: ["plan", "trusteeship_date"] },
+      { path: ["plan", "nod_date"] },
+      { path: ["plan", "noit_date"] },
+      { path: ["plan", "bpd_bankruptcy"] },
+      { path: ["plan", "dobf"] },
+      { path: ["plan", "employer_status"] },
+      { path: ["plan", "facility_closing_date"] },
+      { path: ["plan", "successor_plan"] },
+      { path: ["plan", "plan_assets"] },
+      { path: ["plan", "sparr"] },
+      { path: ["plan", "funding_status"] }
+    ];
+    const hasValue = (obj, path) => {
+      let cur = obj;
+      for (const p of path) cur = cur?.[p];
+      const v = cur?.value ?? "";
+      return String(v).trim() !== "" && String(v).trim().toLowerCase() !== "unknown";
+    };
+    return required.every((r) => hasValue(metadata, r.path));
   } catch {
     return false;
   }
@@ -114,10 +154,10 @@ function renderShell() {
         </nav>
         <div class="header-actions">
           <button class="nav-button resources-btn" id="open_resources" aria-label="Open resources">Resources</button>
-          <div class="theme-toggle" role="group" aria-label="Theme">
+        <div class="theme-toggle" role="group" aria-label="Theme">
             <button data-theme="light">Light</button>
-            <button data-theme="dark">Dark</button>
-            <button data-theme="auto" class="active">Auto</button>
+            <button data-theme="dark" class="active">Dark</button>
+            <button data-theme="auto">Auto</button>
           </div>
           <div class="version-label">v${state.appVersion}</div>
         </div>
@@ -152,6 +192,11 @@ function renderShell() {
         b.classList.toggle("active", b.dataset.theme === theme);
       });
     });
+  });
+
+  // Ensure dark is default active
+  app.querySelectorAll(".theme-toggle button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.theme === "dark");
   });
 
   const resourcesBtn = app.querySelector("#open_resources");
@@ -310,8 +355,10 @@ function renderMetadata(container) {
           Upload PlanMetadata JSON
         </label>
         <button id="use_template_focus" class="ghost">Use Blank Template</button>
+        <button id="save_btn_focus" class="primary">Save Metadata</button>
       </div>
       <div id="metadata_status_focus" class="meta-line"></div>
+      <div id="save_status_focus" class="meta-line"></div>
     </div>
 
     <div id="instructions_backdrop" class="drawer-backdrop"></div>
@@ -333,54 +380,63 @@ function renderMetadata(container) {
     ${state.lastError ? `<div class="alert error">${escapeHtml(state.lastError)}</div>` : ""}
 
     <div class="card" style="margin-top: 16px;">
-      <h3>2) Manual Entry (Core Fields)</h3>
-      <p class="muted">Enter or override fields from the Plan Summary Shell. Include citations for known facts.</p>
       <div class="button-row" style="margin-top:0;">
-        <button id="toggle_citations" class="ghost">Show citations</button>
+        <button id="toggle_advanced" class="ghost">Show Advanced</button>
       </div>
-      <div id="manual_fields" class="manual-grid"></div>
-      <div class="button-row">
-        <button id="manual_apply" class="primary">Apply Manual Fields to JSON</button>
-        <button id="manual_reload" class="ghost">Load From JSON</button>
-      </div>
-      <div id="manual_status" class="meta-line"></div>
-    </div>
+      <div id="advanced_panel" class="hidden">
+        <div class="section-divider"></div>
+        <h3>2) Manual Entry (Core Fields)</h3>
+        <p class="muted">Enter or override fields from the Plan Summary Shell. Include citations for known facts.</p>
+        <div class="button-row" style="margin-top:0;">
+          <button id="toggle_citations" class="ghost">Show citations</button>
+        </div>
+        <div id="manual_fields" class="manual-grid"></div>
+        <div class="button-row">
+          <button id="manual_apply" class="primary">Apply Manual Fields to JSON</button>
+          <button id="manual_reload" class="ghost">Load From JSON</button>
+        </div>
+        <div id="manual_status" class="meta-line"></div>
 
-    <div class="card" style="margin-top: 16px;">
-      <h3>3) Document Registry (Manual)</h3>
-      <p class="muted">Add plan documents and optional citations. Values left blank become "unknown".</p>
-      <div class="button-row" style="margin-top:0;">
-        <button id="toggle_doc_citations" class="ghost">Show citations</button>
-      </div>
-      <div id="doc_registry" class="docs-list"></div>
-      <div class="button-row">
-        <button id="doc_add">Add Document</button>
-      </div>
-      <div class="meta-line">Each document row applies one citation to all fields in that row.</div>
-    </div>
+        <div class="section-divider"></div>
+        <h3>3) Document Registry (Manual)</h3>
+        <p class="muted">Add plan documents and optional citations. Values left blank become "unknown".</p>
+        <div class="button-row" style="margin-top:0;">
+          <button id="toggle_doc_citations" class="ghost">Show citations</button>
+        </div>
+        <div id="doc_registry" class="docs-list"></div>
+        <div class="button-row">
+          <button id="doc_add">Add Document</button>
+        </div>
+        <div class="meta-line">Each document row applies one citation to all fields in that row.</div>
 
-    <div class="card" style="margin-top: 16px;">
-      <h3>4) Review and Save</h3>
-      <p class="muted">Review or edit JSON, then save to the workbench state.</p>
-      <textarea id="metadata_editor" class="code" rows="16"></textarea>
-      <div class="button-row">
-        <button id="validate_btn">Validate JSON</button>
-        <button id="save_btn" class="primary">Save Metadata</button>
-        <button id="download_btn" class="ghost">Download metadata.json</button>
+        <div class="section-divider"></div>
+        <h3>4) Review and Save</h3>
+        <p class="muted">Review or edit JSON, then save to the workbench state.</p>
+        <textarea id="metadata_editor" class="code" rows="16"></textarea>
+        <div class="button-row">
+          <button id="validate_btn">Validate JSON</button>
+          <button id="save_btn" class="primary">Save Metadata</button>
+          <button id="download_btn" class="ghost">Download metadata.json</button>
+        </div>
+        <div id="validation_output" class="meta-line"></div>
       </div>
-      <div id="validation_output" class="meta-line"></div>
     </div>
   `;
 
   const metadataFileInput = container.querySelector("#metadata_file_focus");
   const metadataStatus = container.querySelector("#metadata_status_focus");
   const useTemplateBtn = container.querySelector("#use_template_focus");
+  const saveBtnFocus = container.querySelector("#save_btn_focus");
+  const saveStatusFocus = container.querySelector("#save_status_focus");
 
   const editor = container.querySelector("#metadata_editor");
   const validateBtn = container.querySelector("#validate_btn");
   const saveBtn = container.querySelector("#save_btn");
   const downloadBtn = container.querySelector("#download_btn");
   const validationOutput = container.querySelector("#validation_output");
+
+  const toggleAdvancedBtn = container.querySelector("#toggle_advanced");
+  const advancedPanel = container.querySelector("#advanced_panel");
 
   const manualFieldsEl = container.querySelector("#manual_fields");
   const manualApplyBtn = container.querySelector("#manual_apply");
@@ -707,6 +763,8 @@ function renderMetadata(container) {
       }
       metadataStatus.textContent = `Loaded ${f.name}`;
       editor.value = stringifyStable(parsed);
+      state.planMetadataApproved = false;
+      saveStatusFocus.textContent = "";
       validationOutput.textContent = "Valid PlanMetadata JSON.";
     } catch (err) {
       metadataStatus.textContent = `Invalid JSON: ${err.message}`;
@@ -716,6 +774,8 @@ function renderMetadata(container) {
   useTemplateBtn.addEventListener("click", () => {
     const blank = defaultPlanMetadata();
     editor.value = stringifyStable(blank);
+    state.planMetadataApproved = false;
+    saveStatusFocus.textContent = "";
     renderManualFieldsFromJson();
     loadDocRegistryFromJson();
     renderDocRegistry();
@@ -750,9 +810,16 @@ function renderMetadata(container) {
           validatePlanMetadata.errors
             .map((err) => `${err.instancePath || "/"} ${err.message}`)
             .join("; ");
+        saveStatusFocus.textContent = "Fix errors before saving.";
+        return;
+      }
+      if (!isMetadataReadyCandidate(parsed)) {
+        validationOutput.textContent = "Please fill all required fields before saving.";
+        saveStatusFocus.textContent = "Complete required fields first.";
         return;
       }
       state.planMetadata = parsed;
+      state.planMetadataApproved = true;
       const hash = await sha256HexString(stringifyStable(parsed));
       state.lastManifest = {
         app_version: state.appVersion,
@@ -763,9 +830,16 @@ function renderMetadata(container) {
       };
       saveState();
       validationOutput.textContent = "Saved to workspace.";
+      saveStatusFocus.textContent = "Saved. Other modules unlocked.";
     } catch (err) {
       validationOutput.textContent = `Invalid JSON: ${err.message}`;
+      saveStatusFocus.textContent = "Fix errors before saving.";
     }
+  });
+
+  saveBtnFocus.addEventListener("click", () => {
+    saveStatusFocus.textContent = "";
+    saveBtn.click();
   });
 
   downloadBtn.addEventListener("click", async () => {
@@ -792,6 +866,12 @@ function renderMetadata(container) {
   renderManualFieldsFromJson();
   loadDocRegistryFromJson();
   renderDocRegistry();
+
+  toggleAdvancedBtn.addEventListener("click", () => {
+    const open = advancedPanel.classList.contains("hidden");
+    advancedPanel.classList.toggle("hidden", !open);
+    toggleAdvancedBtn.textContent = open ? "Hide Advanced" : "Show Advanced";
+  });
 }
 
 function renderAudit(container) {
