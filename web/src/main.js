@@ -505,6 +505,7 @@ function renderMetadata(container) {
   const requiredStatusFocus = container.querySelector("#required_status_focus");
   const metadataSummaryFocus = container.querySelector("#metadata_summary_focus");
   const overwriteToggle = container.querySelector("#overwrite_toggle");
+  const autoFillManualInputs = true;
 
   const docRegistryEl = container.querySelector("#doc_registry");
   const docAddBtn = container.querySelector("#doc_add");
@@ -626,13 +627,14 @@ function renderMetadata(container) {
         const c = current.citations?.[0] ?? { doc_id: "", page: "", locator: "" };
         const currentValue = current.value && current.value !== "unknown" ? current.value : "";
         const requiredMark = requiredFieldIds.has(field.id) ? `<span class="required-mark">*</span>` : "";
+        const inputValue = autoFillManualInputs ? currentValue : "";
         return `
           <div class="manual-row">
             <div>
               <div class="manual-label">${escapeHtml(field.label)} ${requiredMark}</div>
               <div class="manual-current">${escapeHtml(currentValue || "not set")}</div>
             </div>
-            <input data-field="${field.id}" class="manual-value" placeholder="${escapeHtml(currentValue || "value")}" value="" />
+            <input data-field="${field.id}" class="manual-value" placeholder="${escapeHtml(currentValue || "value")}" value="${escapeHtml(inputValue)}" />
             <input data-field="${field.id}" class="manual-doc citation-field hidden" placeholder="doc_id" value="${escapeHtml(c.doc_id ?? "")}" />
             <input data-field="${field.id}" class="manual-page citation-field hidden" placeholder="page" value="${escapeHtml(String(c.page ?? ""))}" />
             <input data-field="${field.id}" class="manual-loc citation-field hidden" placeholder="locator/snippet" value="${escapeHtml(c.locator ?? "")}" />
