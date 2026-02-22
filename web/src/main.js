@@ -402,6 +402,7 @@ function renderMetadata(container) {
       </div>
       <div id="metadata_status_focus" class="meta-line"></div>
       <div id="save_status_focus" class="meta-line"></div>
+      <div id="metadata_summary_focus" class="meta-line"></div>
       <div class="required-panel" style="margin-top: 12px;">
         <div class="required-title">Required Fields Status</div>
         <div id="required_status_focus" class="meta-line"></div>
@@ -498,6 +499,7 @@ function renderMetadata(container) {
   const toggleCitationsBtn = container.querySelector("#toggle_citations");
   const requiredStatus = container.querySelector("#required_status");
   const requiredStatusFocus = container.querySelector("#required_status_focus");
+  const metadataSummaryFocus = container.querySelector("#metadata_summary_focus");
 
   const docRegistryEl = container.querySelector("#doc_registry");
   const docAddBtn = container.querySelector("#doc_add");
@@ -578,10 +580,12 @@ function renderMetadata(container) {
   }
 
   function updateRequiredChecklist() {
-    const json = parseEditorOrNull();
+    const raw = parseEditorOrNull();
+    const json = raw ? normalizePlanMetadata(raw) : null;
     if (!json) {
       requiredStatus.textContent = "Paste or upload JSON to evaluate required fields.";
       requiredStatusFocus.textContent = "Paste or upload JSON to evaluate required fields.";
+      metadataSummaryFocus.textContent = "";
       return;
     }
     const missing = getMissingRequiredLabels(json);
@@ -591,6 +595,12 @@ function renderMetadata(container) {
     requiredStatusFocus.textContent = missing.length
       ? `${missing.length} required fields missing.`
       : "All required fields complete.";
+    const planName = json.plan?.plan_name?.value ?? "";
+    const caseNumber = json.meta?.case_number?.value ?? "";
+    metadataSummaryFocus.textContent =
+      planName || caseNumber
+        ? `Detected: ${planName ? `Plan Name “${planName}”` : ""}${planName && caseNumber ? " • " : ""}${caseNumber ? `Case ${caseNumber}` : ""}`
+        : "";
   }
 
   function getValueWithCitations(json, target) {
