@@ -69,6 +69,26 @@ const routes = [
   { path: "#/audit", title: "Audit", render: renderAudit }
 ];
 
+const REQUIRED_METADATA_FIELDS = [
+  { id: "plan_name", label: "Plan Name", path: ["plan", "plan_name"] },
+  { id: "case_number", label: "Case Number", path: ["meta", "case_number"] },
+  { id: "case_processing_section", label: "Case Processing Section", path: ["meta", "case_processing_section"] },
+  { id: "actuary", label: "Actuary", path: ["plan", "actuary"] },
+  { id: "auditor", label: "Auditor", path: ["plan", "auditor"] },
+  { id: "termination_date", label: "DOPT (Termination Date)", path: ["plan", "termination_date"] },
+  { id: "trusteeship_date", label: "DOTR (Trusteeship Date)", path: ["plan", "trusteeship_date"] },
+  { id: "nod_date", label: "NOD Date", path: ["plan", "nod_date"] },
+  { id: "noit_date", label: "NOIT Date", path: ["plan", "noit_date"] },
+  { id: "bpd_bankruptcy", label: "BPD (Bankruptcy)", path: ["plan", "bpd_bankruptcy"] },
+  { id: "dobf", label: "DOBF", path: ["plan", "dobf"] },
+  { id: "employer_status", label: "Employer Status", path: ["plan", "employer_status"] },
+  { id: "facility_closing_date", label: "Facility Closing Date", path: ["plan", "facility_closing_date"] },
+  { id: "successor_plan", label: "Successor Plan", path: ["plan", "successor_plan"] },
+  { id: "plan_assets", label: "Plan Assets", path: ["plan", "plan_assets"] },
+  { id: "sparr", label: "SPARR", path: ["plan", "sparr"] },
+  { id: "funding_status", label: "Funding Status", path: ["plan", "funding_status"] }
+];
+
 function setRoute(path) {
   if (location.hash !== path) location.hash = path;
 }
@@ -92,32 +112,13 @@ function isMetadataReady() {
 
 function isMetadataReadyCandidate(metadata) {
   try {
-    const required = [
-      { path: ["plan", "plan_name"] },
-      { path: ["meta", "case_number"] },
-      { path: ["meta", "case_processing_section"] },
-      { path: ["plan", "actuary"] },
-      { path: ["plan", "auditor"] },
-      { path: ["plan", "termination_date"] },
-      { path: ["plan", "trusteeship_date"] },
-      { path: ["plan", "nod_date"] },
-      { path: ["plan", "noit_date"] },
-      { path: ["plan", "bpd_bankruptcy"] },
-      { path: ["plan", "dobf"] },
-      { path: ["plan", "employer_status"] },
-      { path: ["plan", "facility_closing_date"] },
-      { path: ["plan", "successor_plan"] },
-      { path: ["plan", "plan_assets"] },
-      { path: ["plan", "sparr"] },
-      { path: ["plan", "funding_status"] }
-    ];
     const hasValue = (obj, path) => {
       let cur = obj;
       for (const p of path) cur = cur?.[p];
       const v = cur?.value ?? "";
       return String(v).trim() !== "" && String(v).trim().toLowerCase() !== "unknown";
     };
-    return required.every((r) => hasValue(metadata, r.path));
+    return REQUIRED_METADATA_FIELDS.every((r) => hasValue(metadata, r.path));
   } catch {
     return false;
   }
@@ -387,6 +388,12 @@ function renderMetadata(container) {
         <div class="section-divider"></div>
         <h3>2) Manual Entry (Core Fields)</h3>
         <p class="muted">Enter or override fields from the Plan Summary Shell. Include citations for known facts.</p>
+        <div class="meta-line">Fields marked <span class="required-mark">*</span> are required to unlock other modules.</div>
+        <div class="required-panel">
+          <div class="required-title">Required Fields Status</div>
+          <div id="required_status" class="meta-line"></div>
+          <div id="required_list" class="required-list"></div>
+        </div>
         <div class="button-row" style="margin-top:0;">
           <button id="toggle_citations" class="ghost">Show citations</button>
         </div>
@@ -443,6 +450,8 @@ function renderMetadata(container) {
   const manualReloadBtn = container.querySelector("#manual_reload");
   const manualStatus = container.querySelector("#manual_status");
   const toggleCitationsBtn = container.querySelector("#toggle_citations");
+  const requiredStatus = container.querySelector("#required_status");
+  const requiredList = container.querySelector("#required_list");
 
   const docRegistryEl = container.querySelector("#doc_registry");
   const docAddBtn = container.querySelector("#doc_add");
@@ -506,6 +515,43 @@ function renderMetadata(container) {
     { id: "pbgc_annuity_immediate_rate", label: "PBGC Annuity Rate (First Period)", target: { type: "plan", key: "pbgc_annuity_immediate_rate" } },
     { id: "pbgc_annuity_thereafter_rate", label: "PBGC Annuity Rate (Thereafter)", target: { type: "plan", key: "pbgc_annuity_thereafter_rate" } }
   ];
+  const requiredFieldIds = new Set(REQUIRED_METADATA_FIELDS.map((f) => f.id));
+
+  function getMissingRequiredLabels(metadata) {
+    const missing = [];
+    const hasValue = (obj, path) => {
+      let cur = obj;
+      for (const p of path) cur = cur?.[p];
+      const v = cur?.value ?? "";
+      return String(v).trim() !== "" && String(v).trim().toLowerCase() !== "unknown";
+    };
+    REQUIRED_METADATA_FIELDS.forEach((f) => {
+      if (!hasValue(metadata, f.path)) missing.push(f.label);
+    });
+    return missing;
+  }
+
+  function updateRequiredChecklist() {
+    const json = parseEditorOrNull();
+    if (!json) {
+      requiredStatus.textContent = "Paste or upload JSON to evaluate required fields.";
+      requiredList.innerHTML = "";
+      return;
+    }
+    const missing = getMissingRequiredLabels(json);
+    requiredStatus.textContent = missing.length
+      ? `${missing.length} required fields missing.`
+      : "All required fields complete.";
+    requiredList.innerHTML = REQUIRED_METADATA_FIELDS.map((field) => {
+      const isMissing = missing.includes(field.label);
+      return `
+        <div class="required-item ${isMissing ? "missing" : "ok"}">
+          <span class="required-dot"></span>
+          <span>${escapeHtml(field.label)}</span>
+        </div>
+      `;
+    }).join("");
+  }
 
   function getValueWithCitations(json, target) {
     if (target.type === "plan") {
@@ -524,9 +570,10 @@ function renderMetadata(container) {
         const current = getValueWithCitations(json, field.target);
         const c = current.citations?.[0] ?? { doc_id: "", page: "", locator: "" };
         const currentValue = current.value && current.value !== "unknown" ? current.value : "";
+        const requiredMark = requiredFieldIds.has(field.id) ? `<span class="required-mark">*</span>` : "";
         return `
           <div class="manual-row">
-            <div class="manual-label">${escapeHtml(field.label)}</div>
+            <div class="manual-label">${escapeHtml(field.label)} ${requiredMark}</div>
             <input data-field="${field.id}" class="manual-value" placeholder="${escapeHtml(currentValue || "value")}" value="" />
             <input data-field="${field.id}" class="manual-doc citation-field hidden" placeholder="doc_id" value="${escapeHtml(c.doc_id ?? "")}" />
             <input data-field="${field.id}" class="manual-page citation-field hidden" placeholder="page" value="${escapeHtml(String(c.page ?? ""))}" />
@@ -535,6 +582,7 @@ function renderMetadata(container) {
         `;
       })
       .join("");
+    updateRequiredChecklist();
   }
 
   function parseEditorOrDefault() {
@@ -577,6 +625,12 @@ function renderMetadata(container) {
     if (!json.plan) json.plan = defaultPlanMetadata().plan;
     if (!json.meta) json.meta = defaultPlanMetadata().meta;
     const values = readManualFields();
+    const hasAnyManual = Object.values(values).some(
+      (entry) => (entry.value && entry.value.trim()) || (entry.citations && entry.citations.length)
+    );
+    if (!hasAnyManual) {
+      return { applied: false, createdNew: false };
+    }
     for (const field of manualFields) {
       const entry = values[field.id] ?? { value: "", citations: [] };
       const val = entry.value === "" ? "unknown" : entry.value;
@@ -587,9 +641,8 @@ function renderMetadata(container) {
       }
     }
     editor.value = stringifyStable(json);
-    manualStatus.textContent = existing
-      ? "Manual fields applied to the editor JSON."
-      : "Started a new JSON from manual fields.";
+    updateRequiredChecklist();
+    return { applied: true, createdNew: !existing };
   }
 
   const docRegistryState = [];
@@ -669,6 +722,7 @@ function renderMetadata(container) {
   }
 
   function applyDocRegistryToJson() {
+    if (!docRegistryState.length) return false;
     const json = parseEditorOrDefault();
     const documents = [];
     for (const doc of docRegistryState) {
@@ -697,11 +751,28 @@ function renderMetadata(container) {
     }
     json.documents = documents;
     editor.value = stringifyStable(json);
+    updateRequiredChecklist();
+    return documents.length > 0;
   }
 
   manualApplyBtn.addEventListener("click", () => {
-    applyManualFieldsToJson();
-    applyDocRegistryToJson();
+    const manualResult = applyManualFieldsToJson();
+    const docApplied = applyDocRegistryToJson();
+    if (!manualResult.applied && !docApplied) {
+      manualStatus.textContent = "Nothing to apply. Enter values or add documents first.";
+      return;
+    }
+    if (manualResult.applied && docApplied) {
+      manualStatus.textContent = "Manual fields and document registry applied to the JSON text area.";
+      return;
+    }
+    if (manualResult.applied && !docApplied) {
+      manualStatus.textContent = manualResult.createdNew
+        ? "Started a new JSON from manual fields."
+        : "Manual fields applied to the JSON text area.";
+      return;
+    }
+    manualStatus.textContent = "Document registry applied to the JSON text area.";
   });
 
   manualReloadBtn.addEventListener("click", () => {
@@ -726,7 +797,8 @@ function renderMetadata(container) {
     }
     manualFieldsEl.classList.add("pulse");
     setTimeout(() => manualFieldsEl.classList.remove("pulse"), 650);
-    manualStatus.textContent = "Loaded fields from the editor JSON.";
+    manualStatus.textContent = "Loaded fields from the JSON text area.";
+    updateRequiredChecklist();
   });
 
   docAddBtn.addEventListener("click", () => {
@@ -781,9 +853,13 @@ function renderMetadata(container) {
       }
       metadataStatus.textContent = `Loaded ${f.name}`;
       editor.value = stringifyStable(parsed);
+      updateRequiredChecklist();
       state.planMetadataApproved = false;
       saveStatusFocus.textContent = "";
-      validationOutput.textContent = "Valid PlanMetadata JSON.";
+      const missing = getMissingRequiredLabels(parsed);
+      validationOutput.textContent = missing.length
+        ? `Valid JSON. Missing required fields: ${missing.join(", ")}.`
+        : "Valid PlanMetadata JSON.";
     } catch (err) {
       metadataStatus.textContent = `Invalid JSON: ${err.message}`;
     }
@@ -792,6 +868,7 @@ function renderMetadata(container) {
   useTemplateBtn.addEventListener("click", () => {
     const blank = defaultPlanMetadata();
     editor.value = stringifyStable(blank);
+    updateRequiredChecklist();
     state.planMetadataApproved = false;
     saveStatusFocus.textContent = "";
     renderManualFieldsFromJson();
@@ -803,6 +880,7 @@ function renderMetadata(container) {
   validateBtn.addEventListener("click", () => {
     try {
       const parsed = JSON.parse(editor.value);
+      updateRequiredChecklist();
       const ok = validatePlanMetadata(parsed);
       if (!ok) {
         validationOutput.textContent =
@@ -812,7 +890,10 @@ function renderMetadata(container) {
             .join("; ");
         return;
       }
-      validationOutput.textContent = "Valid PlanMetadata JSON.";
+      const missing = getMissingRequiredLabels(parsed);
+      validationOutput.textContent = missing.length
+        ? `Valid JSON. Missing required fields: ${missing.join(", ")}.`
+        : "Valid PlanMetadata JSON.";
     } catch (err) {
       validationOutput.textContent = `Invalid JSON: ${err.message}`;
     }
@@ -821,6 +902,7 @@ function renderMetadata(container) {
   saveBtn.addEventListener("click", async () => {
     try {
       const parsed = JSON.parse(editor.value);
+      updateRequiredChecklist();
       const ok = validatePlanMetadata(parsed);
       if (!ok) {
         validationOutput.textContent =
@@ -832,7 +914,10 @@ function renderMetadata(container) {
         return;
       }
       if (!isMetadataReadyCandidate(parsed)) {
-        validationOutput.textContent = "Please fill all required fields before saving.";
+        const missing = getMissingRequiredLabels(parsed);
+        validationOutput.textContent = missing.length
+          ? `Missing required fields: ${missing.join(", ")}.`
+          : "Please fill all required fields before saving.";
         saveStatusFocus.textContent = "Complete required fields first.";
         return;
       }
@@ -884,11 +969,16 @@ function renderMetadata(container) {
   renderManualFieldsFromJson();
   loadDocRegistryFromJson();
   renderDocRegistry();
+  updateRequiredChecklist();
 
   toggleAdvancedBtn.addEventListener("click", () => {
     const open = advancedPanel.classList.contains("hidden");
     advancedPanel.classList.toggle("hidden", !open);
     toggleAdvancedBtn.textContent = open ? "Hide Advanced" : "Show Advanced";
+  });
+
+  editor.addEventListener("input", () => {
+    updateRequiredChecklist();
   });
 }
 
