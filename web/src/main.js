@@ -324,6 +324,41 @@ function stringifyStable(obj) {
   return JSON.stringify(sortJsonKeys(obj), null, 2);
 }
 
+function normalizeValueEntry(entry) {
+  if (entry && typeof entry === "object" && "value" in entry) {
+    return {
+      value: entry.value ?? "unknown",
+      citations: Array.isArray(entry.citations) ? entry.citations : []
+    };
+  }
+  if (typeof entry === "string" || typeof entry === "number") {
+    return { value: String(entry), citations: [] };
+  }
+  return { value: "unknown", citations: [] };
+}
+
+function normalizePlanMetadata(input) {
+  const base = defaultPlanMetadata();
+  const normalized = {
+    schema_version: input?.schema_version ?? base.schema_version,
+    meta: { ...base.meta },
+    plan: { ...base.plan },
+    documents: Array.isArray(input?.documents) ? input.documents : [],
+    other_attributes: Array.isArray(input?.other_attributes) ? input.other_attributes : []
+  };
+  if (input?.meta && typeof input.meta === "object") {
+    Object.keys(base.meta).forEach((key) => {
+      if (key in input.meta) normalized.meta[key] = normalizeValueEntry(input.meta[key]);
+    });
+  }
+  if (input?.plan && typeof input.plan === "object") {
+    Object.keys(base.plan).forEach((key) => {
+      if (key in input.plan) normalized.plan[key] = normalizeValueEntry(input.plan[key]);
+    });
+  }
+  return normalized;
+}
+
 async function sha256HexString(text) {
   const enc = new TextEncoder().encode(text);
   const hashBuf = await crypto.subtle.digest("SHA-256", enc);
@@ -841,7 +876,8 @@ function renderMetadata(container) {
     const text = await f.text();
     try {
       const parsed = JSON.parse(text);
-      const ok = validatePlanMetadata(parsed);
+      const normalized = normalizePlanMetadata(parsed);
+      const ok = validatePlanMetadata(normalized);
       if (!ok) {
         metadataStatus.textContent = "Schema validation failed.";
         validationOutput.textContent =
@@ -852,11 +888,11 @@ function renderMetadata(container) {
         return;
       }
       metadataStatus.textContent = `Loaded ${f.name}`;
-      editor.value = stringifyStable(parsed);
+      editor.value = stringifyStable(normalized);
       updateRequiredChecklist();
       state.planMetadataApproved = false;
       saveStatusFocus.textContent = "";
-      const missing = getMissingRequiredLabels(parsed);
+      const missing = getMissingRequiredLabels(normalized);
       validationOutput.textContent = missing.length
         ? `Valid JSON. Missing required fields: ${missing.join(", ")}.`
         : "Valid PlanMetadata JSON.";
@@ -880,8 +916,10 @@ function renderMetadata(container) {
   validateBtn.addEventListener("click", () => {
     try {
       const parsed = JSON.parse(editor.value);
+      const normalized = normalizePlanMetadata(parsed);
+      editor.value = stringifyStable(normalized);
       updateRequiredChecklist();
-      const ok = validatePlanMetadata(parsed);
+      const ok = validatePlanMetadata(normalized);
       if (!ok) {
         validationOutput.textContent =
           "Validation errors: " +
@@ -890,7 +928,7 @@ function renderMetadata(container) {
             .join("; ");
         return;
       }
-      const missing = getMissingRequiredLabels(parsed);
+      const missing = getMissingRequiredLabels(normalized);
       validationOutput.textContent = missing.length
         ? `Valid JSON. Missing required fields: ${missing.join(", ")}.`
         : "Valid PlanMetadata JSON.";
@@ -902,8 +940,10 @@ function renderMetadata(container) {
   saveBtn.addEventListener("click", async () => {
     try {
       const parsed = JSON.parse(editor.value);
+      const normalized = normalizePlanMetadata(parsed);
+      editor.value = stringifyStable(normalized);
       updateRequiredChecklist();
-      const ok = validatePlanMetadata(parsed);
+      const ok = validatePlanMetadata(normalized);
       if (!ok) {
         validationOutput.textContent =
           "Validation errors: " +
@@ -913,17 +953,17 @@ function renderMetadata(container) {
         saveStatusFocus.textContent = "Fix errors before saving.";
         return;
       }
-      if (!isMetadataReadyCandidate(parsed)) {
-        const missing = getMissingRequiredLabels(parsed);
+      if (!isMetadataReadyCandidate(normalized)) {
+        const missing = getMissingRequiredLabels(normalized);
         validationOutput.textContent = missing.length
           ? `Missing required fields: ${missing.join(", ")}.`
           : "Please fill all required fields before saving.";
         saveStatusFocus.textContent = "Complete required fields first.";
         return;
       }
-      state.planMetadata = parsed;
+      state.planMetadata = normalized;
       state.planMetadataApproved = true;
-      const hash = await sha256HexString(stringifyStable(parsed));
+      const hash = await sha256HexString(stringifyStable(normalized));
       state.lastManifest = {
         app_version: state.appVersion,
         module_id: "metadata",
