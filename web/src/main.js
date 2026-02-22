@@ -18,6 +18,35 @@ const state = {
   lastError: null,
 };
 
+const STORAGE_KEY = "pbgc_caseworkbench_state_v0_7";
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    // Only restore safe fields (no File objects)
+    state.planMetadata = saved.planMetadata ?? null;
+    state.lastManifest = saved.lastManifest ?? null;
+  } catch {
+    // ignore
+  }
+}
+
+function saveState() {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        planMetadata: state.planMetadata,
+        lastManifest: state.lastManifest
+      })
+    );
+  } catch {
+    // ignore
+  }
+}
+
 // ---- hash router ----
 const routes = [
   { path: "#/metadata", title: "Metadata", render: renderMetadata },
@@ -120,6 +149,7 @@ ${escapeHtml(JSON.stringify(pm, null, 2))}
       module: "metadata",
       generated_at_utc: new Date().toISOString(),
     };
+    saveState()
     render();
   });
 
@@ -296,6 +326,7 @@ function renderPlanSummary(container) {
           [r5File.name]: r5Hash
         }
       };
+      saveState();
       status.textContent =
         "OK. Inputs loaded.\n\nNext: implement DOCX fill + download.\n\nManifest:\n" +
         JSON.stringify(state.lastManifest, null, 2);
@@ -320,4 +351,5 @@ function renderPlanSummary(container) {
 // ---- boot ----
 window.addEventListener("hashchange", render);
 if (!location.hash) location.hash = "#/metadata";
+loadState();
 render();
