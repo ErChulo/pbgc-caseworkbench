@@ -74,6 +74,15 @@ function currentRoute() {
   return routes.find((r) => r.path === h) ?? routes[0];
 }
 
+function isMetadataReady() {
+  if (!state.planMetadata) return false;
+  try {
+    return !!validatePlanMetadata(state.planMetadata);
+  } catch {
+    return false;
+  }
+}
+
 function applyTheme(theme) {
   const root = document.documentElement;
   if (theme === "dark" || theme === "light") {
@@ -173,9 +182,23 @@ function renderShell() {
 function renderRoute() {
   const page = document.querySelector("#page");
   if (!page) return;
-  const route = currentRoute();
+  let route = currentRoute();
+  const ready = isMetadataReady();
+  if (!ready && route.path !== "#/metadata") {
+    route = routes[0];
+    setRoute(route.path);
+  }
   document.querySelectorAll("button[data-route]").forEach((btn) => {
+    const isMeta = btn.dataset.route === "#/metadata";
+    btn.disabled = !ready && !isMeta;
+    btn.classList.toggle("disabled", btn.disabled);
     btn.classList.toggle("active", btn.dataset.route === route.path);
+  });
+  document.querySelectorAll(".drawer-panel.open").forEach((el) => {
+    el.classList.remove("open");
+  });
+  document.querySelectorAll(".drawer-backdrop.show").forEach((el) => {
+    el.classList.remove("show");
   });
   page.classList.remove("page-enter");
   void page.offsetWidth;
@@ -275,6 +298,8 @@ function renderMetadata(container) {
         <button class="ghost" id="clear_workspace">Clear Workspace</button>
       </div>
     </section>
+
+    ${isMetadataReady() ? "" : `<div class="banner subtle">Finish Metadata to unlock other modules.</div>`}
 
     <div class="card focus-card">
       <h3>Start Here</h3>
@@ -442,10 +467,11 @@ function renderMetadata(container) {
       .map((field) => {
         const current = getValueWithCitations(json, field.target);
         const c = current.citations?.[0] ?? { doc_id: "", page: "", locator: "" };
+        const currentValue = current.value && current.value !== "unknown" ? current.value : "";
         return `
           <div class="manual-row">
             <div class="manual-label">${escapeHtml(field.label)}</div>
-            <input data-field="${field.id}" class="manual-value" placeholder="value" value="${escapeHtml(current.value ?? "")}" />
+            <input data-field="${field.id}" class="manual-value" placeholder="${escapeHtml(currentValue || "value")}" value="" />
             <input data-field="${field.id}" class="manual-doc citation-field hidden" placeholder="doc_id" value="${escapeHtml(c.doc_id ?? "")}" />
             <input data-field="${field.id}" class="manual-page citation-field hidden" placeholder="page" value="${escapeHtml(String(c.page ?? ""))}" />
             <input data-field="${field.id}" class="manual-loc citation-field hidden" placeholder="locator/snippet" value="${escapeHtml(c.locator ?? "")}" />
@@ -613,7 +639,20 @@ function renderMetadata(container) {
     renderManualFieldsFromJson();
     loadDocRegistryFromJson();
     renderDocRegistry();
-    manualStatus.textContent = "Manual form loaded from JSON.";
+    const hasCitation = !!manualFieldsEl.querySelector(".citation-field:not(.hidden)") ||
+      Array.from(manualFieldsEl.querySelectorAll(".citation-field"))
+        .some((f) => f.value && f.value.trim());
+    if (hasCitation) {
+      const fields = manualFieldsEl.querySelectorAll(".citation-field");
+      fields.forEach((f) => f.classList.remove("hidden"));
+      manualFieldsEl.querySelectorAll(".manual-row").forEach((row) => {
+        row.classList.add("show-citations");
+      });
+      toggleCitationsBtn.textContent = "Hide citations";
+    }
+    manualFieldsEl.classList.add("pulse");
+    setTimeout(() => manualFieldsEl.classList.remove("pulse"), 650);
+    manualStatus.textContent = "Loaded from JSON.";
   });
 
   docAddBtn.addEventListener("click", () => {
@@ -672,17 +711,6 @@ function renderMetadata(container) {
     } catch (err) {
       metadataStatus.textContent = `Invalid JSON: ${err.message}`;
     }
-  });
-
-  metadataFileFocus.addEventListener("change", async (e) => {
-    metadataFileInput.files = e.target.files;
-    metadataFileInput.dispatchEvent(new Event("change"));
-    metadataStatusFocus.textContent = "Loaded in main import panel.";
-  });
-
-  useTemplateFocus.addEventListener("click", () => {
-    useTemplateBtn.click();
-    metadataStatusFocus.textContent = "Blank template loaded.";
   });
 
   useTemplateBtn.addEventListener("click", () => {
@@ -1399,7 +1427,7 @@ window.addEventListener("hashchange", renderRoute);
 if (!location.hash) location.hash = "#/metadata";
 loadState();
 renderShell();
-applyTheme("auto");
+applyTheme("dark");
 renderRoute();
 
 
