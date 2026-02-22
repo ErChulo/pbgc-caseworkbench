@@ -402,6 +402,10 @@ function renderMetadata(container) {
       </div>
       <div id="metadata_status_focus" class="meta-line"></div>
       <div id="save_status_focus" class="meta-line"></div>
+      <div class="required-panel" style="margin-top: 12px;">
+        <div class="required-title">Required Fields Status</div>
+        <div id="required_status_focus" class="meta-line"></div>
+      </div>
     </div>
 
     <div id="instructions_backdrop" class="drawer-backdrop"></div>
@@ -433,8 +437,8 @@ function renderMetadata(container) {
         <div class="meta-line">Fields marked <span class="required-mark">*</span> are required to unlock other modules.</div>
         <div class="required-panel">
           <div class="required-title">Required Fields Status</div>
+          <div class="meta-line">Values are shown as placeholders; type to override.</div>
           <div id="required_status" class="meta-line"></div>
-          <div id="required_list" class="required-list"></div>
         </div>
         <div class="button-row" style="margin-top:0;">
           <button id="toggle_citations" class="ghost">Show citations</button>
@@ -493,7 +497,7 @@ function renderMetadata(container) {
   const manualStatus = container.querySelector("#manual_status");
   const toggleCitationsBtn = container.querySelector("#toggle_citations");
   const requiredStatus = container.querySelector("#required_status");
-  const requiredList = container.querySelector("#required_list");
+  const requiredStatusFocus = container.querySelector("#required_status_focus");
 
   const docRegistryEl = container.querySelector("#doc_registry");
   const docAddBtn = container.querySelector("#doc_add");
@@ -577,22 +581,16 @@ function renderMetadata(container) {
     const json = parseEditorOrNull();
     if (!json) {
       requiredStatus.textContent = "Paste or upload JSON to evaluate required fields.";
-      requiredList.innerHTML = "";
+      requiredStatusFocus.textContent = "Paste or upload JSON to evaluate required fields.";
       return;
     }
     const missing = getMissingRequiredLabels(json);
     requiredStatus.textContent = missing.length
       ? `${missing.length} required fields missing.`
       : "All required fields complete.";
-    requiredList.innerHTML = REQUIRED_METADATA_FIELDS.map((field) => {
-      const isMissing = missing.includes(field.label);
-      return `
-        <div class="required-item ${isMissing ? "missing" : "ok"}">
-          <span class="required-dot"></span>
-          <span>${escapeHtml(field.label)}</span>
-        </div>
-      `;
-    }).join("");
+    requiredStatusFocus.textContent = missing.length
+      ? `${missing.length} required fields missing.`
+      : "All required fields complete.";
   }
 
   function getValueWithCitations(json, target) {
@@ -615,7 +613,10 @@ function renderMetadata(container) {
         const requiredMark = requiredFieldIds.has(field.id) ? `<span class="required-mark">*</span>` : "";
         return `
           <div class="manual-row">
-            <div class="manual-label">${escapeHtml(field.label)} ${requiredMark}</div>
+            <div>
+              <div class="manual-label">${escapeHtml(field.label)} ${requiredMark}</div>
+              <div class="manual-current">${escapeHtml(currentValue || "not set")}</div>
+            </div>
             <input data-field="${field.id}" class="manual-value" placeholder="${escapeHtml(currentValue || "value")}" value="" />
             <input data-field="${field.id}" class="manual-doc citation-field hidden" placeholder="doc_id" value="${escapeHtml(c.doc_id ?? "")}" />
             <input data-field="${field.id}" class="manual-page citation-field hidden" placeholder="page" value="${escapeHtml(String(c.page ?? ""))}" />

@@ -558,6 +558,12 @@ textarea.code {
   background: #c7665a;
 }
 
+.manual-current {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+
 .doc-name {
   font-weight: 600;
 }
