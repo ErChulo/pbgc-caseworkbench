@@ -1,6 +1,9 @@
 // web/src/main.js
 import "./style.css";
 
+import JSZip from "jszip";
+import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
+
 import Ajv from "ajv";
 import planMetadataSchema from "./planMetadata.schema.json";
 
@@ -228,6 +231,168 @@ async function sha256Hex(file) {
   return bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function norm(s) {
+  return String(s ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function nodeText(node) {
+  const ts = node.getElementsByTagName("w:t");
+  let out = "";
+  for (let i = 0; i < ts.length; i++) out += ts[i].textContent ?? "";
+  return out;
+}
+
+function findTableByHeading(doc, heading) {
+  const tbls = doc.getElementsByTagName("w:tbl");
+  const h = heading.toLowerCase();
+  for (let i = 0; i < tbls.length; i++) {
+    const t = nodeText(tbls[i]).toLowerCase();
+    if (t.includes(h)) return tbls[i];
+  }
+  return null;
+}
+
+function findCellByExactLabel(tbl, label) {
+  const tcs = tbl.getElementsByTagName("w:tc");
+  const target = norm(label);
+  for (let i = 0; i < tcs.length; i++) {
+    const txt = norm(nodeText(tcs[i]));
+    if (txt === target) return tcs[i];
+  }
+  return null;
+}
+
+function appendTextWithBreaks(doc, pNode, text) {
+  const W_NS =
+    doc.documentElement.getAttribute("xmlns:w") ||
+    "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+  const parts = String(text ?? "").split("\n");
+  for (let i = 0; i < parts.length; i++) {
+    const run = doc.createElementNS(W_NS, "w:r");
+    const t = doc.createElementNS(W_NS, "w:t");
+    t.setAttribute("xml:space", "preserve");
+    t.appendChild(doc.createTextNode(parts[i]));
+    run.appendChild(t);
+    pNode.appendChild(run);
+
+    if (i < parts.length - 1) {
+      const runBr = doc.createElementNS(W_NS, "w:r");
+      const br = doc.createElementNS(W_NS, "w:br");
+      runBr.appendChild(br);
+      pNode.appendChild(runBr);
+    }
+  }
+}
+
+function appendValueToLabelCell(doc, tbl, label, value, prefix = " ") {
+  if (!value) return { ok: false, reason: "value missing" };
+  const tc = findCellByExactLabel(tbl, label);
+  if (!tc) return { ok: false, reason: `label not found: ${label}` };
+
+  const existing = nodeText(tc);
+  if (existing.includes(value)) return { ok: true, reason: "already present" };
+
+  let p = tc.getElementsByTagName("w:p")[0];
+  if (!p) {
+    const W_NS =
+      doc.documentElement.getAttribute("xmlns:w") ||
+      "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    p = doc.createElementNS(W_NS, "w:p");
+    tc.appendChild(p);
+  }
+
+  appendTextWithBreaks(doc, p, `${prefix}${value}`);
+  return { ok: true, reason: "appended" };
+}
+
+function pickValue(r5, meta, key, keywords = []) {
+  // priority: metadata.dependent_fields -> r5.dependent_fields -> top-level -> items scan
+  const m = meta?.dependent_fields?.[key];
+  if (m != null && String(m).trim() !== "") return String(m);
+
+  const d = r5?.dependent_fields?.[key];
+  if (d != null && String(d).trim() !== "") return String(d);
+
+  const t = r5?.[key];
+  if (t != null && String(t).trim() !== "") return String(t);
+
+  const items = Array.isArray(r5?.items) ? r5.items : [];
+  const ks = keywords.map((x) => x.toLowerCase());
+  for (const it of items) {
+    const id = String(it?.r5_id ?? "").toLowerCase();
+    const lbl = String(it?.label ?? "").toLowerCase();
+    if (id === key.toLowerCase()) return String(it?.answer ?? "");
+    if (ks.length && ks.some((k) => lbl.includes(k) || id.includes(k))) {
+      const ans = String(it?.answer ?? "");
+      if (ans.trim()) return ans;
+    }
+  }
+  return "";
+}
+
+async function fillPlanSummaryDocx(docxFile, r5Json, planMetadata) {
+  const buf = await docxFile.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+
+  const docPath = "word/document.xml";
+  const xmlText = await zip.file(docPath).async("text");
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, "text/xml");
+
+  // Locate the second-table blocks by their headings
+  const lumpTbl = findTableByHeading(doc, "PBGC Lump Sum Rates");
+  const annTbl = findTableByHeading(doc, "PBGC Annuity Rates");
+
+  const log = [];
+
+  // Values (keys match your metadata example + common naming)
+  const lsImm = pickValue(r5Json, planMetadata, "pbgc_lump_sum_immediate_rate", [
+    "pbgc lump sum immediate",
+    "lump sum immediate"
+  ]);
+  const lsDef = pickValue(r5Json, planMetadata, "pbgc_lump_sum_deferral_rate", [
+    "pbgc lump sum deferral",
+    "lump sum deferral"
+  ]);
+
+  // For annuity, accept either split keys or fallback to pbgc_annuity_rates
+  const annImm = pickValue(r5Json, planMetadata, "pbgc_annuity_immediate_rate", [
+    "pbgc annuity immediate",
+    "annuity immediate"
+  ]) || pickValue(r5Json, planMetadata, "pbgc_annuity_rates", ["pbgc annuity rates", "annuity rates"]);
+
+  const annDef = pickValue(r5Json, planMetadata, "pbgc_annuity_deferral_rate", [
+    "pbgc annuity deferral",
+    "annuity deferral"
+  ]) || pickValue(r5Json, planMetadata, "pbgc_annuity_rates", ["pbgc annuity rates", "annuity rates"]);
+
+  if (!lumpTbl) log.push("ERROR: Could not find table containing 'PBGC Lump Sum Rates'.");
+  if (!annTbl) log.push("ERROR: Could not find table containing 'PBGC Annuity Rates'.");
+
+  if (lumpTbl) {
+    log.push(`PBGC Lump Sum Rates: Immediate='${lsImm ? "OK" : "MISSING"}', Deferral='${lsDef ? "OK" : "MISSING"}'`);
+    log.push(JSON.stringify(appendValueToLabelCell(doc, lumpTbl, "Immediate Rate", lsImm), null, 0));
+    log.push(JSON.stringify(appendValueToLabelCell(doc, lumpTbl, "Deferral Rate", lsDef), null, 0));
+  }
+
+  if (annTbl) {
+    log.push(`PBGC Annuity Rates: Immediate='${annImm ? "OK" : "MISSING"}', Deferral='${annDef ? "OK" : "MISSING"}'`);
+    log.push(JSON.stringify(appendValueToLabelCell(doc, annTbl, "Immediate Rate", annImm), null, 0));
+    log.push(JSON.stringify(appendValueToLabelCell(doc, annTbl, "Deferral Rate", annDef), null, 0));
+  }
+
+  const serializer = new XMLSerializer();
+  const newXml = serializer.serializeToString(doc);
+  zip.file(docPath, newXml);
+
+  const outBuf = await zip.generateAsync({ type: "arraybuffer" });
+  return { blob: new Blob([outBuf], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), log };
+}
+
 function escapeHtml(s) {
   return String(s)
     .replaceAll("&", "&amp;")
@@ -305,9 +470,8 @@ function renderPlanSummary(container) {
     status.textContent = "Reading inputs...";
     try {
       const r5Text = await r5File.text();
-      JSON.parse(r5Text); // basic sanity check
+      const r5Obj = JSON.parse(r5Text);
 
-      // minimal manifest stub (we’ll add hashing next)
       const [docxHash, r5Hash] = await Promise.all([
         sha256Hex(docxFile),
         sha256Hex(r5File),
@@ -319,23 +483,30 @@ function renderPlanSummary(container) {
         generated_at_utc: new Date().toISOString(),
         plan_metadata: {
           plan_name: planName,
-          case_number: caseNo
+          case_number: caseNo,
         },
         input_hashes: {
           [docxFile.name]: docxHash,
-          [r5File.name]: r5Hash
-        }
+          [r5File.name]: r5Hash,
+        },
       };
       saveState();
+      update();
+
+      status.textContent = "Filling DOCX...";
+      const { blob, log } = await fillPlanSummaryDocx(docxFile, r5Obj, state.planMetadata);
+
+      downloadBlob(blob, "PlanSummary.FILLED.docx");
+
       status.textContent =
-        "OK. Inputs loaded.\n\nNext: implement DOCX fill + download.\n\nManifest:\n" +
+        "DONE. Downloaded PlanSummary.FILLED.docx\n\nDOCX fill log:\n" +
+        log.join("\n") +
+        "\n\nManifest:\n" +
         JSON.stringify(state.lastManifest, null, 2);
     } catch (err) {
       status.textContent = "ERROR: " + err.message;
     }
-  }
-
-  );
+  });
 
   btnManifest.addEventListener("click", () => {
     if (!state.lastManifest) return;
