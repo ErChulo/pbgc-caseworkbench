@@ -925,6 +925,9 @@ function renderMetadata(container) {
       }
       metadataStatus.textContent = `Loaded ${f.name}`;
       editor.value = stringifyStable(normalized);
+      renderManualFieldsFromJson();
+      loadDocRegistryFromJson();
+      renderDocRegistry();
       updateRequiredChecklist();
       state.planMetadataApproved = false;
       saveStatusFocus.textContent = "";
