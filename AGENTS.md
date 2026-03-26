@@ -14,9 +14,9 @@ Build a PBGC Case Actuary Workbench with these modules (all inside one SPA):
 3) §436 Limitation Memo Builder
 4) Estimated Benefit Adjustment Analysis Builder
 5) Estimated Benefit Administration Analysis Builder
-6) V1 Engine Generator (plan-complete)
+6) V1 Engine Generator (plan-complete) Plus: DAG + Formula-Tree visualizers.
 7) BCV Letter Generation Config Generator
-Plus: DAG + Formula-Tree visualizers.
+
 
 ## Source-of-truth inputs
 All reference inputs live in `/reference/`. Do not guess beyond these files.
