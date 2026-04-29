@@ -1,0 +1,502 @@
+PBGC Metadata Scraper Prompt v1.0
+Version Date: 2026-04-29
+Companion Use: Run Before Any R5 Scrape, Plan Summary, Data Element Listing, Benefit Programming, or Case Memo Work Product.
+
+PURPOSE
+Create a single authoritative metadata file for a trusteeshiped defined benefit pension plan. This is the first case setup step. The output stores global case variables and source-document attributes in one place so all downstream work products use the same plan name, dates, sponsor names, document chronology, covered groups, plan-year rules, freeze dates, and citation-backed metadata.
+
+PRIMARY TASK
+Read every file in the Source section end-to-end and produce one JSON file named metadata-test.json unless the user specifies another filename.
+
+The scraper must identify:
+1) case-level metadata for the trusteeshiped plan;
+2) canonical normalized metadata that should be reused globally;
+3) document-level metadata for every source file;
+4) aliases and variants appearing across documents;
+5) unresolved or conflicting facts requiring review;
+6) exact citations for every extracted fact.
+
+This metadata scraper is not an R5 benefit-provision scraper. Its purpose is to establish global plan attributes and a source-document registry for downstream PBGC work.
+
+CORE PRINCIPLE
+Do not leave an obvious global variable blank merely because no metadata.json was provided. If the plan name, sponsor name, original effective date, plan year, or document title appears in the plan documents, extract it, normalize it, and cite it.
+
+AUTHORITY HIERARCHY
+Use the following source authority order when facts conflict:
+
+1) PBGC case-level sources, if available:
+   - metadata.json;
+   - CMS extract;
+   - Trusteeship Agreement;
+   - Trusteeship Working Group Memo;
+   - Plan Document List;
+   - PBGC Image Viewer index;
+   - Notice of Determination, Notice of Intent to Terminate, or related trusteeship records.
+
+2) Executed plan documents and signed/adopted amendments.
+
+3) Board resolutions, adoption pages, signature pages, certifications, or trustee acknowledgments attached to plan documents.
+
+4) Summary of Material Modifications, ERISA 204(h) notices, Summary Plan Descriptions, collective bargaining agreements, actuarial valuation reports, administrative policies, and correspondence.
+
+5) File names and folder names.
+Use file names only as hints for year, type, or source identification. Do not use file names as sole support for legal facts if the document text contradicts or does not support them.
+
+If a lower-authority source conflicts with a higher-authority source, keep both values in conflicts[] and use the higher-authority value as canonical unless the higher-authority source is clearly obsolete or not applicable.
+
+OUTPUT FILE
+Save exactly one JSON file:
+metadata-test.json
+
+TOP-LEVEL JSON STRUCTURE
+The output must have exactly these top-level keys:
+
+{
+  "metadata_schema": { ... },
+  "case_metadata": { ... },
+  "canonical_plan_metadata": { ... },
+  "trusteeship_metadata": { ... },
+  "plan_design_metadata": { ... },
+  "document_registry": [ ... ],
+  "source_aliases": { ... },
+  "chronology": [ ... ],
+  "conflicts": [ ... ],
+  "unresolved_items": [ ... ],
+  "quality_control": { ... }
+}
+
+GENERAL FIELD OBJECT FORMAT
+Every factual field that can be extracted from sources must use this object structure:
+
+{
+  "value": "...",
+  "status": "extracted",
+  "confidence": "high",
+  "sources": [
+    {
+      "source_filename": "...",
+      "document_id": "...",
+      "section": "...",
+      "page_pdf": 1,
+      "page_printed": "...",
+      "quote": "..."
+    }
+  ],
+  "notes": ""
+}
+
+Allowed status values:
+- extracted: directly found in a source.
+- normalized: derived by normalizing one or more extracted variants.
+- inferred_from_source: logically inferred from explicit source text; use sparingly and explain in notes.
+- conflicting: multiple plausible values exist.
+- unknown: not found in the available source set.
+- not_applicable: affirmatively not applicable.
+
+Allowed confidence values:
+- high: explicit source text, clear citation, no material conflict.
+- medium: explicit source text but ambiguity, variant wording, or lower-authority source.
+- low: weak support, file-name support only, partial OCR, illegible page, or uncertain interpretation.
+- none: unknown or not applicable.
+
+For status unknown:
+- value must be "".
+- confidence must be "none".
+- sources must be [].
+- notes must briefly say what source would normally supply the field.
+
+For status not_applicable:
+- value may be "" or a short explanation.
+- cite the source if the non-applicability is explicitly stated.
+
+CITATION RULES
+Every extracted, normalized, inferred_from_source, conflicting, or not_applicable field must include citations unless the value is derived solely from aggregation of already cited subfields.
+
+Each source citation must include:
+- source_filename;
+- document_id;
+- section, only if explicitly labeled;
+- page_pdf, 1-based PDF page number if applicable;
+- page_printed, if shown on page;
+- quote, the shortest controlling excerpt sufficient to verify the field.
+
+Do not guess page numbers or section numbers.
+For text files with page markers, use text page markers.
+For text files without page markers, page_pdf may be "" but quote must be present.
+
+PROPER CASE AND NORMALIZATION
+Use clean title case for normalized names, preserving acronyms:
+PBGC, ERISA, IRS, IRC, DOPT, DOTR, BPD, NOIT, NOD, EIN, PN, QJSA, QPSA, CBA, SMM, SPD, AFTAP, FICA.
+
+Keep exact source variants in aliases.
+Example:
+canonical_plan_metadata.canonical_plan_name.value:
+"The College Of Saint Rose Non-Contract Employees' Pension Plan"
+
+source_aliases.plan_name_aliases:
+[
+  "The College Of Saint Rose Non-Contract Employees' Pension Plan",
+  "College Of St. Rose Non-Contract Employees' Pension Plan",
+  "The College Of Saint Rose Non-Contract Pension Plan"
+]
+
+CASE METADATA
+case_metadata must include these fields:
+
+{
+  "case_name": field_object,
+  "case_number": field_object,
+  "plan_name_for_pbgc_work_products": field_object,
+  "plan_sponsor_name": field_object,
+  "contributing_sponsor_name": field_object,
+  "controlled_group_or_affiliated_service_group": field_object,
+  "ein": field_object,
+  "plan_number": field_object,
+  "pbgc_image_viewer_numbers": field_object,
+  "actuary": field_object,
+  "auditor": field_object,
+  "case_notes": field_object
+}
+
+Important:
+- case_name may be unknown if only plan documents are available.
+- plan_name_for_pbgc_work_products must not be blank if a plan name appears anywhere in the source set.
+- If case_name is unavailable but plan_name is available, set case_name.status = "unknown" and plan_name_for_pbgc_work_products.status = "normalized" or "extracted", as applicable.
+
+CANONICAL PLAN METADATA
+canonical_plan_metadata must include:
+
+{
+  "canonical_plan_name": field_object,
+  "canonical_sponsor_name": field_object,
+  "plan_type": field_object,
+  "single_employer_or_multiemployer": field_object,
+  "qualified_plan_status_intent": field_object,
+  "original_effective_date": field_object,
+  "current_or_latest_restatement_effective_date": field_object,
+  "latest_identified_plan_document_date": field_object,
+  "plan_anniversary_date": field_object,
+  "plan_year": field_object,
+  "fiscal_year": field_object,
+  "benefit_freeze_date": field_object,
+  "participation_freeze_date": field_object,
+  "accrual_freeze_description": field_object,
+  "covered_employee_groups": field_object,
+  "excluded_employee_groups": field_object,
+  "union_or_collective_bargaining_groups": field_object,
+  "trustee_or_funding_agent": field_object,
+  "plan_administrator_or_committee": field_object
+}
+
+TRUSTEESHIP METADATA
+trusteeship_metadata must include:
+
+{
+  "dopt": field_object,
+  "dotr": field_object,
+  "bpd": field_object,
+  "noit_date": field_object,
+  "nod_date": field_object,
+  "trusteeship_agreement_date": field_object,
+  "facility_closing_date": field_object,
+  "successor_plan_status": field_object,
+  "employer_status": field_object,
+  "pbgc_rates_source": field_object,
+  "trusteeship_notes": field_object
+}
+
+If trusteeship-specific fields are not in the source set, mark them unknown. Do not infer DOPT, DOTR, BPD, NOIT, or NOD from plan documents.
+
+PLAN DESIGN METADATA
+plan_design_metadata must include high-level plan design facts, not full R5 detail:
+
+{
+  "benefit_formula_family": field_object,
+  "cash_balance_status": field_object,
+  "employee_contribution_status": field_object,
+  "normal_retirement_age_summary": field_object,
+  "early_retirement_summary": field_object,
+  "normal_form_summary": field_object,
+  "married_form_summary": field_object,
+  "death_benefit_presence": field_object,
+  "disability_benefit_presence": field_object,
+  "top_heavy_provisions_presence": field_object,
+  "irc_436_restrictions_presence": field_object,
+  "lump_sum_or_cashout_presence": field_object
+}
+
+These fields are for navigation and downstream configuration only. Keep them concise and cite them. Do not attempt to replace the R5 scrape.
+
+DOCUMENT REGISTRY
+document_registry must contain one object for every source file reviewed.
+
+Each document object must include:
+
+{
+  "source_filename": "...",
+  "document_id": "...",
+  "document_type": "...",
+  "document_role": "...",
+  "document_title_exact": field_object,
+  "document_plan_name_exact": field_object,
+  "document_plan_name_normalized": field_object,
+  "sponsor_name_exact": field_object,
+  "trustee_or_funding_agent_exact": field_object,
+  "amendment_number": field_object,
+  "restatement_status": field_object,
+  "document_effective_date": field_object,
+  "document_adoption_date": field_object,
+  "document_execution_date": field_object,
+  "board_approval_or_resolution_date": field_object,
+  "signature_dates": field_object,
+  "period_covered": field_object,
+  "plan_year_or_anniversary_in_document": field_object,
+  "covered_groups_in_document": field_object,
+  "provisions_touched_summary": field_object,
+  "source_authority_level": 1,
+  "ocr_quality": "...",
+  "review_status": "...",
+  "notes": ""
+}
+
+Allowed document_type values:
+- plan_document
+- plan_amendment
+- summary_material_modification
+- 204h_notice
+- summary_plan_description
+- collective_bargaining_agreement
+- actuarial_valuation_report
+- pbgc_case_document
+- census_or_data_file
+- correspondence
+- board_resolution
+- unknown
+
+Allowed document_role values:
+- full_restatement
+- original_or_base_plan
+- amendment
+- narrow_amendment
+- notice_or_summary
+- cba_context
+- case_metadata_source
+- data_source
+- support_source
+- unknown
+
+Allowed restatement_status values:
+- original
+- restated
+- amended_and_restated
+- amendment_only
+- notice_only
+- not_applicable
+- unknown
+
+source_authority_level must follow the AUTHORITY HIERARCHY, with 1 highest and 5 lowest.
+
+ocr_quality allowed values:
+- good
+- usable
+- poor
+- illegible
+- not_applicable
+
+review_status allowed values:
+- reviewed
+- partially_reviewed
+- not_reviewed_due_to_technical_issue
+
+DOCUMENT TYPE RULES
+Full plan documents/restatements:
+- Extract exact title page plan name.
+- Extract statement-of-purpose effective dates.
+- Extract plan year, anniversary date, sponsor, trustee/funding agent, and participant groups when available.
+- Mark document_role as full_restatement or original_or_base_plan.
+
+Narrow amendments:
+- Extract amendment number, amended plan name, effective date, adoption/board approval date, execution/signature dates, trustee/funding agent, and provisions touched.
+- Do not treat amendment recital history as current plan state unless explicitly stated.
+- Mark document_role as narrow_amendment or amendment.
+
+204(h) notices and SMMs:
+- Extract benefit freeze date, participation freeze date, freeze description, distribution date, and stated plan name.
+- Mark document_type as 204h_notice or summary_material_modification as appropriate.
+- Mark document_role as notice_or_summary.
+- If the notice says official plan documents govern, include that in notes.
+
+Collective bargaining agreements:
+- Extract union name, bargaining unit covered group, period covered, and pension article references.
+- Do not treat CBA pension language as controlling plan text unless it directly defines eligibility or participation in the pension plan and no higher-authority source contradicts it.
+- Mark document_role as cba_context.
+
+CHRONOLOGY
+chronology must list all dated source events in chronological order.
+Each chronology object must include:
+
+{
+  "date": "YYYY-MM-DD",
+  "date_precision": "day",
+  "event_type": "...",
+  "description": "...",
+  "source_filename": "...",
+  "document_id": "...",
+  "citation": { ... }
+}
+
+Allowed date_precision values:
+- day
+- month
+- year
+- unknown
+
+Allowed event_type examples:
+- original_plan_effective
+- restatement_effective
+- amendment_effective
+- amendment_adopted
+- amendment_executed
+- board_resolution
+- benefit_freeze_effective
+- participation_freeze_effective
+- notice_distributed
+- cba_effective
+- cba_expiration
+- plan_year_anniversary
+- trusteeship_event
+
+Use ISO date format when possible. If the source gives only month/year or year, use the first day of the period and set date_precision accordingly.
+
+SOURCE ALIASES
+source_aliases must include:
+
+{
+  "plan_name_aliases": [ ... ],
+  "sponsor_name_aliases": [ ... ],
+  "trustee_or_funding_agent_aliases": [ ... ],
+  "union_name_aliases": [ ... ],
+  "document_title_aliases": [ ... ],
+  "defined_group_aliases": [ ... ]
+}
+
+Include exact variants from sources. Do not discard abbreviations such as “St. Rose” versus “Saint Rose.”
+
+CONFLICTS
+conflicts must list material inconsistencies, including:
+- different plan names that may or may not refer to the same plan;
+- different effective dates for the same restatement or amendment;
+- different freeze dates;
+- different sponsor or trustee names over time;
+- file name year conflicts with document text;
+- document titled one year but amended/effective in another year;
+- OCR ambiguity affecting key metadata.
+
+Each conflict object must include:
+{
+  "field": "...",
+  "values": [
+    {
+      "value": "...",
+      "source_filename": "...",
+      "document_id": "...",
+      "citation": { ... },
+      "authority_level": 2
+    }
+  ],
+  "selected_canonical_value": "...",
+  "selection_reason": "...",
+  "requires_human_review": true
+}
+
+UNRESOLVED ITEMS
+unresolved_items must list important missing metadata.
+Each unresolved object must include:
+{
+  "field": "...",
+  "reason": "...",
+  "likely_source_needed": "...",
+  "impact_on_downstream_work": "..."
+}
+
+Examples of likely_source_needed:
+- metadata.json
+- CMS extract
+- Trusteeship Working Group Memo
+- Trusteeship Agreement
+- Plan Document List
+- PBGC Image Viewer index
+- IRS Form 5500
+- signed plan amendment
+- complete SPD
+- prior administrator records
+
+QUALITY CONTROL
+quality_control must include:
+
+{
+  "files_reviewed_count": 0,
+  "document_registry_count": 0,
+  "canonical_plan_name_populated": true,
+  "plan_sponsor_populated": true,
+  "plan_year_populated": true,
+  "benefit_freeze_date_populated": true,
+  "trusteeship_dates_populated": false,
+  "all_extracted_fields_have_sources": true,
+  "conflicts_count": 0,
+  "unresolved_items_count": 0,
+  "warnings": [ ... ],
+  "validation_notes": "..."
+}
+
+VALIDATION RULES
+Before finalizing:
+1) Every source file reviewed must appear in document_registry.
+2) canonical_plan_metadata.canonical_plan_name must be populated if any source contains a plan name.
+3) case_metadata.plan_name_for_pbgc_work_products must be populated if canonical_plan_name is populated.
+4) Do not leave plan name blank merely because no metadata.json exists.
+5) Every extracted field must have at least one citation.
+6) Unknown fields must not contain guessed values.
+7) File-name-derived values must have confidence low unless confirmed by source text.
+8) Conflicts must not be silently resolved; document the selected canonical value and reason.
+9) Chronology must include all extracted effective, adoption, execution, freeze, notice, and CBA period dates.
+10) JSON must parse as valid JSON.
+
+RECOMMENDED CANONICALIZATION RULES
+For plan name:
+- Prefer the latest full plan document title if it is consistent with prior full plan documents.
+- Preserve older spellings and variants in source_aliases.plan_name_aliases.
+- Do not remove legally meaningful qualifiers such as “Non-Contract Employees.”
+
+For sponsor:
+- Prefer the sponsor/employer/company name in the latest full plan document.
+- Preserve historical sponsor aliases.
+
+For plan year:
+- Prefer explicit “Plan Year” or “Anniversary Date” definitions in the plan document.
+- Do not infer plan year solely from fiscal year unless the document defines them consistently.
+
+For freeze dates:
+- Prefer signed plan amendment or 204(h) notice that explicitly states the freeze date.
+- If only a notice is available, mark confidence medium and note that official plan amendment should be obtained or checked.
+
+For document dates:
+- Separate effective date, adoption date, execution date, board approval date, and signature date.
+- Do not collapse them into one date.
+
+FAILURE MODES TO AVOID
+- Do not leave canonical_plan_name blank when the plan name appears on title pages.
+- Do not treat case_name and plan_name as identical unless a source supports it.
+- Do not infer DOPT, DOTR, BPD, NOIT, or NOD from plan provisions.
+- Do not ignore title pages, preambles, recitals, signature pages, certifications, or board-resolution pages.
+- Do not overwrite historical trustee names with the latest trustee name; preserve chronology.
+- Do not classify a 204(h) notice as a full plan amendment unless the source contains executed amendment language.
+- Do not treat CBA covered groups as plan-covered groups unless the plan document or CBA pension article supports the connection.
+- Do not silently resolve “St. Rose” versus “Saint Rose”; normalize but keep aliases.
+- Do not rely on file names as legal metadata.
+
+DELIVERABLE RESPONSE
+After saving metadata-test.json, provide:
+1) a link to metadata-test.json;
+2) a short warning list if any important fields are unknown or conflict;
+3) no full JSON dump unless requested.
