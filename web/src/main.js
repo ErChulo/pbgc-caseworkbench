@@ -4,13 +4,13 @@ import "./style.css";
 import JSZip from "jszip";
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import r5BuilderLegacyHtml from "./legacy/r5-builder.v0.7.9.html?raw";
+import v1EngineExplorerHtml from "./legacy/pbgc-v1-engine-explorer.html?raw";
 import logoSvg from "./assets/logo.svg?raw";
 import metadataScraperPrompt from "./assets/metadata-scraper-prompt.txt?raw";
 
 import Ajv from "ajv";
 import planMetadataSchema from "./planMetadata.schema.json";
-
-const APP_VERSION = "0.7.0";
+import { APP_VERSION, SCHEMA_VERSION } from "./version.js";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validatePlanMetadata = ajv.compile(planMetadataSchema);
@@ -20,6 +20,16 @@ const state = {
   planMetadata: null,
   planMetadataApproved: false,
   lastManifest: null,
+  v1Warehouse: {
+    records: [],
+    profiles: [],
+    importManifest: null,
+    rankingManifest: null,
+    diagnostics: [],
+    r5Files: [],
+    r5Profile: null,
+    rankings: []
+  },
   lastError: null,
   theme: "auto"
 };
@@ -58,6 +68,7 @@ function clearState() {
   state.planMetadata = null;
   state.planMetadataApproved = false;
   state.lastManifest = null;
+  resetV1Warehouse();
   state.lastError = null;
   localStorage.removeItem(STORAGE_KEY);
 }
@@ -66,8 +77,76 @@ const routes = [
   { path: "#/metadata", title: "Metadata", render: renderMetadata },
   { path: "#/r5-builder", title: "R5 Builder", render: renderR5Builder },
   { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
+  { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer },
+  { path: "#/factors", title: "Plan Factors", render: (container) => renderArtifactModule(container, artifactModuleConfigs.factors) },
+  { path: "#/436", title: "436", render: (container) => renderArtifactModule(container, artifactModuleConfigs.section436) },
+  { path: "#/estimated-adjustments", title: "Est. Adjustments", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdjustments) },
+  { path: "#/estimated-administration", title: "Est. Administration", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdministration) },
+  { path: "#/v1-builder", title: "V1 Builder", render: renderV1BuilderAlias, hidden: true },
+  { path: "#/dag-viewer", title: "DAG Viewer", render: (container) => renderArtifactModule(container, artifactModuleConfigs.dagViewer) },
+  { path: "#/formula-tree", title: "Formula Tree", render: (container) => renderArtifactModule(container, artifactModuleConfigs.formulaTree) },
+  { path: "#/letters-bcv", title: "Letters/BCV", render: (container) => renderArtifactModule(container, artifactModuleConfigs.lettersBcv) },
   { path: "#/audit", title: "Audit", render: renderAudit }
 ];
+
+const artifactModuleConfigs = {
+  factors: {
+    id: "plan-factors",
+    title: "Plan Factors",
+    description: "Package uploaded factor source files into a cited, audit-ready extraction workspace.",
+    outputName: "plan-factors.artifact.json",
+    accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf,.docx",
+    prompt: "Upload factor tables, plan provisions, and supporting references."
+  },
+  section436: {
+    id: "section-436",
+    title: "Section 436 Limitation Memo",
+    description: "Build a memo input package for section 436 limitations without inventing missing provisions.",
+    outputName: "section-436-memo.artifact.json",
+    accepted: ".json,.txt,.pdf,.docx",
+    prompt: "Upload section 436 references, plan amendments, and memo notes."
+  },
+  estimatedAdjustments: {
+    id: "estimated-benefit-adjustments",
+    title: "Estimated Benefit Adjustment Analysis",
+    description: "Create an adjustment analysis package from uploaded estimates and supporting workpapers.",
+    outputName: "estimated-benefit-adjustments.artifact.json",
+    accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf",
+    prompt: "Upload estimated benefit extracts, workpapers, or reconciliation notes."
+  },
+  estimatedAdministration: {
+    id: "estimated-benefit-administration",
+    title: "Estimated Benefit Administration Analysis",
+    description: "Create an administration analysis package from uploaded extracts and source notes.",
+    outputName: "estimated-benefit-administration.artifact.json",
+    accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf",
+    prompt: "Upload administration extracts, sample notices, or operational notes."
+  },
+  dagViewer: {
+    id: "dag-viewer",
+    title: "DAG Viewer",
+    description: "Build a dependency graph model from uploaded formula or engine JSON.",
+    outputName: "dag-viewer.graph.json",
+    accepted: ".json,.txt,.csv",
+    prompt: "Upload formula inventories or engine JSON."
+  },
+  formulaTree: {
+    id: "formula-tree",
+    title: "Formula Tree",
+    description: "Build a formula tree model from uploaded formula strings. Formulas are analyzed as text only.",
+    outputName: "formula-tree.graph.json",
+    accepted: ".json,.txt,.csv",
+    prompt: "Upload formula inventories, row-variable maps, or engine JSON."
+  },
+  lettersBcv: {
+    id: "letters-bcv-config",
+    title: "BCV Letter Generation Config",
+    description: "Create a deterministic BCV letter generation config package from uploaded templates and variable maps.",
+    outputName: "bcv-letter-config.artifact.json",
+    accepted: ".json,.txt,.csv,.docx,.xlsx,.xlsm,.xls",
+    prompt: "Upload letter templates, BSRS configs, and variable mappings."
+  }
+};
 
 const REQUIRED_METADATA_FIELDS = [
   { id: "plan_name", label: "Plan Name", path: ["plan", "plan_name"] },
@@ -137,6 +216,7 @@ function applyTheme(theme) {
 function renderShell() {
   const app = document.querySelector("#app");
   const nav = routes
+    .filter((r) => !r.hidden)
     .map(
       (r) =>
         `<button class="nav-button" data-route="${r.path}">${r.title}</button>`
@@ -247,6 +327,7 @@ function renderRoute() {
     el.classList.remove("show");
   });
   page.classList.remove("page-enter");
+  page.dataset.route = route.path;
   void page.offsetWidth;
   page.classList.add("page-enter");
   route.render(page);
@@ -262,10 +343,36 @@ const legacyR5SrcDoc = r5BuilderLegacyHtml
     `<head$1><script>window.JSZip = parent.JSZip;<\/script>`
   );
 
+const v1ExplorerBridgeScript = `
+<script>
+window.CASEWORKBENCH_CONTEXT = null;
+window.addEventListener("message", function(event) {
+  var data = event.data || {};
+  if (data.type !== "CASEWORKBENCH_CONTEXT") return;
+  window.CASEWORKBENCH_CONTEXT = data.payload;
+  document.documentElement.setAttribute("data-caseworkbench-bridge", "ready");
+  var target = document.getElementById("caseworkbench-bridge-status");
+  if (!target) {
+    target = document.createElement("div");
+    target.id = "caseworkbench-bridge-status";
+    target.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:9999;padding:8px 10px;border:1px solid #2b6f74;background:#061013;color:#dff7f5;border-radius:8px;font:12px system-ui";
+    document.body.appendChild(target);
+  }
+  var count = data.payload && data.payload.warehouse_state && Array.isArray(data.payload.warehouse_state.profiles)
+    ? data.payload.warehouse_state.profiles.length
+    : 0;
+  target.textContent = "Caseworkbench context: " + (data.payload.case_number || "unknown") + " | V1 profiles: " + count;
+});
+<\/script>`;
+
+const v1EngineExplorerSrcDoc = v1EngineExplorerHtml.includes("</body>")
+  ? v1EngineExplorerHtml.replace("</body>", `${v1ExplorerBridgeScript}</body>`)
+  : `${v1EngineExplorerHtml}${v1ExplorerBridgeScript}`;
+
 function defaultPlanMetadata() {
   const empty = { value: "unknown", citations: [] };
   return {
-    schema_version: "0.7.0",
+    schema_version: SCHEMA_VERSION,
     meta: {
       case_number: { ...empty },
       case_processing_section: { ...empty },
@@ -1061,6 +1168,269 @@ function renderMetadata(container) {
   });
 }
 
+async function buildRunManifest(moduleId, moduleVersion, files) {
+  const sortedFiles = [...files].sort((a, b) => a.name.localeCompare(b.name));
+  const inputHashes = {};
+  for (const file of sortedFiles) {
+    inputHashes[file.name] = await sha256Hex(file);
+  }
+  const planMetadataHash = await sha256HexString(stringifyStable(state.planMetadata));
+  return {
+    app_version: APP_VERSION,
+    schema_version: SCHEMA_VERSION,
+    module_id: moduleId,
+    module_version: moduleVersion,
+    generated_at_utc: new Date().toISOString(),
+    case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+    input_hashes: inputHashes,
+    plan_metadata_hash: planMetadataHash
+  };
+}
+
+function extractFormulaReferences(formula) {
+  const refs = new Set();
+  const re = /\b[A-Z]{1,3}\$?\d+\b|\b[A-Za-z_][A-Za-z0-9_]*\b/g;
+  const reserved = new Set([
+    "IF",
+    "AND",
+    "OR",
+    "NOT",
+    "TRUE",
+    "FALSE",
+    "SUM",
+    "MIN",
+    "MAX",
+    "ROUND",
+    "VLOOKUP",
+    "XLOOKUP",
+    "INDEX",
+    "MATCH"
+  ]);
+  for (const match of String(formula ?? "").matchAll(re)) {
+    const token = match[0];
+    if (!reserved.has(token.toUpperCase())) refs.add(token);
+  }
+  return [...refs].sort();
+}
+
+function collectFormulaStrings(value, out = [], path = "$") {
+  if (out.length >= 250) return out;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.startsWith("=") || /ATPBGC|Formula|formula|UDF/.test(trimmed)) {
+      out.push({ path, formula: trimmed });
+    }
+    return out;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, i) => collectFormulaStrings(item, out, `${path}[${i}]`));
+    return out;
+  }
+  if (value && typeof value === "object") {
+    Object.keys(value)
+      .sort()
+      .forEach((key) => collectFormulaStrings(value[key], out, `${path}.${key}`));
+  }
+  return out;
+}
+
+async function readTextPreview(file) {
+  const textLike =
+    file.type.startsWith("text/") ||
+    /\.(json|txt|csv|md|xml)$/i.test(file.name);
+  if (!textLike || file.size > 750000) return null;
+  return file.text();
+}
+
+function buildGraphPayload(textPayloads) {
+  const formulaRows = [];
+  for (const item of textPayloads) {
+    if (!item.text) continue;
+    try {
+      const parsed = JSON.parse(item.text);
+      collectFormulaStrings(parsed).forEach((row) => {
+        formulaRows.push({ source_file: item.name, ...row });
+      });
+    } catch {
+      item.text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith("=") || line.includes("ATPBGC"))
+        .slice(0, 250)
+        .forEach((formula, i) => {
+          formulaRows.push({ source_file: item.name, path: `line:${i + 1}`, formula });
+        });
+    }
+  }
+
+  const nodes = new Map();
+  const edges = [];
+  formulaRows.slice(0, 250).forEach((row, i) => {
+    const id = `${row.source_file}:${row.path}`;
+    nodes.set(id, { id, label: row.path, source_file: row.source_file, formula: row.formula });
+    extractFormulaReferences(row.formula).forEach((ref) => {
+      nodes.set(ref, { id: ref, label: ref, source_file: "reference" });
+      edges.push({ from: id, to: ref, relationship: "references" });
+    });
+  });
+
+  return {
+    formulas_analyzed: formulaRows.length,
+    nodes: [...nodes.values()].sort((a, b) => a.id.localeCompare(b.id)),
+    edges: edges.sort((a, b) => `${a.from}:${a.to}`.localeCompare(`${b.from}:${b.to}`))
+  };
+}
+
+async function buildModuleArtifact(config, files, notes) {
+  const sortedFiles = [...files].sort((a, b) => a.name.localeCompare(b.name));
+  const manifest = await buildRunManifest(config.id, "0.7.0", sortedFiles);
+  const textPayloads = [];
+  for (const file of sortedFiles) {
+    textPayloads.push({ name: file.name, text: await readTextPreview(file) });
+  }
+
+  const graph =
+    config.id === "dag-viewer" || config.id === "formula-tree" || config.id === "v1-engine-generator"
+      ? buildGraphPayload(textPayloads)
+      : null;
+
+  return {
+    meta: manifest,
+    plan_metadata: {
+      case_number: manifest.case_number,
+      plan_metadata_hash: manifest.plan_metadata_hash
+    },
+    module: {
+      id: config.id,
+      title: config.title,
+      status: "draft",
+      rule: "Unknown or unsupported facts remain unknown/na. No plan provisions or factor values are invented."
+    },
+    inputs: sortedFiles.map((file) => ({
+      name: file.name,
+      size: file.size,
+      type: file.type || "unknown",
+      sha256: manifest.input_hashes[file.name]
+    })),
+    notes: notes.trim() || "unknown",
+    citations_required: true,
+    graph,
+    next_steps: [
+      "Review uploaded inputs against the reference/source documents.",
+      "Add citations as doc_id, page, and locator before treating any fact as known.",
+      "Download the companion manifest from the Audit panel or this module output."
+    ]
+  };
+}
+
+function renderArtifactModule(container, config) {
+  const planName = getPlanValue(state.planMetadata, "plan_name") || "unknown";
+  const caseNo = state.planMetadata?.meta?.case_number?.value ?? "unknown";
+
+  container.innerHTML = `
+    <section class="page-hero">
+      <div class="page-title">
+        <h2>${escapeHtml(config.title)}</h2>
+        <p>${escapeHtml(config.description)}</p>
+        <p class="meta-line"><b>Case:</b> ${escapeHtml(planName)} (${escapeHtml(caseNo)})</p>
+      </div>
+      <div class="page-actions">
+        <button class="icon-button help" id="toggle_instructions" aria-label="Toggle instructions" data-help="Show quick instructions">i</button>
+      </div>
+    </section>
+
+    <div id="instructions_backdrop" class="drawer-backdrop"></div>
+    <aside class="drawer-panel drawer-left" id="instructions_panel">
+      <div class="drawer-header">
+        <div class="drawer-title">How To Use This Module</div>
+        <button class="icon-button" id="close_instructions" aria-label="Close instructions">x</button>
+      </div>
+      <div class="drawer-body">
+        <ol class="instruction-list">
+          <li>${escapeHtml(config.prompt)}</li>
+          <li>Generate the artifact JSON; the output embeds app version, module version, input hashes, case number, and metadata hash.</li>
+          <li>Use the Audit panel to download the latest manifest separately.</li>
+        </ol>
+      </div>
+    </aside>
+
+    <div class="card">
+      <label><b>Input files</b></label><br/>
+      <input id="module_files" type="file" multiple accept="${escapeHtml(config.accepted)}" />
+      <div id="module_file_list" class="meta-line">No files selected.</div>
+
+      <label style="display:block;margin-top:1rem;"><b>Run notes</b></label>
+      <textarea id="module_notes" rows="5" placeholder="Optional notes. Do not enter PII."></textarea>
+
+      <div class="button-row">
+        <button id="module_generate" class="primary" disabled>Generate artifact JSON</button>
+        <button id="module_manifest" class="ghost" disabled>Download manifest.json</button>
+      </div>
+      <pre id="module_status" class="code" style="margin-top:12px;"></pre>
+    </div>
+  `;
+
+  const instructionsBtn = container.querySelector("#toggle_instructions");
+  const instructionsPanel = container.querySelector("#instructions_panel");
+  const instructionsBackdrop = container.querySelector("#instructions_backdrop");
+  const instructionsClose = container.querySelector("#close_instructions");
+  instructionsBtn.addEventListener("click", () => {
+    instructionsPanel.classList.add("open");
+    instructionsBackdrop.classList.add("show");
+  });
+  function closeInstructions() {
+    instructionsPanel.classList.remove("open");
+    instructionsBackdrop.classList.remove("show");
+  }
+  instructionsClose.addEventListener("click", closeInstructions);
+  instructionsBackdrop.addEventListener("click", closeInstructions);
+
+  const fileInput = container.querySelector("#module_files");
+  const fileList = container.querySelector("#module_file_list");
+  const notes = container.querySelector("#module_notes");
+  const generateBtn = container.querySelector("#module_generate");
+  const manifestBtn = container.querySelector("#module_manifest");
+  const status = container.querySelector("#module_status");
+
+  let files = [];
+
+  function update() {
+    files = [...(fileInput.files ?? [])];
+    generateBtn.disabled = files.length === 0;
+    manifestBtn.disabled = !state.lastManifest || state.lastManifest.module_id !== config.id;
+    fileList.textContent = files.length
+      ? files.map((file) => `${file.name} (${file.size} bytes)`).join(", ")
+      : "No files selected.";
+  }
+
+  fileInput.addEventListener("change", update);
+
+  generateBtn.addEventListener("click", async () => {
+    status.textContent = "Generating artifact...";
+    try {
+      const artifact = await buildModuleArtifact(config, files, notes.value);
+      state.lastManifest = artifact.meta;
+      saveState();
+      const blob = new Blob([stringifyStable(artifact)], { type: "application/json" });
+      downloadBlob(blob, config.outputName);
+      status.textContent = `DONE. Downloaded ${config.outputName}\n\nManifest:\n${JSON.stringify(state.lastManifest, null, 2)}`;
+      update();
+    } catch (err) {
+      status.textContent = `ERROR: ${err.message}`;
+    }
+  });
+
+  manifestBtn.addEventListener("click", () => {
+    if (!state.lastManifest) return;
+    const blob = new Blob([JSON.stringify(state.lastManifest, null, 2)], {
+      type: "application/json"
+    });
+    downloadBlob(blob, `manifest.${config.id}.json`);
+  });
+
+  update();
+}
+
 function renderAudit(container) {
   container.innerHTML = `
     <section class="page-hero">
@@ -1092,6 +1462,9 @@ function renderAudit(container) {
       <pre class="code">${escapeHtml(
         JSON.stringify(state.lastManifest ?? { note: "No actions yet." }, null, 2)
       )}</pre>
+      <div class="button-row">
+        <button id="audit_download_manifest" ${state.lastManifest ? "" : "disabled"}>Download manifest.json</button>
+      </div>
       <div class="meta-line" id="audit_hash">Plan metadata hash: (no metadata loaded)</div>
     </div>
   `;
@@ -1110,6 +1483,15 @@ function renderAudit(container) {
   }
   instructionsClose.addEventListener("click", closeInstructions);
   instructionsBackdrop.addEventListener("click", closeInstructions);
+
+  const downloadManifestBtn = container.querySelector("#audit_download_manifest");
+  downloadManifestBtn.addEventListener("click", () => {
+    if (!state.lastManifest) return;
+    const blob = new Blob([JSON.stringify(state.lastManifest, null, 2)], {
+      type: "application/json"
+    });
+    downloadBlob(blob, "manifest.json");
+  });
 
   const hashEl = container.querySelector("#audit_hash");
   if (!state.planMetadata || !hashEl) return;
@@ -1171,6 +1553,239 @@ function renderR5Builder(container) {
   }
   instructionsClose.addEventListener("click", closeInstructions);
   instructionsBackdrop.addEventListener("click", closeInstructions);
+}
+
+async function buildExplorerBridgeContext() {
+  const planMetadataHash = state.planMetadata
+    ? await sha256HexString(stringifyStable(state.planMetadata))
+    : "unknown";
+  return {
+    app_version: APP_VERSION,
+    schema_version: SCHEMA_VERSION,
+    case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+    plan_metadata_hash: planMetadataHash,
+    plan_metadata: state.planMetadata,
+    warehouse_state: {
+      read_only: true,
+      profiles: state.v1Warehouse.profiles
+    }
+  };
+}
+
+async function sendExplorerBridgeContext(iframe, statusEl) {
+  if (!iframe?.contentWindow) return;
+  const context = await buildExplorerBridgeContext();
+  iframe.contentWindow.postMessage(
+    {
+      type: "CASEWORKBENCH_CONTEXT",
+      version: APP_VERSION,
+      payload: context
+    },
+    "*"
+  );
+  if (statusEl) {
+    statusEl.textContent = `Bridge sent: case ${context.case_number}, metadata ${context.plan_metadata_hash.slice(0, 12)}, ${context.warehouse_state.profiles.length} V1 profiles.`;
+  }
+}
+
+function renderV1BuilderAlias(container) {
+  setRoute("#/v1-engine-explorer");
+  renderV1EngineExplorer(container);
+}
+
+function renderV1EngineExplorer(container) {
+  const planName = getPlanValue(state.planMetadata, "plan_name") || "unknown";
+  const caseNo = state.planMetadata?.meta?.case_number?.value ?? "unknown";
+
+  container.innerHTML = `
+    <section class="page-hero">
+      <div class="page-title">
+        <h2>V1 Engine Explorer</h2>
+        <p><b>Case:</b> ${escapeHtml(planName)} (Case ${escapeHtml(caseNo)})</p>
+      </div>
+      <div class="page-actions">
+        <button class="icon-button help" id="toggle_instructions" aria-label="Toggle instructions" data-help="Show quick instructions">i</button>
+      </div>
+    </section>
+
+    <div id="instructions_backdrop" class="drawer-backdrop"></div>
+    <aside class="drawer-panel drawer-left" id="instructions_panel">
+      <div class="drawer-header">
+        <div class="drawer-title">How To Use This Module</div>
+        <button class="icon-button" id="close_instructions" aria-label="Close instructions">x</button>
+      </div>
+      <div class="drawer-body">
+        <ol class="instruction-list">
+          <li>Upload approved V1Summary JSON files as read-only governing reference engines.</li>
+          <li>Upload R5 summary JSON files for the current case and run reuse matching.</li>
+          <li>The embedded explorer receives PlanMetadata context and lightweight V1 profiles from Caseworkbench.</li>
+        </ol>
+      </div>
+    </aside>
+
+    <div class="card v1-control-panel">
+      <div class="grid two">
+        <div>
+          <label><b>Approved V1 engines (read-only)</b></label><br/>
+          <input id="v1_approved_files" type="file" multiple accept="application/json,.json" />
+          <div class="button-row">
+            <button id="v1_import_approved" class="primary" disabled>Import Approved V1</button>
+            <button id="v1_import_manifest" class="ghost" ${state.v1Warehouse.importManifest ? "" : "disabled"}>Download import manifest</button>
+          </div>
+        </div>
+        <div>
+          <label><b>R5 summary JSON</b></label><br/>
+          <input id="v1_r5_files" type="file" multiple accept="application/json,.json" />
+          <div class="button-row">
+            <button id="v1_load_r5" disabled>Load R5</button>
+            <button id="v1_run_ranking" class="primary" ${state.v1Warehouse.profiles.length && state.v1Warehouse.r5Files.length ? "" : "disabled"}>Rank V1 Candidates</button>
+            <button id="v1_ranking_manifest" class="ghost" ${state.v1Warehouse.rankingManifest ? "" : "disabled"}>Download ranking manifest</button>
+          </div>
+        </div>
+      </div>
+      <div class="button-row">
+        <button id="v1_send_bridge" class="ghost">Send context to explorer</button>
+        <button id="v1_clear_session" class="ghost">Clear V1 session</button>
+      </div>
+      <div id="v1_status" class="meta-line">Approved V1 records are read-only and stay in Caseworkbench memory for this browser session.</div>
+      <div id="v1_bridge_status" class="meta-line"></div>
+      <div class="section-divider"></div>
+      <h3>Approved Engine Warehouse</h3>
+      <div id="v1_profiles">${renderV1ProfilesSummary()}</div>
+      <div class="section-divider"></div>
+      <h3>R5 Matching Results</h3>
+      <div id="v1_rankings">${renderV1RankingResults()}</div>
+    </div>
+
+    <iframe
+      id="v1_explorer_frame"
+      title="V1 Engine Explorer"
+      class="legacy-frame v1-explorer-frame"
+      srcdoc="${escapeHtml(v1EngineExplorerSrcDoc)}"
+      loading="eager"
+    ></iframe>
+  `;
+
+  const instructionsBtn = container.querySelector("#toggle_instructions");
+  const instructionsPanel = container.querySelector("#instructions_panel");
+  const instructionsBackdrop = container.querySelector("#instructions_backdrop");
+  const instructionsClose = container.querySelector("#close_instructions");
+  instructionsBtn.addEventListener("click", () => {
+    instructionsPanel.classList.add("open");
+    instructionsBackdrop.classList.add("show");
+  });
+  function closeInstructions() {
+    instructionsPanel.classList.remove("open");
+    instructionsBackdrop.classList.remove("show");
+  }
+  instructionsClose.addEventListener("click", closeInstructions);
+  instructionsBackdrop.addEventListener("click", closeInstructions);
+
+  const approvedFiles = container.querySelector("#v1_approved_files");
+  const importBtn = container.querySelector("#v1_import_approved");
+  const importManifestBtn = container.querySelector("#v1_import_manifest");
+  const r5Files = container.querySelector("#v1_r5_files");
+  const loadR5Btn = container.querySelector("#v1_load_r5");
+  const rankBtn = container.querySelector("#v1_run_ranking");
+  const rankingManifestBtn = container.querySelector("#v1_ranking_manifest");
+  const clearBtn = container.querySelector("#v1_clear_session");
+  const bridgeBtn = container.querySelector("#v1_send_bridge");
+  const statusEl = container.querySelector("#v1_status");
+  const bridgeStatusEl = container.querySelector("#v1_bridge_status");
+  const profilesEl = container.querySelector("#v1_profiles");
+  const rankingsEl = container.querySelector("#v1_rankings");
+  const iframe = container.querySelector("#v1_explorer_frame");
+
+  function refreshV1Ui() {
+    profilesEl.innerHTML = renderV1ProfilesSummary();
+    rankingsEl.innerHTML = renderV1RankingResults();
+    importManifestBtn.disabled = !state.v1Warehouse.importManifest;
+    rankingManifestBtn.disabled = !state.v1Warehouse.rankingManifest;
+    rankBtn.disabled = !(state.v1Warehouse.profiles.length && state.v1Warehouse.r5Files.length);
+  }
+
+  approvedFiles.addEventListener("change", () => {
+    importBtn.disabled = !(approvedFiles.files?.length);
+  });
+
+  r5Files.addEventListener("change", () => {
+    loadR5Btn.disabled = !(r5Files.files?.length);
+  });
+
+  importBtn.addEventListener("click", async () => {
+    statusEl.textContent = "Importing approved V1 engines...";
+    try {
+      const result = await importApprovedV1Files([...(approvedFiles.files ?? [])]);
+      statusEl.textContent = `Imported ${result.imported.length}; skipped ${result.skipped.length}. ${result.diagnostics.slice(0, 3).join(" ")}`;
+      refreshV1Ui();
+      await sendExplorerBridgeContext(iframe, bridgeStatusEl);
+    } catch (err) {
+      statusEl.textContent = `ERROR: ${err.message}`;
+    }
+  });
+
+  loadR5Btn.addEventListener("click", async () => {
+    statusEl.textContent = "Loading R5 summaries...";
+    try {
+      const result = await importR5Files([...(r5Files.files ?? [])]);
+      statusEl.textContent = `Loaded ${result.inputs.length} R5 file(s). Domains: ${result.profile.recognized_domains.join(", ") || "none"}. ${result.diagnostics.join(" ")}`;
+      refreshV1Ui();
+    } catch (err) {
+      statusEl.textContent = `ERROR: ${err.message}`;
+    }
+  });
+
+  rankBtn.addEventListener("click", async () => {
+    statusEl.textContent = "Ranking approved V1 candidates...";
+    try {
+      const result = await runV1R5Ranking();
+      const best = result.rankings[0];
+      statusEl.textContent = best
+        ? `Best candidate: ${best.workbook_name} (${best.candidate_record_id}) with score ${best.overall_score}. Reuse evidence only; not approval.`
+        : "No candidate could be ranked.";
+      refreshV1Ui();
+      await sendExplorerBridgeContext(iframe, bridgeStatusEl);
+    } catch (err) {
+      statusEl.textContent = `ERROR: ${err.message}`;
+    }
+  });
+
+  importManifestBtn.addEventListener("click", () => {
+    if (!state.v1Warehouse.importManifest) return;
+    downloadBlob(
+      new Blob([JSON.stringify(state.v1Warehouse.importManifest, null, 2)], { type: "application/json" }),
+      "manifest.v1-approved-import.json"
+    );
+  });
+
+  rankingManifestBtn.addEventListener("click", () => {
+    if (!state.v1Warehouse.rankingManifest) return;
+    downloadBlob(
+      new Blob([JSON.stringify(state.v1Warehouse.rankingManifest, null, 2)], { type: "application/json" }),
+      "manifest.v1-r5-ranking.json"
+    );
+  });
+
+  clearBtn.addEventListener("click", () => {
+    resetV1Warehouse();
+    state.lastManifest = null;
+    statusEl.textContent = "Cleared V1 session state.";
+    refreshV1Ui();
+  });
+
+  bridgeBtn.addEventListener("click", () => {
+    sendExplorerBridgeContext(iframe, bridgeStatusEl).catch((err) => {
+      bridgeStatusEl.textContent = `Bridge error: ${err.message}`;
+    });
+  });
+
+  iframe.addEventListener("load", () => {
+    sendExplorerBridgeContext(iframe, bridgeStatusEl).catch((err) => {
+      bridgeStatusEl.textContent = `Bridge error: ${err.message}`;
+    });
+  });
+
+  refreshV1Ui();
 }
 
 function getPlanValue(planMetadata, key) {
@@ -1386,6 +2001,383 @@ async function sha256Hex(file) {
   const hashBuf = await crypto.subtle.digest("SHA-256", buf);
   const bytes = Array.from(new Uint8Array(hashBuf));
   return bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function resetV1Warehouse() {
+  state.v1Warehouse = {
+    records: [],
+    profiles: [],
+    importManifest: null,
+    rankingManifest: null,
+    diagnostics: [],
+    r5Files: [],
+    r5Profile: null,
+    rankings: []
+  };
+}
+
+const V1_DOMAIN_KEYWORDS = {
+  retirement_dates: ["nrd", "erd", "eurd", "xrd", "dor", "retirement date", "retirement age"],
+  benefit_amounts: ["amb", "accrued monthly benefit", "vb", "vested monthly", "benefit amount", "monthly benefit"],
+  service: ["credited service", "vesting service", "service", "cs", "vs"],
+  form_conversion: ["form", "annuity", "joint", "survivor", "certain", "conversion", "ccf"],
+  lump_sum: ["lump sum", "ls_rates", "small benefit", "cashout"],
+  mortality_interest: ["npvf", "mortality", "interest", "rate", "pbgc_option_rates", "ls_rates"],
+  pbgc_limits: ["maxlim", "pbgc max", "4022", "guarantee", "limitation", "benefit limitation"],
+  section_436: ["436", "benefit freeze", "dobf", "restriction"],
+  qpsa_qdro: ["qpsa", "qdro", "alternate payee", "spouse", "beneficiary"],
+  compensation: ["compensation", "covered comp", "salary", "pay"]
+};
+
+function stableIdFromHash(prefix, hash) {
+  return `${prefix}-${String(hash).slice(0, 16)}`;
+}
+
+function stripJsonBom(text) {
+  return String(text ?? "").replace(/^\uFEFF/, "");
+}
+
+function collectTextValues(value, out = []) {
+  if (out.length > 5000) return out;
+  if (value == null) return out;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    out.push(String(value));
+    return out;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectTextValues(item, out));
+    return out;
+  }
+  if (typeof value === "object") {
+    Object.keys(value)
+      .sort()
+      .forEach((key) => {
+        out.push(key);
+        collectTextValues(value[key], out);
+      });
+  }
+  return out;
+}
+
+function detectBenefitDomains(textParts) {
+  const haystack = textParts.join(" ").toLowerCase();
+  return Object.entries(V1_DOMAIN_KEYWORDS)
+    .filter(([, keywords]) => keywords.some((keyword) => haystack.includes(keyword)))
+    .map(([domain]) => domain)
+    .sort();
+}
+
+function validateV1Summary(obj) {
+  const errors = [];
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+    errors.push("JSON root must be an object.");
+  }
+  if (!obj?.cells || typeof obj.cells !== "object" || Array.isArray(obj.cells)) {
+    errors.push("Missing object field: cells.");
+  }
+  if (obj?.runs != null && !Array.isArray(obj.runs)) {
+    errors.push("Field runs must be an array when present.");
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+function extractCellEntries(summary) {
+  return Object.entries(summary?.cells ?? {}).map(([key, cell]) => ({
+    key,
+    ...(cell && typeof cell === "object" ? cell : {})
+  }));
+}
+
+function createV1Profile(record) {
+  const summary = record.summary;
+  const cells = extractCellEntries(summary);
+  const formulaCells = cells.filter((cell) => cell.hasFormula || cell.formula);
+  const functionNames = new Set();
+  const genericFields = new Set();
+  const textParts = [
+    summary?.workbookName,
+    summary?.schemaVersion,
+    ...(Array.isArray(summary?.sourceTabs) ? summary.sourceTabs : []),
+    ...(Array.isArray(summary?.runs) ? summary.runs : [])
+  ];
+
+  cells.forEach((cell) => {
+    if (cell.genericField) genericFields.add(String(cell.genericField));
+    if (cell.description) textParts.push(String(cell.description));
+    if (cell.formula) textParts.push(String(cell.formula));
+    if (Array.isArray(cell.functions)) {
+      cell.functions.forEach((fn) => functionNames.add(String(fn).toUpperCase()));
+    }
+  });
+
+  return Object.freeze({
+    record_id: record.record_id,
+    source_file: record.source_file,
+    sha256: record.sha256,
+    read_only: true,
+    schema_version: summary?.schemaVersion ?? "unknown",
+    workbook_name: summary?.workbookName ?? record.source_file,
+    source_tabs: Array.isArray(summary?.sourceTabs) ? [...summary.sourceTabs].sort() : [],
+    runs: Array.isArray(summary?.runs) ? [...summary.runs].sort() : [],
+    cell_count: cells.length,
+    formula_count: formulaCells.length,
+    named_range_count: Array.isArray(summary?.namedRanges) ? summary.namedRanges.length : 0,
+    generic_fields: [...genericFields].filter(Boolean).sort().slice(0, 500),
+    function_names: [...functionNames].filter(Boolean).sort(),
+    benefit_domains: detectBenefitDomains([...textParts, ...genericFields, ...functionNames]),
+    risk_flags: formulaCells.length > 1000 ? ["large_formula_surface"] : [],
+    diagnostics: record.diagnostics ?? []
+  });
+}
+
+async function importApprovedV1Files(files) {
+  const diagnostics = [];
+  const imported = [];
+  const skipped = [];
+  const sortedFiles = [...files].sort((a, b) => a.name.localeCompare(b.name));
+  const existingById = new Map(state.v1Warehouse.records.map((record) => [record.record_id, record]));
+
+  for (const file of sortedFiles) {
+    try {
+      const [hash, text] = await Promise.all([sha256Hex(file), file.text()]);
+      const parsed = JSON.parse(stripJsonBom(text));
+      const validation = validateV1Summary(parsed);
+      if (!validation.ok) {
+        skipped.push(file.name);
+        diagnostics.push(`${file.name}: skipped (${validation.errors.join(" ")})`);
+        continue;
+      }
+      const record = Object.freeze({
+        record_id: stableIdFromHash("v1", hash),
+        source_file: file.name,
+        sha256: hash,
+        read_only: true,
+        schema_version: parsed.schemaVersion ?? "unknown",
+        workbook_name: parsed.workbookName ?? file.name,
+        summary: parsed,
+        diagnostics: []
+      });
+      existingById.set(record.record_id, record);
+      imported.push(record);
+      diagnostics.push(`${file.name}: imported as ${record.record_id}`);
+    } catch (err) {
+      skipped.push(file.name);
+      diagnostics.push(`${file.name}: skipped (${err.message})`);
+    }
+  }
+
+  const records = [...existingById.values()].sort((a, b) => a.record_id.localeCompare(b.record_id));
+  const profiles = records.map(createV1Profile);
+  state.v1Warehouse.records = records;
+  state.v1Warehouse.profiles = profiles;
+  state.v1Warehouse.diagnostics = diagnostics;
+  state.v1Warehouse.importManifest = await buildV1RunManifest("v1-approved-import", {
+    approvedProfiles: profiles,
+    r5Inputs: [],
+    imported_count: imported.length,
+    skipped_count: skipped.length,
+    diagnostics
+  });
+  state.lastManifest = state.v1Warehouse.importManifest;
+  saveState();
+  return { imported, skipped, diagnostics, manifest: state.v1Warehouse.importManifest };
+}
+
+async function buildV1RunManifest(moduleId, extra = {}) {
+  const planMetadataHash = state.planMetadata
+    ? await sha256HexString(stringifyStable(state.planMetadata))
+    : "unknown";
+  const approvedProfiles = extra.approvedProfiles ?? state.v1Warehouse.profiles;
+  const approvedHashes = {};
+  approvedProfiles.forEach((profile) => {
+    approvedHashes[profile.source_file] = profile.sha256;
+  });
+  const r5Hashes = {};
+  (extra.r5Inputs ?? state.v1Warehouse.r5Files).forEach((input) => {
+    r5Hashes[input.source_file] = input.sha256;
+  });
+
+  return {
+    app_version: APP_VERSION,
+    schema_version: SCHEMA_VERSION,
+    module_id: moduleId,
+    module_version: "0.7.0",
+    generated_at_utc: new Date().toISOString(),
+    case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+    plan_metadata_hash: planMetadataHash,
+    input_hashes: {
+      approved_v1: approvedHashes,
+      r5: r5Hashes
+    },
+    imported_count: extra.imported_count,
+    skipped_count: extra.skipped_count,
+    best_candidate_record_id: extra.best_candidate_record_id,
+    diagnostics: extra.diagnostics ?? []
+  };
+}
+
+function createR5CaseProfile(inputs) {
+  const textParts = [];
+  const evidence = [];
+  inputs.forEach((input) => {
+    const parts = collectTextValues(input.json, []);
+    textParts.push(...parts);
+    parts
+      .filter((part) => part.trim().length > 2)
+      .slice(0, 50)
+      .forEach((part) => {
+        evidence.push({ source_file: input.source_file, snippet: part.slice(0, 180) });
+      });
+  });
+  const recognizedDomains = detectBenefitDomains(textParts);
+  return {
+    source_files: inputs.map((input) => input.source_file).sort(),
+    input_hashes: inputs.reduce((acc, input) => {
+      acc[input.source_file] = input.sha256;
+      return acc;
+    }, {}),
+    case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+    recognized_domains: recognizedDomains,
+    evidence,
+    warnings: recognizedDomains.length ? [] : ["No recognized benefit/provision domains found in R5 inputs."]
+  };
+}
+
+async function importR5Files(files) {
+  const diagnostics = [];
+  const inputs = [];
+  const sortedFiles = [...files].sort((a, b) => a.name.localeCompare(b.name));
+  for (const file of sortedFiles) {
+    try {
+      const [hash, text] = await Promise.all([sha256Hex(file), file.text()]);
+      inputs.push({
+        source_file: file.name,
+        sha256: hash,
+        json: JSON.parse(stripJsonBom(text))
+      });
+      diagnostics.push(`${file.name}: loaded`);
+    } catch (err) {
+      diagnostics.push(`${file.name}: skipped (${err.message})`);
+    }
+  }
+  state.v1Warehouse.r5Files = inputs;
+  state.v1Warehouse.r5Profile = createR5CaseProfile(inputs);
+  return { inputs, diagnostics, profile: state.v1Warehouse.r5Profile };
+}
+
+function jaccardScore(a, b) {
+  const setA = new Set(a);
+  const setB = new Set(b);
+  const union = new Set([...setA, ...setB]);
+  if (!union.size) return 0;
+  let intersection = 0;
+  setA.forEach((item) => {
+    if (setB.has(item)) intersection += 1;
+  });
+  return intersection / union.size;
+}
+
+function rankApprovedV1Profiles(r5Profile, profiles) {
+  const r5Domains = r5Profile?.recognized_domains ?? [];
+  return profiles
+    .map((profile) => {
+      const matchedDomains = profile.benefit_domains.filter((domain) => r5Domains.includes(domain)).sort();
+      const missingDomains = r5Domains.filter((domain) => !profile.benefit_domains.includes(domain)).sort();
+      const domainScore = jaccardScore(r5Domains, profile.benefit_domains);
+      const functionBreadth = Math.min(profile.function_names.length / 15, 1);
+      const fieldBreadth = Math.min(profile.generic_fields.length / 120, 1);
+      const completeness = r5Domains.length ? matchedDomains.length / r5Domains.length : 0;
+      const confidence = Math.min(1, 0.35 + r5Domains.length * 0.08 + matchedDomains.length * 0.08);
+      const overall = domainScore * 0.7 + functionBreadth * 0.15 + fieldBreadth * 0.15;
+      const warnings = [];
+      if (!r5Domains.length) warnings.push("R5 evidence has no recognized domains.");
+      if (!matchedDomains.length) warnings.push("No recognized benefit domains matched this candidate.");
+      return {
+        candidate_record_id: profile.record_id,
+        workbook_name: profile.workbook_name,
+        source_file: profile.source_file,
+        overall_score: Number(overall.toFixed(4)),
+        confidence: Number(confidence.toFixed(4)),
+        completeness: Number(completeness.toFixed(4)),
+        matched_domains: matchedDomains,
+        missing_domains: missingDomains,
+        warnings,
+        evidence: matchedDomains.map((domain) => ({
+          domain,
+          source: "domain-overlap",
+          detail: `R5 and approved V1 profile both include ${domain}.`
+        }))
+      };
+    })
+    .sort((a, b) => {
+      if (b.overall_score !== a.overall_score) return b.overall_score - a.overall_score;
+      if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+      return a.candidate_record_id.localeCompare(b.candidate_record_id);
+    });
+}
+
+async function runV1R5Ranking() {
+  const r5Profile = state.v1Warehouse.r5Profile;
+  const profiles = state.v1Warehouse.profiles;
+  if (!profiles.length) throw new Error("Import approved V1 engines first.");
+  if (!r5Profile || !state.v1Warehouse.r5Files.length) throw new Error("Upload R5 summary JSON first.");
+  const rankings = rankApprovedV1Profiles(r5Profile, profiles);
+  state.v1Warehouse.rankings = rankings;
+  state.v1Warehouse.rankingManifest = await buildV1RunManifest("v1-r5-ranking", {
+    best_candidate_record_id: rankings[0]?.candidate_record_id ?? "none",
+    diagnostics: r5Profile.warnings
+  });
+  state.lastManifest = state.v1Warehouse.rankingManifest;
+  saveState();
+  return { rankings, manifest: state.v1Warehouse.rankingManifest };
+}
+
+function renderV1ProfilesSummary() {
+  const profiles = state.v1Warehouse.profiles;
+  if (!profiles.length) return `<div class="meta-line">No approved V1 engines imported.</div>`;
+  const top = profiles.slice(0, 8);
+  return `
+    <div class="v1-summary-grid">
+      <div><b>${profiles.length}</b><span>approved engines</span></div>
+      <div><b>${profiles.reduce((sum, p) => sum + p.formula_count, 0)}</b><span>formula cells</span></div>
+      <div><b>${new Set(profiles.flatMap((p) => p.benefit_domains)).size}</b><span>benefit domains</span></div>
+    </div>
+    <div class="v1-list">
+      ${top
+        .map(
+          (profile) => `
+            <div class="v1-list-item">
+              <b>${escapeHtml(profile.workbook_name)}</b>
+              <span>${escapeHtml(profile.source_file)} | ${profile.formula_count} formulas | ${escapeHtml(profile.sha256.slice(0, 12))}</span>
+            </div>`
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderV1RankingResults() {
+  const rankings = state.v1Warehouse.rankings;
+  if (!rankings.length) return `<div class="meta-line">No ranking run yet.</div>`;
+  return `
+    <div class="v1-ranking-list">
+      ${rankings
+        .slice(0, 10)
+        .map(
+          (result, index) => `
+            <div class="v1-ranking-item ${index === 0 ? "best" : ""}">
+              <div>
+                <b>${index + 1}. ${escapeHtml(result.workbook_name)}</b>
+                <span>${escapeHtml(result.source_file)} | score ${result.overall_score} | confidence ${result.confidence} | completeness ${result.completeness}</span>
+              </div>
+              <div class="meta-line">Matched: ${escapeHtml(result.matched_domains.join(", ") || "none")}</div>
+              <div class="meta-line">Missing: ${escapeHtml(result.missing_domains.join(", ") || "none")}</div>
+              ${result.warnings.length ? `<div class="meta-line">Warnings: ${escapeHtml(result.warnings.join("; "))}</div>` : ""}
+            </div>`
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function norm(s) {

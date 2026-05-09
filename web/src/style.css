@@ -594,6 +594,65 @@ textarea.code {
   background: var(--surface);
 }
 
+.page-content[data-route="#/v1-engine-explorer"] {
+  width: min(100%, 1600px);
+}
+
+.v1-explorer-frame {
+  min-height: 82vh;
+}
+
+.v1-control-panel {
+  margin-bottom: 1rem;
+}
+
+.v1-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.v1-summary-grid > div {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.v1-summary-grid b {
+  font-size: 1.25rem;
+}
+
+.v1-summary-grid span,
+.v1-list-item span,
+.v1-ranking-item span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.v1-list,
+.v1-ranking-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.v1-list-item,
+.v1-ranking-item {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.v1-ranking-item.best {
+  border-color: var(--accent);
+}
+
 @media (max-width: 900px) {
   .app-header {
     grid-template-columns: 1fr;
