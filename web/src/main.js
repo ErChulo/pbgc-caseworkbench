@@ -1018,7 +1018,7 @@ function renderMetadata(container) {
     if (!f) return;
     const text = await f.text();
     try {
-      const parsed = JSON.parse(text);
+      const parsed = JSON.parse(stripJsonBom(text));
       const normalized = normalizePlanMetadata(parsed);
       const ok = validatePlanMetadata(normalized);
       if (!ok) {
@@ -1036,12 +1036,27 @@ function renderMetadata(container) {
       loadDocRegistryFromJson();
       renderDocRegistry();
       updateRequiredChecklist();
-      state.planMetadataApproved = false;
-      saveStatusFocus.textContent = "";
       const missing = getMissingRequiredLabels(normalized);
-      validationOutput.textContent = missing.length
-        ? `Valid JSON. Missing required fields: ${missing.join(", ")}.`
-        : "Valid PlanMetadata JSON.";
+      if (missing.length) {
+        state.planMetadataApproved = false;
+        saveStatusFocus.textContent = "Complete required fields first.";
+        validationOutput.textContent = `Valid JSON. Missing required fields: ${missing.join(", ")}.`;
+      } else {
+        state.planMetadata = normalized;
+        state.planMetadataApproved = true;
+        const hash = await sha256HexString(stringifyStable(normalized));
+        state.lastManifest = {
+          app_version: state.appVersion,
+          module_id: "metadata",
+          module_version: "0.7.0",
+          generated_at_utc: new Date().toISOString(),
+          plan_metadata_hash: hash
+        };
+        saveState();
+        validationOutput.textContent = "Valid PlanMetadata JSON.";
+        saveStatusFocus.textContent = "Loaded and saved. Other modules unlocked.";
+        renderRoute();
+      }
     } catch (err) {
       metadataStatus.textContent = `Invalid JSON: ${err.message}`;
     }
@@ -1120,6 +1135,7 @@ function renderMetadata(container) {
       saveState();
       validationOutput.textContent = "Saved to workspace.";
       saveStatusFocus.textContent = "Saved. Other modules unlocked.";
+      renderRoute();
     } catch (err) {
       validationOutput.textContent = `Invalid JSON: ${err.message}`;
       saveStatusFocus.textContent = "Fix errors before saving.";
