@@ -94,6 +94,7 @@ function clearState() {
 const routes = [
   { path: "#/metadata", title: "Metadata", render: renderMetadata },
   { path: "#/dashboard", title: "Dashboard", render: renderDashboard },
+  { path: "#/inputs", title: "Inputs Matrix", render: renderInputsMatrix },
   { path: "#/r5-builder", title: "R5 Builder", render: renderR5Builder },
   { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
   { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer },
@@ -649,6 +650,144 @@ function upstreamReadiness(keys = []) {
   const required = keys.length ? keys : ["metadata"];
   const ready = required.filter((key) => statuses[key]?.ready).length;
   return { ready, total: required.length, complete: ready === required.length };
+}
+
+const inputRequirementMatrix = [
+  {
+    id: "plan-summary-r5",
+    title: "Plan Summary / R5",
+    route: "#/plan-summary",
+    pureInputs: [
+      "Case metadata: case number, plan name, DOPT, DOTR, BPD, DOBF, NOD, NOIT, SPARR, assets, assigned actuary/auditor",
+      "Plan documents: base plan documents, restatements, amendments, SPDs, CBAs, freeze amendments, adoption/effective dates",
+      "Manual fact entry is acceptable when clean PDFs cannot be used, but known facts still need doc_id/page/locator citations"
+    ],
+    upstreamOutputs: ["PlanMetadata"],
+    governingReferences: ["reference/r5-items.txt", "reference/plan-summary-rules.txt", "reference/Plan Summary Shell.docx", "reference/metadata-scraper-prompt.txt"],
+    readinessKeys: ["metadata"]
+  },
+  {
+    id: "data-elements",
+    title: "DEL Data Elements",
+    route: "#/del",
+    pureInputs: [
+      "Participant/census/payee records with no repo PII",
+      "Source priority for each field: payroll, plan administrator files, paying agent files, participant forms, participant files",
+      "Field-level citations or source notes for manually entered values"
+    ],
+    upstreamOutputs: ["PlanMetadata", "R5 summary/profile"],
+    governingReferences: ["reference/DD.csv", "reference/CASE_PROCESSING.txt", "reference/case.schema.json"],
+    readinessKeys: ["metadata", "r5"]
+  },
+  {
+    id: "plan-factors",
+    title: "Plan Factors / PF",
+    route: "#/factors",
+    pureInputs: [
+      "Plan factor rules from R5/plan documents: early, late, form conversion, actuarial equivalence, lump sum, optional forms",
+      "PBGC/plan assumption basis: interest, mortality, lookback/stability periods, thresholds",
+      "PF template or workbook fixture when producing Excel output"
+    ],
+    upstreamOutputs: ["PlanMetadata", "R5 summary/profile", "Selected V1 engine when available"],
+    governingReferences: ["reference/README - plan_factors.md", "reference/24884900PF.v0.7.13.xlsx", "reference/plan-summary-rules.txt"],
+    readinessKeys: ["metadata", "r5", "v1"]
+  },
+  {
+    id: "section-436",
+    title: "Section 436 Limitation Analysis",
+    route: "#/436",
+    pureInputs: [
+      "DOPT, DOTR, BPD, DOBF, plan year start/end",
+      "Freeze amendments and plan provisions related to accrual restrictions",
+      "AFTAP periods, certification facts, CBA ratification/effective/expiration facts when applicable"
+    ],
+    upstreamOutputs: ["PlanMetadata", "R5 summary/profile"],
+    governingReferences: ["reference/Benefit Limitations Under PPA 2006 - Section 436.pdf", "reference/pbgc-436-webapp-v0.2.0", "reference/plan-summary-rules.txt"],
+    readinessKeys: ["metadata", "r5"]
+  },
+  {
+    id: "estimated-benefit-adjustments",
+    title: "Estimated Benefit Adjustment Analysis",
+    route: "#/estimated-adjustments",
+    pureInputs: [
+      "Current payee list and current benefit amounts",
+      "Estimated benefit extracts and prior benefit estimates",
+      "Payment history since DOPT, overpayment/underpayment facts, current pay source/status",
+      "Adjustment threshold and limitation evidence"
+    ],
+    upstreamOutputs: ["PlanMetadata", "R5 summary/profile", "Selected V1 engine when available", "Plan Factors when available"],
+    governingReferences: ["reference/CASE_PROCESSING.txt", "reference/Computation and Netting of Post-DOPT Overpayments and Underpayments.pdf", "reference/Benefit Corrections.pdf"],
+    readinessKeys: ["metadata", "r5", "v1", "plan-factors"]
+  },
+  {
+    id: "estimated-benefit-administration",
+    title: "Estimated Benefit Administration Analysis",
+    route: "#/estimated-administration",
+    pureInputs: [
+      "Participant/payee administration extracts",
+      "Current payment status, PIF/verification status, notices, operational notes",
+      "Benefit form/payment frequency facts and administration constraints"
+    ],
+    upstreamOutputs: ["PlanMetadata", "R5 summary/profile", "DEL package when available"],
+    governingReferences: ["reference/CASE_PROCESSING.txt", "reference/Frequency of Benefit Payments.pdf", "reference/Benefit Payments Prior to Trusteeship.pdf"],
+    readinessKeys: ["metadata", "r5", "data-elements"]
+  },
+  {
+    id: "v1-engine",
+    title: "Calculation Engine / V1",
+    route: "#/v1-engine-explorer",
+    pureInputs: [
+      "Approved V1Summary JSON files selected by upload from local reference material",
+      "R5 summary JSON/profile for the current case",
+      "DEL field model and participant input schema when participant calculations are implemented"
+    ],
+    upstreamOutputs: ["PlanMetadata", "R5 summary/profile", "Plan Factors when available"],
+    governingReferences: ["reference/raw-approved-v1-engines", "reference/run_catalog_seed.v0.7.0.json", "reference/output_contract_seed.v0.7.0.json", "reference/sample-2-v1.xlsm"],
+    readinessKeys: ["metadata", "r5", "v1"]
+  },
+  {
+    id: "bsrs-bcv",
+    title: "BSRS / BCV Letter Config",
+    route: "#/letters-bcv",
+    pureInputs: [
+      "BCV participant field requirements and letter variable mappings",
+      "BSRS statement/recalculation/OFA config templates",
+      "Letter generation rules, print criteria, and allowed statement functions"
+    ],
+    upstreamOutputs: ["PlanMetadata", "R5 summary/profile", "DEL package when available", "Selected V1 engine outputs when available"],
+    governingReferences: ["reference/DD.csv", "reference/BSRS functions.txt", "reference/sample-bsrs-statement-config.txt", "reference/sample-bsrs-baseData-config.txt"],
+    readinessKeys: ["metadata", "r5", "data-elements", "v1"]
+  }
+];
+
+function inputRequirementStatus(key) {
+  const shared = workflowInputStatus();
+  if (shared[key]) return shared[key];
+  const run = state.caseWorkflow.moduleRuns?.[key];
+  if (run) {
+    return {
+      ready: true,
+      label: `${key} package generated`,
+      detail: `${run.output_name ?? "artifact"} at ${run.generated_at_utc ?? "unknown time"}`
+    };
+  }
+  return {
+    ready: false,
+    label: `${key} package missing`,
+    detail: "Generate or package this upstream module when available."
+  };
+}
+
+function buildInputRequirementRows() {
+  return inputRequirementMatrix.map((item) => {
+    const statuses = item.readinessKeys.map((key) => ({ key, ...inputRequirementStatus(key) }));
+    return {
+      ...item,
+      readiness: statuses,
+      ready_count: statuses.filter((status) => status.ready).length,
+      required_count: statuses.length
+    };
+  });
 }
 
 function normalizeValueEntry(entry) {
@@ -1423,6 +1562,7 @@ function renderDashboard(container) {
       <p class="muted">Load or confirm R5 summary evidence, rank approved V1 engines, then package downstream deliverables from the same case state.</p>
       <div class="button-row">
         <button class="primary" data-dashboard-route="#/v1-engine-explorer">Open V1 Explorer</button>
+        <button class="ghost" data-dashboard-route="#/inputs">Review Inputs Matrix</button>
         <button class="ghost" data-dashboard-route="#/r5-builder">Open R5 Builder</button>
         <button class="ghost" data-dashboard-route="#/metadata">Edit Metadata</button>
         <button class="ghost" data-dashboard-route="#/audit">Audit / Manifest</button>
@@ -1460,6 +1600,155 @@ function renderDashboard(container) {
   hydratePlanContext(container);
   container.querySelectorAll("[data-dashboard-route]").forEach((btn) => {
     btn.addEventListener("click", () => setRoute(btn.dataset.dashboardRoute));
+  });
+}
+
+async function buildInputRequirementsExport() {
+  const planMetadataHash = state.planMetadata
+    ? await sha256HexString(stringifyStable(state.planMetadata))
+    : "unknown";
+  return {
+    meta: {
+      app_version: APP_VERSION,
+      schema_version: SCHEMA_VERSION,
+      module_id: "input-requirements-matrix",
+      module_version: "0.7.0",
+      generated_at_utc: new Date().toISOString(),
+      case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+      plan_metadata_hash: planMetadataHash
+    },
+    pure_input_families: [
+      "Case metadata",
+      "Plan document facts",
+      "Participant/census/payee data",
+      "Payment history/current benefit status",
+      "PBGC and actuarial reference assumptions",
+      "Templates and approved engine references"
+    ],
+    deliverables: buildInputRequirementRows().map((item) => ({
+      id: item.id,
+      title: item.title,
+      route: item.route,
+      pure_inputs: item.pureInputs,
+      upstream_outputs: item.upstreamOutputs,
+      governing_references: item.governingReferences,
+      readiness: item.readiness.map((status) => ({
+        key: status.key,
+        ready: status.ready,
+        label: status.label,
+        detail: status.detail
+      })),
+      ready_count: item.ready_count,
+      required_count: item.required_count
+    }))
+  };
+}
+
+function renderInputsMatrix(container) {
+  const rows = buildInputRequirementRows();
+  container.innerHTML = `
+    <section class="page-hero">
+      <div class="page-title">
+        <h2>Inputs Matrix</h2>
+        <p>Pure inputs, derived upstream outputs, and governing references for the minimum PBGC deliverables.</p>
+      </div>
+      <div class="page-actions">
+        <button class="primary" id="download_inputs_matrix">Download requirements JSON</button>
+      </div>
+    </section>
+
+    ${planContextHtml()}
+
+    ${renderWorkflowStatePanel({ title: "Shared Case Inputs" })}
+
+    <div class="banner subtle">
+      Pure inputs are raw case facts or files you must provide or enter manually. Upstream outputs are workbench artifacts that can be derived after earlier modules run.
+    </div>
+
+    <div class="input-family-grid">
+      ${[
+        ["Case metadata", "Case number, plan name, dates, assigned staff, asset/status facts."],
+        ["Plan document facts", "Plan documents, amendments, SPDs, CBAs, restatements, freeze evidence with citations."],
+        ["Participant data", "Census, payee, beneficiary, alternate payee, and source-priority data."],
+        ["Payment history", "Current benefits, estimated payments, over/underpayment facts, pay source/status."],
+        ["PBGC assumptions", "Rates, mortality, limitations, 4022(c), aggregate limits, form/payment rules."],
+        ["Templates / engines", "DOCX/XLSX templates, BSRS configs, approved V1Summary JSON references."]
+      ]
+        .map(
+          ([title, desc]) => `
+            <div class="input-family-card">
+              <b>${escapeHtml(title)}</b>
+              <span>${escapeHtml(desc)}</span>
+            </div>`
+        )
+        .join("")}
+    </div>
+
+    <div class="requirements-list">
+      ${rows
+        .map(
+          (item) => `
+            <article class="requirements-card">
+              <div class="workflow-card-head">
+                <h3>${escapeHtml(item.title)}</h3>
+                <span>${item.ready_count}/${item.required_count} ready</span>
+              </div>
+              <div class="requirements-readiness">
+                ${item.readiness
+                  .map(
+                    (status) => `
+                      <div class="${status.ready ? "ready" : "missing"}">
+                        <b>${status.ready ? "Ready" : "Needed"}</b>
+                        <span>${escapeHtml(status.label)}</span>
+                        <small>${escapeHtml(status.detail)}</small>
+                      </div>`
+                  )
+                  .join("")}
+              </div>
+              <div class="requirements-columns">
+                <div>
+                  <b>Pure inputs</b>
+                  <ul>${item.pureInputs.map((input) => `<li>${escapeHtml(input)}</li>`).join("")}</ul>
+                </div>
+                <div>
+                  <b>Upstream workbench outputs</b>
+                  <ul>${item.upstreamOutputs.map((input) => `<li>${escapeHtml(input)}</li>`).join("")}</ul>
+                </div>
+                <div>
+                  <b>Governing references</b>
+                  <ul>${item.governingReferences.map((input) => `<li>${escapeHtml(input)}</li>`).join("")}</ul>
+                </div>
+              </div>
+              <button class="ghost" data-requirement-route="${escapeHtml(item.route)}">Open workflow</button>
+            </article>`
+        )
+        .join("")}
+    </div>
+
+    <pre id="inputs_matrix_status" class="code" style="margin-top:12px;"></pre>
+  `;
+
+  hydratePlanContext(container);
+
+  container.querySelectorAll("[data-requirement-route]").forEach((btn) => {
+    btn.addEventListener("click", () => setRoute(btn.dataset.requirementRoute));
+  });
+
+  const downloadBtn = container.querySelector("#download_inputs_matrix");
+  const statusEl = container.querySelector("#inputs_matrix_status");
+  downloadBtn.addEventListener("click", async () => {
+    try {
+      const payload = await buildInputRequirementsExport();
+      state.lastManifest = payload.meta;
+      saveState();
+      downloadBlob(
+        new Blob([stringifyStable(payload)], { type: "application/json" }),
+        "case-input-requirements.json"
+      );
+      statusEl.textContent = `Downloaded case-input-requirements.json\n\n${JSON.stringify(payload.meta, null, 2)}`;
+    } catch (err) {
+      statusEl.textContent = `ERROR: ${err.message}`;
+    }
   });
 }
 
