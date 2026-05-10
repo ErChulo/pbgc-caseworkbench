@@ -94,6 +94,7 @@ function clearState() {
 const routes = [
   { path: "#/metadata", title: "Metadata", render: renderMetadata },
   { path: "#/dashboard", title: "Dashboard", render: renderDashboard },
+  { path: "#/guide", title: "Case Guide", render: renderCaseGuide },
   { path: "#/inputs", title: "Inputs Matrix", render: renderInputsMatrix },
   { path: "#/rules", title: "Rules Registry", render: renderRulesRegistry },
   { path: "#/r5-builder", title: "R5 Builder", render: renderR5Builder },
@@ -357,13 +358,14 @@ function renderRoute() {
   if (!page) return;
   let route = currentRoute();
   const ready = isMetadataReady();
-  if (!ready && route.path !== "#/metadata") {
-    route = routes[0];
+  const preMetadataRoutes = new Set(["#/metadata", "#/guide"]);
+  if (!ready && !preMetadataRoutes.has(route.path)) {
+    route = routes.find((r) => r.path === "#/guide") ?? routes[0];
     setRoute(route.path);
   }
   document.querySelectorAll("button[data-route]").forEach((btn) => {
-    const isMeta = btn.dataset.route === "#/metadata";
-    btn.disabled = !ready && !isMeta;
+    const allowedBeforeMetadata = preMetadataRoutes.has(btn.dataset.route);
+    btn.disabled = !ready && !allowedBeforeMetadata;
     btn.classList.toggle("disabled", btn.disabled);
     btn.classList.toggle("active", btn.dataset.route === route.path);
   });
@@ -999,6 +1001,147 @@ function rulesByClass() {
     acc[rule.rule_class] = (acc[rule.rule_class] ?? 0) + 1;
     return acc;
   }, {});
+}
+
+const caseGuideSteps = [
+  {
+    id: "metadata",
+    title: "Metadata",
+    phase: "Foundation",
+    route: "#/metadata",
+    readinessKeys: ["metadata"],
+    prompt: "Start or confirm the case identity, key dates, staff, plan status, and document registry.",
+    uploadAction: "Upload PlanMetadata JSON",
+    manualAction: "Enter or edit metadata manually",
+    programmedAction: "Validate and save PlanMetadata",
+    warnings: ["Without metadata, other modules cannot create reliable manifests."]
+  },
+  {
+    id: "inputs",
+    title: "Inputs Matrix",
+    phase: "Planning",
+    route: "#/inputs",
+    readinessKeys: ["metadata"],
+    prompt: "Review which pure inputs, upstream outputs, and governing references are needed for each deliverable.",
+    uploadAction: "No upload required",
+    manualAction: "Review missing/unknown input families",
+    programmedAction: "Download case-input-requirements.json",
+    warnings: ["Continue with unknown/na when source material is not yet available."]
+  },
+  {
+    id: "r5",
+    title: "R5 / Plan Summary",
+    phase: "Upfront Work",
+    route: "#/plan-summary",
+    alternateRoute: "#/r5-builder",
+    readinessKeys: ["metadata", "r5"],
+    prompt: "Create or load the R5 summary from plan documents, amendments, SPDs, CBAs, and manual citations.",
+    uploadAction: "Upload R5 JSON or Plan Summary DOCX template",
+    manualAction: "Use R5 Builder or manual provision review",
+    programmedAction: "Generate Plan Summary or load R5 into case state",
+    warnings: ["Ambiguous provisions should remain unknown/na until reviewed."]
+  },
+  {
+    id: "data-elements",
+    title: "DEL",
+    phase: "Upfront Work",
+    route: "#/del",
+    readinessKeys: ["metadata", "r5", "data-elements"],
+    prompt: "Package participant/census/payee source data against DD.csv and source-priority notes.",
+    uploadAction: "Upload DEL/census/source files",
+    manualAction: "Document missing participant fields and source assumptions",
+    programmedAction: "Generate DEL input package",
+    warnings: ["No PII should be stored in repo fixtures; use browser upload only."]
+  },
+  {
+    id: "plan-factors",
+    title: "Plan Factors",
+    phase: "Upfront Work",
+    route: "#/factors",
+    readinessKeys: ["metadata", "r5", "plan-factors"],
+    prompt: "Package or derive plan factor inputs from R5 provisions and factor source material.",
+    uploadAction: "Upload factor tables/workpapers",
+    manualAction: "Enter cited factor assumptions where files are unavailable",
+    programmedAction: "Generate PF input package",
+    warnings: ["Do not invent factors; unknown factors remain unknown/na."]
+  },
+  {
+    id: "section-436",
+    title: "436",
+    phase: "Upfront Work",
+    route: "#/436",
+    readinessKeys: ["metadata", "r5", "section-436"],
+    prompt: "Package 436 limitation evidence, freeze amendments, AFTAP/CBA facts, and memo notes.",
+    uploadAction: "Upload 436 references/amendments",
+    manualAction: "Enter AFTAP/CBA/freeze facts with citations",
+    programmedAction: "Generate 436 input package",
+    warnings: ["436 applicability conclusions require review before final use."]
+  },
+  {
+    id: "estimated-analyses",
+    title: "Estimated Analyses",
+    phase: "Estimated Work",
+    route: "#/estimated-adjustments",
+    alternateRoute: "#/estimated-administration",
+    readinessKeys: ["metadata", "r5", "estimated-benefit-adjustments", "estimated-benefit-administration"],
+    prompt: "Prepare estimated benefit adjustment and administration packages from payment, payee, and operational data.",
+    uploadAction: "Upload payment/admin extracts",
+    manualAction: "Record payment history gaps and operational notes",
+    programmedAction: "Generate adjustment/admin packages",
+    warnings: ["Payment history gaps should be called out explicitly."]
+  },
+  {
+    id: "v1",
+    title: "V1",
+    phase: "Actuarial Work",
+    route: "#/v1-engine-explorer",
+    alternateRoute: "#/v1-audit",
+    readinessKeys: ["metadata", "r5", "v1"],
+    prompt: "Import approved V1 summaries, rank candidates, select one, and audit reconstruction assumptions.",
+    uploadAction: "Upload approved V1Summary JSON files",
+    manualAction: "Review candidate suitability and reconstruction warnings",
+    programmedAction: "Rank V1 candidates and export audit JSON",
+    warnings: ["Similarity is advisory; selected V1 requires actuarial review."]
+  },
+  {
+    id: "bsrs-bcv",
+    title: "BSRS / BCV",
+    phase: "Statements",
+    route: "#/letters-bcv",
+    readinessKeys: ["metadata", "r5", "data-elements", "v1", "letters-bcv-config"],
+    prompt: "Package letter templates, BSRS configs, BCV fields, and variable mappings for statement generation.",
+    uploadAction: "Upload templates/configs/mappings",
+    manualAction: "Review letter variables and missing BCV fields",
+    programmedAction: "Generate BSRS/BCV config package",
+    warnings: ["Statement language/configs should be reviewed before production use."]
+  }
+];
+
+let activeGuideStepId = "metadata";
+
+function guideStepStatus(step) {
+  const statuses = step.readinessKeys.map((key) => ({ key, ...inputRequirementStatus(key) }));
+  const ready = statuses.filter((status) => status.ready).length;
+  return {
+    statuses,
+    ready,
+    total: statuses.length,
+    complete: ready === statuses.length,
+    started: ready > 0
+  };
+}
+
+function renderGuideStepButton(step, index) {
+  const status = guideStepStatus(step);
+  const stateClass = status.complete ? "ready" : status.started ? "warning" : "missing";
+  const active = step.id === activeGuideStepId ? "active" : "";
+  return `
+    <button class="guide-step ${stateClass} ${active}" data-guide-step="${escapeHtml(step.id)}">
+      <span>${index + 1}</span>
+      <b>${escapeHtml(step.title)}</b>
+      <small>${status.ready}/${status.total} ready</small>
+    </button>
+  `;
 }
 
 function normalizeValueEntry(entry) {
@@ -1770,9 +1913,10 @@ function renderDashboard(container) {
 
     <div class="workflow-band">
       <h3>Recommended Next Action</h3>
-      <p class="muted">Load or confirm R5 summary evidence, rank approved V1 engines, then package downstream deliverables from the same case state.</p>
+      <p class="muted">Use Case Guide as the primary workflow. It walks through Metadata, Inputs Matrix, R5, DEL, PF, 436, Estimated Analyses, V1, and BSRS/BCV with warnings instead of hard blocks.</p>
       <div class="button-row">
-        <button class="primary" data-dashboard-route="#/v1-engine-explorer">Open V1 Explorer</button>
+        <button class="primary" data-dashboard-route="#/guide">Open Case Guide</button>
+        <button class="ghost" data-dashboard-route="#/v1-engine-explorer">Open V1 Explorer</button>
         <button class="ghost" data-dashboard-route="#/v1-audit">Audit V1 Match</button>
         <button class="ghost" data-dashboard-route="#/inputs">Review Inputs Matrix</button>
         <button class="ghost" data-dashboard-route="#/rules">Rules Registry</button>
@@ -1813,6 +1957,106 @@ function renderDashboard(container) {
   hydratePlanContext(container);
   container.querySelectorAll("[data-dashboard-route]").forEach((btn) => {
     btn.addEventListener("click", () => setRoute(btn.dataset.dashboardRoute));
+  });
+}
+
+function renderCaseGuide(container) {
+  const activeStep = caseGuideSteps.find((step) => step.id === activeGuideStepId) ?? caseGuideSteps[0];
+  const activeStatus = guideStepStatus(activeStep);
+  const activeIndex = caseGuideSteps.findIndex((step) => step.id === activeStep.id);
+  const canPrev = activeIndex > 0;
+  const canNext = activeIndex < caseGuideSteps.length - 1;
+
+  container.innerHTML = `
+    <section class="page-hero">
+      <div class="page-title">
+        <h2>Case Guide</h2>
+        <p>Follow the caseworkbench flow. Missing inputs are allowed, but they stay visible as warnings and unknown/na placeholders.</p>
+      </div>
+      <div class="page-actions">
+        <button class="ghost" data-guide-route="#/inputs">Inputs Matrix</button>
+        <button class="ghost" data-guide-route="#/rules">Rules Registry</button>
+      </div>
+    </section>
+
+    ${planContextHtml()}
+
+    ${renderWorkflowStatePanel({ title: "Shared Case Inputs" })}
+
+    <div class="guide-shell">
+      <nav class="guide-steps" aria-label="Case guide steps">
+        ${caseGuideSteps.map(renderGuideStepButton).join("")}
+      </nav>
+      <section class="guide-dialog">
+        <div class="guide-dialog-head">
+          <div>
+            <span>${escapeHtml(activeStep.phase)}</span>
+            <h3>${escapeHtml(activeStep.title)}</h3>
+          </div>
+          <b class="${activeStatus.complete ? "ready" : "warning"}">${activeStatus.ready}/${activeStatus.total} ready</b>
+        </div>
+        <p>${escapeHtml(activeStep.prompt)}</p>
+        <div class="guide-readiness">
+          ${activeStatus.statuses
+            .map(
+              (status) => `
+                <div class="${status.ready ? "ready" : "missing"}">
+                  <b>${status.ready ? "Ready" : "Needed"}</b>
+                  <span>${escapeHtml(status.label)}</span>
+                  <small>${escapeHtml(status.detail)}</small>
+                </div>`
+            )
+            .join("")}
+        </div>
+        <div class="guide-actions-grid">
+          <div>
+            <b>Gather Outside Info</b>
+            <p>${escapeHtml(activeStep.uploadAction)}</p>
+          </div>
+          <div>
+            <b>Manual Review</b>
+            <p>${escapeHtml(activeStep.manualAction)}</p>
+          </div>
+          <div>
+            <b>Programmed Step</b>
+            <p>${escapeHtml(activeStep.programmedAction)}</p>
+          </div>
+        </div>
+        <div class="banner subtle">
+          ${activeStep.warnings.map((warning) => escapeHtml(warning)).join(" ")}
+        </div>
+        <div class="button-row">
+          <button class="ghost" id="guide_prev" ${canPrev ? "" : "disabled"}>Previous</button>
+          <button class="primary" data-guide-route="${escapeHtml(activeStep.route)}">Open ${escapeHtml(activeStep.title)}</button>
+          ${activeStep.alternateRoute ? `<button class="ghost" data-guide-route="${escapeHtml(activeStep.alternateRoute)}">Alternate workflow</button>` : ""}
+          <button class="ghost" id="guide_next" ${canNext ? "" : "disabled"}>Continue with warnings</button>
+        </div>
+      </section>
+    </div>
+  `;
+
+  hydratePlanContext(container);
+
+  container.querySelectorAll("[data-guide-step]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      activeGuideStepId = btn.dataset.guideStep;
+      renderCaseGuide(container);
+    });
+  });
+  container.querySelectorAll("[data-guide-route]").forEach((btn) => {
+    btn.addEventListener("click", () => setRoute(btn.dataset.guideRoute));
+  });
+  const prevBtn = container.querySelector("#guide_prev");
+  const nextBtn = container.querySelector("#guide_next");
+  prevBtn?.addEventListener("click", () => {
+    if (!canPrev) return;
+    activeGuideStepId = caseGuideSteps[activeIndex - 1].id;
+    renderCaseGuide(container);
+  });
+  nextBtn?.addEventListener("click", () => {
+    if (!canNext) return;
+    activeGuideStepId = caseGuideSteps[activeIndex + 1].id;
+    renderCaseGuide(container);
   });
 }
 
