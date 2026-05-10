@@ -554,7 +554,8 @@ textarea.code {
 }
 
 .workflow-inputs,
-.input-checklist {
+.input-checklist,
+.workflow-output {
   display: grid;
   gap: 0.35rem;
   padding: 0.75rem;
@@ -567,6 +568,11 @@ textarea.code {
 .input-checklist ul {
   padding-left: 1.1rem;
   color: var(--muted);
+}
+
+.workflow-output span {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .workflow-readiness {
@@ -869,6 +875,46 @@ textarea.code {
   border-radius: 8px;
   background: var(--surface);
   padding: 1.1rem;
+}
+
+.canonical-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.canonical-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.7rem;
+}
+
+.canonical-item {
+  display: grid;
+  gap: 0.3rem;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--text);
+  padding: 0.75rem;
+  cursor: pointer;
+}
+
+.canonical-item span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.canonical-item b {
+  color: var(--accent);
+}
+
+.canonical-item small {
+  color: var(--muted);
 }
 
 .guide-dialog-head {
