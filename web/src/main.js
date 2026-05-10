@@ -28,7 +28,13 @@ const state = {
     diagnostics: [],
     r5Files: [],
     r5Profile: null,
-    rankings: []
+    rankings: [],
+    selectedCandidate: null
+  },
+  caseWorkflow: {
+    r5Summary: null,
+    selectedV1: null,
+    moduleRuns: {}
   },
   lastError: null,
   theme: "auto"
@@ -44,6 +50,12 @@ function loadState() {
     state.planMetadata = saved.planMetadata ?? null;
     state.planMetadataApproved = saved.planMetadataApproved ?? false;
     state.lastManifest = saved.lastManifest ?? null;
+    state.caseWorkflow = {
+      ...state.caseWorkflow,
+      ...(saved.caseWorkflow ?? {})
+    };
+    state.v1Warehouse.r5Profile = state.caseWorkflow.r5Summary?.profile ?? null;
+    state.v1Warehouse.selectedCandidate = state.caseWorkflow.selectedV1 ?? null;
   } catch {
     // ignore
   }
@@ -56,7 +68,12 @@ function saveState() {
       JSON.stringify({
         planMetadata: state.planMetadata,
         planMetadataApproved: state.planMetadataApproved,
-        lastManifest: state.lastManifest
+        lastManifest: state.lastManifest,
+        caseWorkflow: {
+          r5Summary: state.caseWorkflow.r5Summary,
+          selectedV1: state.caseWorkflow.selectedV1,
+          moduleRuns: state.caseWorkflow.moduleRuns
+        }
       })
     );
   } catch {
@@ -69,6 +86,7 @@ function clearState() {
   state.planMetadataApproved = false;
   state.lastManifest = null;
   resetV1Warehouse();
+  state.caseWorkflow = { r5Summary: null, selectedV1: null, moduleRuns: {} };
   state.lastError = null;
   localStorage.removeItem(STORAGE_KEY);
 }
@@ -79,6 +97,7 @@ const routes = [
   { path: "#/r5-builder", title: "R5 Builder", render: renderR5Builder },
   { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
   { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer },
+  { path: "#/del", title: "DEL", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.del) },
   { path: "#/factors", title: "Plan Factors", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.factors) },
   { path: "#/436", title: "436", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.section436) },
   { path: "#/estimated-adjustments", title: "Est. Adjustments", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdjustments) },
@@ -91,6 +110,16 @@ const routes = [
 ];
 
 const artifactModuleConfigs = {
+  del: {
+    id: "data-elements",
+    title: "DEL Data Elements",
+    description: "Package Data Element List source evidence and extracted fields for the current case.",
+    outputName: "data-elements.artifact.json",
+    accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf,.docx",
+    prompt: "Upload DEL extracts, source worksheets, DD.csv mappings, and supporting cited references.",
+    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "DEL source files", "Cited source evidence"],
+    upstreamInputs: ["metadata", "r5"]
+  },
   factors: {
     id: "plan-factors",
     title: "Plan Factors",
@@ -98,7 +127,8 @@ const artifactModuleConfigs = {
     outputName: "plan-factors.artifact.json",
     accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf,.docx",
     prompt: "Upload factor tables, plan provisions, and supporting references.",
-    requiredInputs: ["PlanMetadata", "Plan factor source files", "Cited plan provisions"]
+    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Selected V1 engine profile when available", "Plan factor source files", "Cited plan provisions"],
+    upstreamInputs: ["metadata", "r5", "v1"]
   },
   section436: {
     id: "section-436",
@@ -107,7 +137,8 @@ const artifactModuleConfigs = {
     outputName: "section-436-memo.artifact.json",
     accepted: ".json,.txt,.pdf,.docx",
     prompt: "Upload section 436 references, plan amendments, and memo notes.",
-    requiredInputs: ["PlanMetadata", "Section 436 references", "Plan amendments or freeze evidence"]
+    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Section 436 references", "Plan amendments or freeze evidence"],
+    upstreamInputs: ["metadata", "r5"]
   },
   estimatedAdjustments: {
     id: "estimated-benefit-adjustments",
@@ -116,7 +147,8 @@ const artifactModuleConfigs = {
     outputName: "estimated-benefit-adjustments.artifact.json",
     accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf",
     prompt: "Upload estimated benefit extracts, workpapers, or reconciliation notes.",
-    requiredInputs: ["PlanMetadata", "Estimated benefit extracts", "Adjustment workpapers"]
+    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Selected V1 engine profile when available", "Estimated benefit extracts", "Adjustment workpapers"],
+    upstreamInputs: ["metadata", "r5", "v1"]
   },
   estimatedAdministration: {
     id: "estimated-benefit-administration",
@@ -125,7 +157,8 @@ const artifactModuleConfigs = {
     outputName: "estimated-benefit-administration.artifact.json",
     accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf",
     prompt: "Upload administration extracts, sample notices, or operational notes.",
-    requiredInputs: ["PlanMetadata", "Administration extracts", "Operational notes"]
+    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Administration extracts", "Operational notes"],
+    upstreamInputs: ["metadata", "r5"]
   },
   dagViewer: {
     id: "dag-viewer",
@@ -134,7 +167,8 @@ const artifactModuleConfigs = {
     outputName: "dag-viewer.graph.json",
     accepted: ".json,.txt,.csv",
     prompt: "Upload formula inventories or engine JSON.",
-    requiredInputs: ["PlanMetadata", "V1 summary/formula JSON"]
+    requiredInputs: ["PlanMetadata", "Selected V1 engine profile", "V1 summary/formula JSON"],
+    upstreamInputs: ["metadata", "v1"]
   },
   formulaTree: {
     id: "formula-tree",
@@ -143,16 +177,18 @@ const artifactModuleConfigs = {
     outputName: "formula-tree.graph.json",
     accepted: ".json,.txt,.csv",
     prompt: "Upload formula inventories, row-variable maps, or engine JSON.",
-    requiredInputs: ["PlanMetadata", "Formula inventory JSON/text"]
+    requiredInputs: ["PlanMetadata", "Selected V1 engine profile", "Formula inventory JSON/text"],
+    upstreamInputs: ["metadata", "v1"]
   },
   lettersBcv: {
     id: "letters-bcv-config",
-    title: "BCV Letter Generation Config",
-    description: "Create a deterministic BCV letter generation config package from uploaded templates and variable maps.",
-    outputName: "bcv-letter-config.artifact.json",
+    title: "BSRS / BCV Letter Generation Config",
+    description: "Create a deterministic BSRS/BCV letter generation config package from uploaded templates and variable maps.",
+    outputName: "bsrs-bcv-letter-config.artifact.json",
     accepted: ".json,.txt,.csv,.docx,.xlsx,.xlsm,.xls",
     prompt: "Upload letter templates, BSRS configs, and variable mappings.",
-    requiredInputs: ["PlanMetadata", "Letter templates", "BCV/BSRS config inputs"]
+    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Letter templates", "BCV/BSRS config inputs"],
+    upstreamInputs: ["metadata", "r5"]
   }
 };
 
@@ -464,56 +500,156 @@ function hydratePlanContext(container) {
     });
 }
 
-const workflowCards = [
-  {
-    route: "#/v1-engine-explorer",
-    title: "V1 Explorer",
-    status: "Primary workflow",
-    description: "Find the approved V1 engine that best fits the current R5 summary evidence.",
-    inputs: ["Approved V1Summary JSON files", "R5 summary JSON files"],
-    action: "Import approved engines, load R5, rank candidates"
-  },
-  {
-    route: "#/plan-summary",
-    title: "Plan Summary",
-    status: "Legacy workflow",
-    description: "Fill a Plan Summary DOCX using metadata and R5 JSON.",
-    inputs: ["Plan Summary DOCX template", "R5 JSON"],
-    action: "Upload template and R5 JSON"
-  },
-  {
-    route: "#/r5-builder",
-    title: "R5 Builder",
-    status: "Legacy embedded tool",
-    description: "Use the embedded legacy builder to produce R5 JSON.",
-    inputs: ["Source plan provisions", "Manual review"],
-    action: "Open legacy builder"
-  },
-  {
-    route: "#/factors",
-    title: "Plan Factors",
-    status: "Scaffold",
-    description: "Creates an audit package only; not a final factor generator yet.",
-    inputs: ["Factor source files", "Cited plan provisions"],
-    action: "Package inputs"
-  },
-  {
-    route: "#/436",
-    title: "Section 436",
-    status: "Scaffold",
-    description: "Creates a memo input package only; not a final legal/actuarial memo yet.",
-    inputs: ["436 references", "Plan amendments", "Freeze evidence"],
-    action: "Package inputs"
-  },
-  {
-    route: "#/letters-bcv",
-    title: "Letters/BCV",
-    status: "Scaffold",
-    description: "Creates a config package only; not final letter generation yet.",
-    inputs: ["Templates", "BCV/BSRS config", "Variable mappings"],
-    action: "Package inputs"
-  }
-];
+function getR5WorkflowSummary() {
+  return state.caseWorkflow.r5Summary ?? (state.v1Warehouse.r5Profile
+    ? {
+        profile: state.v1Warehouse.r5Profile,
+        source_files: state.v1Warehouse.r5Profile.source_files ?? [],
+        input_hashes: state.v1Warehouse.r5Profile.input_hashes ?? {},
+        loaded_at_utc: "unknown"
+      }
+    : null);
+}
+
+function getSelectedV1Summary() {
+  return state.caseWorkflow.selectedV1 ?? state.v1Warehouse.selectedCandidate ?? null;
+}
+
+function workflowInputStatus() {
+  const metadataReady = isMetadataReady();
+  const r5Summary = getR5WorkflowSummary();
+  const selectedV1 = getSelectedV1Summary();
+  return {
+    metadata: {
+      ready: metadataReady,
+      label: metadataReady ? "PlanMetadata saved" : "PlanMetadata missing",
+      detail: metadataReady
+        ? `${state.planMetadata?.meta?.case_number?.value ?? "unknown"}`
+        : "Start in Metadata and save a complete PlanMetadata JSON."
+    },
+    r5: {
+      ready: !!r5Summary,
+      label: r5Summary ? "R5 loaded" : "R5 missing",
+      detail: r5Summary
+        ? `${r5Summary.source_files?.length ?? 0} file(s), domains: ${(r5Summary.profile?.recognized_domains ?? []).join(", ") || "none"}`
+        : "Load R5 summary JSON in V1 Explorer."
+    },
+    v1: {
+      ready: !!selectedV1,
+      label: selectedV1 ? "V1 selected" : "V1 not selected",
+      detail: selectedV1
+        ? `${selectedV1.workbook_name ?? selectedV1.candidate_record_id ?? "selected candidate"}`
+        : "Import approved engines, rank candidates, then select one."
+    }
+  };
+}
+
+function renderWorkflowStatePanel(options = {}) {
+  const statuses = workflowInputStatus();
+  const keys = options.keys ?? ["metadata", "r5", "v1"];
+  return `
+    <div class="workflow-state-panel">
+      <div class="workflow-state-title">${escapeHtml(options.title ?? "Current Case Inputs")}</div>
+      <div class="workflow-state-grid">
+        ${keys
+          .map((key) => {
+            const item = statuses[key];
+            return `
+              <div class="workflow-state-item ${item.ready ? "ready" : "missing"}">
+                <span>${escapeHtml(item.label)}</span>
+                <b>${item.ready ? "Ready" : "Needed"}</b>
+                <small>${escapeHtml(item.detail)}</small>
+              </div>`;
+          })
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
+function deliverableCards() {
+  return [
+    {
+      route: "#/plan-summary",
+      title: "Plan Summary / R5",
+      status: "Functional legacy generator",
+      description: "Generate the filled Plan Summary document and use the R5 JSON as the case summary evidence.",
+      inputs: ["PlanMetadata", "Plan Summary DOCX template", "R5 summary JSON"],
+      action: "Generate Plan Summary",
+      upstreamInputs: ["metadata", "r5"]
+    },
+    {
+      route: "#/del",
+      title: "DEL Data Elements",
+      status: "Scaffold package",
+      description: "Package Data Element List source evidence and extracted fields.",
+      inputs: artifactModuleConfigs.del.requiredInputs,
+      action: "Package DEL inputs",
+      upstreamInputs: artifactModuleConfigs.del.upstreamInputs
+    },
+    {
+      route: "#/factors",
+      title: "Plan Factors",
+      status: "Scaffold package",
+      description: "Package factor source files, cited plan provisions, and selected engine context.",
+      inputs: artifactModuleConfigs.factors.requiredInputs,
+      action: "Package PF inputs",
+      upstreamInputs: artifactModuleConfigs.factors.upstreamInputs
+    },
+    {
+      route: "#/436",
+      title: "Section 436",
+      status: "Scaffold package",
+      description: "Package limitation memo evidence, amendments, and freeze references.",
+      inputs: artifactModuleConfigs.section436.requiredInputs,
+      action: "Package 436 inputs",
+      upstreamInputs: artifactModuleConfigs.section436.upstreamInputs
+    },
+    {
+      route: "#/estimated-adjustments",
+      title: "Estimated Adjustments",
+      status: "Scaffold package",
+      description: "Package estimated benefit adjustment extracts and workpapers.",
+      inputs: artifactModuleConfigs.estimatedAdjustments.requiredInputs,
+      action: "Package adjustment inputs",
+      upstreamInputs: artifactModuleConfigs.estimatedAdjustments.upstreamInputs
+    },
+    {
+      route: "#/estimated-administration",
+      title: "Estimated Administration",
+      status: "Scaffold package",
+      description: "Package estimated benefit administration extracts and operational notes.",
+      inputs: artifactModuleConfigs.estimatedAdministration.requiredInputs,
+      action: "Package administration inputs",
+      upstreamInputs: artifactModuleConfigs.estimatedAdministration.upstreamInputs
+    },
+    {
+      route: "#/v1-engine-explorer",
+      title: "Calculation Engine / V1",
+      status: "Primary workflow",
+      description: "Rank approved V1 engines against R5 evidence and select the current case candidate.",
+      inputs: ["PlanMetadata", "R5 summary JSON", "Approved V1Summary JSON files"],
+      action: "Rank and select V1",
+      upstreamInputs: ["metadata", "r5"]
+    },
+    {
+      route: "#/letters-bcv",
+      title: "BSRS / BCV Config",
+      status: "Scaffold package",
+      description: "Package letter templates, variable maps, and BSRS/BCV config inputs.",
+      inputs: artifactModuleConfigs.lettersBcv.requiredInputs,
+      action: "Package BSRS inputs",
+      upstreamInputs: artifactModuleConfigs.lettersBcv.upstreamInputs
+    }
+  ];
+}
+
+function upstreamReadiness(keys = []) {
+  const statuses = workflowInputStatus();
+  const required = keys.length ? keys : ["metadata"];
+  const ready = required.filter((key) => statuses[key]?.ready).length;
+  return { ready, total: required.length, complete: ready === required.length };
+}
 
 function normalizeValueEntry(entry) {
   if (entry && typeof entry === "object" && "value" in entry) {
@@ -1269,6 +1405,7 @@ function renderMetadata(container) {
 }
 
 function renderDashboard(container) {
+  const cards = deliverableCards();
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
@@ -1279,26 +1416,33 @@ function renderDashboard(container) {
 
     ${planContextHtml()}
 
+    ${renderWorkflowStatePanel({ title: "Current Case State" })}
+
     <div class="workflow-band">
       <h3>Recommended Next Action</h3>
-      <p class="muted">Use V1 Explorer first when the goal is to identify the best reusable approved V1 engine for the current case.</p>
+      <p class="muted">Load or confirm R5 summary evidence, rank approved V1 engines, then package downstream deliverables from the same case state.</p>
       <div class="button-row">
         <button class="primary" data-dashboard-route="#/v1-engine-explorer">Open V1 Explorer</button>
+        <button class="ghost" data-dashboard-route="#/r5-builder">Open R5 Builder</button>
         <button class="ghost" data-dashboard-route="#/metadata">Edit Metadata</button>
         <button class="ghost" data-dashboard-route="#/audit">Audit / Manifest</button>
       </div>
     </div>
 
     <div class="workflow-grid">
-      ${workflowCards
-        .map(
-          (card) => `
+      ${cards
+        .map((card) => {
+          const readiness = upstreamReadiness(card.upstreamInputs);
+          return `
             <article class="workflow-card ${card.status.toLowerCase().includes("scaffold") ? "scaffold" : ""}">
               <div class="workflow-card-head">
                 <h3>${escapeHtml(card.title)}</h3>
                 <span>${escapeHtml(card.status)}</span>
               </div>
               <p>${escapeHtml(card.description)}</p>
+              <div class="workflow-readiness ${readiness.complete ? "ready" : "missing"}">
+                Shared inputs: ${readiness.ready}/${readiness.total} ready
+              </div>
               <div class="workflow-inputs">
                 <b>Inputs</b>
                 <ul>
@@ -1307,8 +1451,8 @@ function renderDashboard(container) {
               </div>
               <button data-dashboard-route="${card.route}">${escapeHtml(card.action)}</button>
             </article>
-          `
-        )
+          `;
+        })
         .join("")}
     </div>
   `;
@@ -1432,6 +1576,51 @@ function buildGraphPayload(textPayloads) {
   };
 }
 
+function buildCaseWorkflowContext(manifest) {
+  const r5Summary = getR5WorkflowSummary();
+  const selectedV1 = getSelectedV1Summary();
+  return {
+    plan_metadata: {
+      case_number: manifest.case_number,
+      plan_metadata_hash: manifest.plan_metadata_hash
+    },
+    r5_summary: r5Summary
+      ? {
+          status: "loaded",
+          source_files: r5Summary.source_files ?? [],
+          input_hashes: r5Summary.input_hashes ?? {},
+          recognized_domains: r5Summary.profile?.recognized_domains ?? [],
+          warnings: r5Summary.profile?.warnings ?? []
+        }
+      : {
+          status: "unknown",
+          source_files: [],
+          input_hashes: {},
+          recognized_domains: [],
+          warnings: ["No R5 summary has been loaded into case state."]
+        },
+    selected_v1_engine: selectedV1
+      ? {
+          status: "selected",
+          candidate_record_id: selectedV1.candidate_record_id ?? "unknown",
+          workbook_name: selectedV1.workbook_name ?? "unknown",
+          source_file: selectedV1.source_file ?? "unknown",
+          sha256: selectedV1.sha256 ?? "unknown",
+          overall_score: selectedV1.overall_score ?? "unknown",
+          confidence: selectedV1.confidence ?? "unknown",
+          matched_domains: selectedV1.matched_domains ?? []
+        }
+      : {
+          status: "unknown",
+          candidate_record_id: "unknown",
+          workbook_name: "unknown",
+          source_file: "unknown",
+          sha256: "unknown",
+          matched_domains: []
+        }
+  };
+}
+
 async function buildModuleArtifact(config, files, notes) {
   const sortedFiles = [...files].sort((a, b) => a.name.localeCompare(b.name));
   const manifest = await buildRunManifest(config.id, "0.7.0", sortedFiles);
@@ -1447,6 +1636,7 @@ async function buildModuleArtifact(config, files, notes) {
 
   return {
     meta: manifest,
+    case_context: buildCaseWorkflowContext(manifest),
     plan_metadata: {
       case_number: manifest.case_number,
       plan_metadata_hash: manifest.plan_metadata_hash
@@ -1491,6 +1681,8 @@ function renderArtifactModule(container, config) {
     </section>
 
     ${planContextHtml()}
+
+    ${renderWorkflowStatePanel({ title: "Shared Case Inputs", keys: config.upstreamInputs ?? ["metadata"] })}
 
     <div class="banner subtle">
       ${config.id === "dag-viewer" || config.id === "formula-tree"
@@ -1579,6 +1771,11 @@ function renderArtifactModule(container, config) {
     try {
       const artifact = await buildModuleArtifact(config, files, notes.value);
       state.lastManifest = artifact.meta;
+      state.caseWorkflow.moduleRuns[config.id] = {
+        generated_at_utc: artifact.meta.generated_at_utc,
+        output_name: config.outputName,
+        input_hashes: artifact.meta.input_hashes
+      };
       saveState();
       const blob = new Blob([stringifyStable(artifact)], { type: "application/json" });
       downloadBlob(blob, config.outputName);
@@ -1613,6 +1810,8 @@ function renderAudit(container) {
     </section>
 
     ${planContextHtml()}
+
+    ${renderWorkflowStatePanel({ title: "Shared Case Inputs" })}
 
     <div id="instructions_backdrop" class="drawer-backdrop"></div>
     <aside class="drawer-panel drawer-left" id="instructions_panel">
@@ -1691,6 +1890,8 @@ function renderR5Builder(container) {
 
     ${planContextHtml()}
 
+    ${renderWorkflowStatePanel({ title: "Shared Case Inputs", keys: ["metadata", "r5"] })}
+
     <div class="banner subtle">Legacy embedded tool: use it to produce R5 JSON, then return to Dashboard or V1 Explorer for the integrated workflow.</div>
 
     <div id="instructions_backdrop" class="drawer-backdrop"></div>
@@ -1744,8 +1945,10 @@ async function buildExplorerBridgeContext() {
     plan_metadata: state.planMetadata,
     warehouse_state: {
       read_only: true,
-      profiles: state.v1Warehouse.profiles
-    }
+      profiles: state.v1Warehouse.profiles,
+      selected_candidate: getSelectedV1Summary()
+    },
+    r5_summary: getR5WorkflowSummary()
   };
 }
 
@@ -1786,6 +1989,8 @@ function renderV1EngineExplorer(container) {
     </section>
 
     ${planContextHtml()}
+
+    ${renderWorkflowStatePanel({ title: "Shared Case Inputs" })}
 
     <div id="instructions_backdrop" class="drawer-backdrop"></div>
     <aside class="drawer-panel drawer-left" id="instructions_panel">
@@ -1836,6 +2041,7 @@ function renderV1EngineExplorer(container) {
       </div>
       <div id="v1_status" class="meta-line">Approved V1 records are read-only and stay in Caseworkbench memory for this browser session.</div>
       <div id="v1_bridge_status" class="meta-line"></div>
+      <div id="v1_selected">${renderSelectedV1Summary()}</div>
       <div class="section-divider"></div>
       <h3>Approved Engine Warehouse</h3>
       <div id="v1_profiles">${renderV1ProfilesSummary()}</div>
@@ -1879,6 +2085,7 @@ function renderV1EngineExplorer(container) {
   const bridgeBtn = container.querySelector("#v1_send_bridge");
   const statusEl = container.querySelector("#v1_status");
   const bridgeStatusEl = container.querySelector("#v1_bridge_status");
+  const selectedEl = container.querySelector("#v1_selected");
   const profilesEl = container.querySelector("#v1_profiles");
   const rankingsEl = container.querySelector("#v1_rankings");
   const iframe = container.querySelector("#v1_explorer_frame");
@@ -1886,6 +2093,7 @@ function renderV1EngineExplorer(container) {
   hydratePlanContext(container);
 
   function refreshV1Ui() {
+    selectedEl.innerHTML = renderSelectedV1Summary();
     profilesEl.innerHTML = renderV1ProfilesSummary();
     rankingsEl.innerHTML = renderV1RankingResults();
     importManifestBtn.disabled = !state.v1Warehouse.importManifest;
@@ -1939,6 +2147,19 @@ function renderV1EngineExplorer(container) {
     }
   });
 
+  rankingsEl.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-select-v1]");
+    if (!btn) return;
+    const selected = selectV1Candidate(btn.dataset.selectV1);
+    statusEl.textContent = selected
+      ? `Selected current case V1 candidate: ${selected.workbook_name}.`
+      : "Could not select that V1 candidate.";
+    refreshV1Ui();
+    sendExplorerBridgeContext(iframe, bridgeStatusEl).catch((err) => {
+      bridgeStatusEl.textContent = `Bridge error: ${err.message}`;
+    });
+  });
+
   importManifestBtn.addEventListener("click", () => {
     if (!state.v1Warehouse.importManifest) return;
     downloadBlob(
@@ -1957,7 +2178,10 @@ function renderV1EngineExplorer(container) {
 
   clearBtn.addEventListener("click", () => {
     resetV1Warehouse();
+    state.caseWorkflow.r5Summary = null;
+    state.caseWorkflow.selectedV1 = null;
     state.lastManifest = null;
+    saveState();
     statusEl.textContent = "Cleared V1 session state.";
     refreshV1Ui();
   });
@@ -2044,6 +2268,8 @@ function renderPlanSummary(container) {
 
     ${planContextHtml()}
 
+    ${renderWorkflowStatePanel({ title: "Shared Case Inputs", keys: ["metadata", "r5"] })}
+
     <div id="instructions_backdrop" class="drawer-backdrop"></div>
     <aside class="drawer-panel drawer-left" id="instructions_panel">
       <div class="drawer-header">
@@ -2127,16 +2353,24 @@ function renderPlanSummary(container) {
     update();
   });
 
-  psJson.addEventListener("change", (e) => {
+  psJson.addEventListener("change", async (e) => {
     r5File = e.target.files?.[0] ?? null;
     update();
+    if (!r5File) return;
+    try {
+      const result = await importR5Files([r5File]);
+      container.querySelector("#ps_r5json_name").textContent =
+        `${r5File.name} loaded to case state (${result.profile.recognized_domains.join(", ") || "no recognized domains"})`;
+    } catch (err) {
+      status.textContent = `R5 case-state load warning: ${err.message}`;
+    }
   });
 
   btn.addEventListener("click", async () => {
     status.textContent = "Reading inputs...";
     try {
       const r5Text = await r5File.text();
-      const r5Obj = JSON.parse(r5Text);
+      const r5Obj = JSON.parse(stripJsonBom(r5Text));
 
       const [docxHash, r5Hash] = await Promise.all([
         sha256Hex(docxFile),
@@ -2212,7 +2446,8 @@ function resetV1Warehouse() {
     diagnostics: [],
     r5Files: [],
     r5Profile: null,
-    rankings: []
+    rankings: [],
+    selectedCandidate: null
   };
 }
 
@@ -2462,6 +2697,13 @@ async function importR5Files(files) {
   }
   state.v1Warehouse.r5Files = inputs;
   state.v1Warehouse.r5Profile = createR5CaseProfile(inputs);
+  state.caseWorkflow.r5Summary = {
+    profile: state.v1Warehouse.r5Profile,
+    source_files: state.v1Warehouse.r5Profile.source_files,
+    input_hashes: state.v1Warehouse.r5Profile.input_hashes,
+    loaded_at_utc: new Date().toISOString()
+  };
+  saveState();
   return { inputs, diagnostics, profile: state.v1Warehouse.r5Profile };
 }
 
@@ -2496,6 +2738,7 @@ function rankApprovedV1Profiles(r5Profile, profiles) {
         candidate_record_id: profile.record_id,
         workbook_name: profile.workbook_name,
         source_file: profile.source_file,
+        sha256: profile.sha256,
         overall_score: Number(overall.toFixed(4)),
         confidence: Number(confidence.toFixed(4)),
         completeness: Number(completeness.toFixed(4)),
@@ -2556,9 +2799,46 @@ function renderV1ProfilesSummary() {
   `;
 }
 
+function selectV1Candidate(candidateRecordId) {
+  const ranking = state.v1Warehouse.rankings.find((item) => item.candidate_record_id === candidateRecordId);
+  const profile = state.v1Warehouse.profiles.find((item) => item.record_id === candidateRecordId);
+  if (!ranking && !profile) return null;
+  const selected = {
+    candidate_record_id: candidateRecordId,
+    workbook_name: ranking?.workbook_name ?? profile?.workbook_name ?? "unknown",
+    source_file: ranking?.source_file ?? profile?.source_file ?? "unknown",
+    sha256: ranking?.sha256 ?? profile?.sha256 ?? "unknown",
+    overall_score: ranking?.overall_score ?? "unknown",
+    confidence: ranking?.confidence ?? "unknown",
+    completeness: ranking?.completeness ?? "unknown",
+    matched_domains: ranking?.matched_domains ?? profile?.benefit_domains ?? [],
+    missing_domains: ranking?.missing_domains ?? [],
+    selected_at_utc: new Date().toISOString(),
+    read_only: true
+  };
+  state.v1Warehouse.selectedCandidate = selected;
+  state.caseWorkflow.selectedV1 = selected;
+  saveState();
+  return selected;
+}
+
+function renderSelectedV1Summary() {
+  const selected = getSelectedV1Summary();
+  if (!selected) {
+    return `<div class="workflow-selected missing"><b>No current V1 engine selected.</b><span>Select one ranked approved candidate to make it available to downstream modules.</span></div>`;
+  }
+  return `
+    <div class="workflow-selected ready">
+      <b>Current case V1 engine: ${escapeHtml(selected.workbook_name ?? "unknown")}</b>
+      <span>${escapeHtml(selected.source_file ?? "unknown")} | ${escapeHtml(String(selected.candidate_record_id ?? "unknown"))} | ${escapeHtml(String(selected.sha256 ?? "unknown").slice(0, 12))}</span>
+    </div>
+  `;
+}
+
 function renderV1RankingResults() {
   const rankings = state.v1Warehouse.rankings;
   if (!rankings.length) return `<div class="meta-line">No ranking run yet.</div>`;
+  const selected = getSelectedV1Summary();
   return `
     <div class="v1-ranking-list">
       ${rankings
@@ -2573,6 +2853,9 @@ function renderV1RankingResults() {
               <div class="meta-line">Matched: ${escapeHtml(result.matched_domains.join(", ") || "none")}</div>
               <div class="meta-line">Missing: ${escapeHtml(result.missing_domains.join(", ") || "none")}</div>
               ${result.warnings.length ? `<div class="meta-line">Warnings: ${escapeHtml(result.warnings.join("; "))}</div>` : ""}
+              <button class="ghost" data-select-v1="${escapeHtml(result.candidate_record_id)}">
+                ${selected?.candidate_record_id === result.candidate_record_id ? "Selected for case" : "Use this V1 for case"}
+              </button>
             </div>`
         )
         .join("")}
