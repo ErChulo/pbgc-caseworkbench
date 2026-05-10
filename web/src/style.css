@@ -443,6 +443,90 @@ textarea.code {
   background: var(--surface-strong);
 }
 
+.case-context {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.case-context > div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.case-context span,
+.workflow-card-head span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.workflow-band {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: var(--surface-strong);
+}
+
+.workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.85rem;
+}
+
+.workflow-card {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  background: var(--surface);
+}
+
+.workflow-card.scaffold {
+  border-style: dashed;
+}
+
+.workflow-card-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.workflow-card h3 {
+  margin: 0;
+}
+
+.workflow-card p,
+.workflow-inputs ul,
+.input-checklist ul {
+  margin: 0;
+}
+
+.workflow-inputs,
+.input-checklist {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.workflow-inputs ul,
+.input-checklist ul {
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+
 .section-divider {
   height: 1px;
   background: var(--border);
@@ -592,6 +676,65 @@ textarea.code {
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface);
+}
+
+.page-content[data-route="#/v1-engine-explorer"] {
+  width: min(100%, 1600px);
+}
+
+.v1-explorer-frame {
+  min-height: 82vh;
+}
+
+.v1-control-panel {
+  margin-bottom: 1rem;
+}
+
+.v1-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.v1-summary-grid > div {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.v1-summary-grid b {
+  font-size: 1.25rem;
+}
+
+.v1-summary-grid span,
+.v1-list-item span,
+.v1-ranking-item span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.v1-list,
+.v1-ranking-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.v1-list-item,
+.v1-ranking-item {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.v1-ranking-item.best {
+  border-color: var(--accent);
 }
 
 @media (max-width: 900px) {
