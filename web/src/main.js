@@ -95,6 +95,7 @@ const routes = [
   { path: "#/metadata", title: "Metadata", render: renderMetadata },
   { path: "#/dashboard", title: "Dashboard", render: renderDashboard },
   { path: "#/inputs", title: "Inputs Matrix", render: renderInputsMatrix },
+  { path: "#/rules", title: "Rules Registry", render: renderRulesRegistry },
   { path: "#/r5-builder", title: "R5 Builder", render: renderR5Builder },
   { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
   { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer },
@@ -798,6 +799,206 @@ function buildInputRequirementRows() {
       required_count: statuses.length
     };
   });
+}
+
+const rulesRegistry = [
+  {
+    id: "RULE-R5-001",
+    title: "R5 question inventory",
+    rule_class: "mechanical",
+    status: "planned_validator",
+    deliverables: ["Plan Summary / R5"],
+    governing_references: ["reference/r5-items.txt"],
+    input_artifacts: ["PlanMetadata", "Plan document extraction JSON"],
+    output_artifacts: ["r5-summary.json", "Plan Summary DOCX"]
+  },
+  {
+    id: "RULE-R5-002",
+    title: "Plan Summary document coverage and citation rules",
+    rule_class: "mechanical",
+    status: "partially_implemented",
+    deliverables: ["Plan Summary / R5", "Inputs Matrix"],
+    governing_references: ["reference/plan-summary-rules.txt"],
+    input_artifacts: ["PlanMetadata", "document registry", "R5 summary JSON"],
+    output_artifacts: ["Plan Summary DOCX", "manifest.json"]
+  },
+  {
+    id: "RULE-R5-003",
+    title: "Plan provision extraction from PDFs and amendments",
+    rule_class: "llm_assisted",
+    status: "planned_extractor",
+    deliverables: ["Plan Summary / R5", "Plan Factors / PF", "V1"],
+    governing_references: ["reference/plan-summary-rules.txt", "reference/metadata-scraper-prompt.txt"],
+    input_artifacts: ["plan documents", "amendments", "SPDs", "CBAs"],
+    output_artifacts: ["PlanMetadata", "r5-summary.json", "plan-layer extraction JSON"]
+  },
+  {
+    id: "RULE-R5-004",
+    title: "Ambiguous provision and conflict resolution",
+    rule_class: "human_review",
+    status: "manual_required",
+    deliverables: ["Plan Summary / R5", "Plan Factors / PF", "V1"],
+    governing_references: ["reference/plan-summary-rules.txt"],
+    input_artifacts: ["conflicting extracted facts", "citations"],
+    output_artifacts: ["approved fact selection", "review notes"]
+  },
+  {
+    id: "RULE-DEL-001",
+    title: "DEL direct input versus calculated field split",
+    rule_class: "mechanical",
+    status: "planned_validator",
+    deliverables: ["DEL Data Elements", "V1", "BSRS / BCV"],
+    governing_references: ["reference/DD.csv"],
+    input_artifacts: ["participant/census/payee data", "DD.csv field dictionary"],
+    output_artifacts: ["data-elements.json", "field coverage report"]
+  },
+  {
+    id: "RULE-DEL-002",
+    title: "Participant source priority and field provenance",
+    rule_class: "llm_assisted",
+    status: "planned_extractor",
+    deliverables: ["DEL Data Elements", "Estimated Administration"],
+    governing_references: ["reference/CASE_PROCESSING.txt", "reference/DD.csv"],
+    input_artifacts: ["census files", "payee files", "participant forms", "source notes"],
+    output_artifacts: ["source-priority map", "DEL source citations"]
+  },
+  {
+    id: "RULE-DEL-003",
+    title: "Acceptance of participant data assumptions",
+    rule_class: "human_review",
+    status: "manual_required",
+    deliverables: ["DEL Data Elements", "Estimated Adjustments", "Estimated Administration"],
+    governing_references: ["reference/CASE_PROCESSING.txt"],
+    input_artifacts: ["DEL source report", "missing/unknown field report"],
+    output_artifacts: ["approved assumptions", "case notes"]
+  },
+  {
+    id: "RULE-V1-001",
+    title: "Approved V1Summary import shape",
+    rule_class: "mechanical",
+    status: "implemented",
+    deliverables: ["V1"],
+    governing_references: ["reference/raw-approved-v1-engines"],
+    input_artifacts: ["approved V1Summary JSON files"],
+    output_artifacts: ["approved V1 warehouse profiles", "import manifest"]
+  },
+  {
+    id: "RULE-V1-002",
+    title: "V1 run ordering and reconstruction preview",
+    rule_class: "mechanical",
+    status: "implemented",
+    deliverables: ["V1", "V1 Match Audit"],
+    governing_references: ["reference/run_catalog_seed.v0.7.0.json", "reference/sample-2-v1.xlsm"],
+    input_artifacts: ["approved V1Summary JSON files"],
+    output_artifacts: ["v1-match-reconstruction-audit.json"]
+  },
+  {
+    id: "RULE-V1-003",
+    title: "V1 output field contract",
+    rule_class: "mechanical",
+    status: "planned_validator",
+    deliverables: ["V1", "BSRS / BCV"],
+    governing_references: ["reference/output_contract_seed.v0.7.0.json"],
+    input_artifacts: ["V1 engine profile", "DEL field model"],
+    output_artifacts: ["output coverage report"]
+  },
+  {
+    id: "RULE-V1-004",
+    title: "V1 candidate actuarial suitability",
+    rule_class: "human_review",
+    status: "manual_required",
+    deliverables: ["V1"],
+    governing_references: ["reference/raw-approved-v1-engines", "reference/plan-summary-rules.txt"],
+    input_artifacts: ["ranking evidence", "R5 profile", "reconstruction preview"],
+    output_artifacts: ["selected V1 candidate", "review signoff"]
+  },
+  {
+    id: "RULE-PF-001",
+    title: "Plan factor workbook input contract",
+    rule_class: "mechanical",
+    status: "planned_validator",
+    deliverables: ["Plan Factors / PF"],
+    governing_references: ["reference/README - plan_factors.md", "reference/24884900PF.v0.7.13.xlsx"],
+    input_artifacts: ["case.json", "planFactors.json"],
+    output_artifacts: ["########PF.v0.7.13.xlsx"]
+  },
+  {
+    id: "RULE-PF-002",
+    title: "Factor rule extraction from plan provisions",
+    rule_class: "llm_assisted",
+    status: "planned_extractor",
+    deliverables: ["Plan Factors / PF", "V1"],
+    governing_references: ["reference/plan-summary-rules.txt", "reference/plan-layer-object-variables.txt"],
+    input_artifacts: ["R5 summary", "plan provisions"],
+    output_artifacts: ["planFactors.json"]
+  },
+  {
+    id: "RULE-436-001",
+    title: "Section 436 input package and memo scaffold",
+    rule_class: "mechanical",
+    status: "partially_implemented",
+    deliverables: ["Section 436"],
+    governing_references: ["reference/Benefit Limitations Under PPA 2006 - Section 436.pdf", "reference/pbgc-436-webapp-v0.2.0"],
+    input_artifacts: ["DOPT", "DOTR", "BPD", "DOBF", "AFTAP/CBA facts"],
+    output_artifacts: ["section-436-memo.artifact.json"]
+  },
+  {
+    id: "RULE-436-002",
+    title: "Section 436 applicability judgment",
+    rule_class: "human_review",
+    status: "manual_required",
+    deliverables: ["Section 436"],
+    governing_references: ["reference/Benefit Limitations Under PPA 2006 - Section 436.pdf"],
+    input_artifacts: ["freeze evidence", "AFTAP facts", "plan amendments"],
+    output_artifacts: ["approved 436 conclusion"]
+  },
+  {
+    id: "RULE-EST-001",
+    title: "Estimated adjustment payment-history package",
+    rule_class: "mechanical",
+    status: "planned_validator",
+    deliverables: ["Estimated Adjustments"],
+    governing_references: ["reference/Computation and Netting of Post-DOPT Overpayments and Underpayments.pdf", "reference/Benefit Corrections.pdf"],
+    input_artifacts: ["payment history", "estimated benefit extract", "current benefit status"],
+    output_artifacts: ["estimated-benefit-adjustments.artifact.json"]
+  },
+  {
+    id: "RULE-ADMIN-001",
+    title: "Estimated administration input package",
+    rule_class: "mechanical",
+    status: "planned_validator",
+    deliverables: ["Estimated Administration"],
+    governing_references: ["reference/CASE_PROCESSING.txt", "reference/Frequency of Benefit Payments.pdf"],
+    input_artifacts: ["payee administration extract", "PIF/verification status", "operational notes"],
+    output_artifacts: ["estimated-benefit-administration.artifact.json"]
+  },
+  {
+    id: "RULE-BSRS-001",
+    title: "BSRS authoring function allow-list",
+    rule_class: "mechanical",
+    status: "planned_validator",
+    deliverables: ["BSRS / BCV"],
+    governing_references: ["reference/BSRS functions.txt"],
+    input_artifacts: ["BSRS expression/config files"],
+    output_artifacts: ["BSRS validation report"]
+  },
+  {
+    id: "RULE-BSRS-002",
+    title: "BSRS/BCV config template shape",
+    rule_class: "mechanical",
+    status: "planned_generator",
+    deliverables: ["BSRS / BCV"],
+    governing_references: ["reference/sample-bsrs-statement-config.txt", "reference/sample-bsrs-baseData-config.txt", "reference/DD.csv"],
+    input_artifacts: ["DEL data", "V1 outputs", "letter variable mappings"],
+    output_artifacts: ["bsrs-bcv-letter-config.artifact.json"]
+  }
+].sort((a, b) => a.id.localeCompare(b.id));
+
+function rulesByClass() {
+  return rulesRegistry.reduce((acc, rule) => {
+    acc[rule.rule_class] = (acc[rule.rule_class] ?? 0) + 1;
+    return acc;
+  }, {});
 }
 
 function normalizeValueEntry(entry) {
@@ -1574,6 +1775,7 @@ function renderDashboard(container) {
         <button class="primary" data-dashboard-route="#/v1-engine-explorer">Open V1 Explorer</button>
         <button class="ghost" data-dashboard-route="#/v1-audit">Audit V1 Match</button>
         <button class="ghost" data-dashboard-route="#/inputs">Review Inputs Matrix</button>
+        <button class="ghost" data-dashboard-route="#/rules">Rules Registry</button>
         <button class="ghost" data-dashboard-route="#/r5-builder">Open R5 Builder</button>
         <button class="ghost" data-dashboard-route="#/metadata">Edit Metadata</button>
         <button class="ghost" data-dashboard-route="#/audit">Audit / Manifest</button>
@@ -1655,6 +1857,103 @@ async function buildInputRequirementsExport() {
   };
 }
 
+async function buildRulesRegistryExport() {
+  const planMetadataHash = state.planMetadata
+    ? await sha256HexString(stringifyStable(state.planMetadata))
+    : "unknown";
+  return {
+    meta: {
+      app_version: APP_VERSION,
+      schema_version: SCHEMA_VERSION,
+      module_id: "rules-registry",
+      module_version: "0.7.0",
+      generated_at_utc: new Date().toISOString(),
+      case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+      plan_metadata_hash: planMetadataHash
+    },
+    rule_classes: {
+      mechanical: "Deterministic validators/generators/program logic suitable for browser execution.",
+      llm_assisted: "Extraction or normalization tasks where messy documents or language require LLM assistance before validation.",
+      human_review: "Actuarial/legal/ambiguity decisions requiring explicit user approval."
+    },
+    class_counts: rulesByClass(),
+    rules: rulesRegistry
+  };
+}
+
+function renderRulesRegistry(container) {
+  const counts = rulesByClass();
+  container.innerHTML = `
+    <section class="page-hero">
+      <div class="page-title">
+        <h2>Rules Registry</h2>
+        <p>Reference-derived control map for what the workbench can program, what needs LLM extraction, and what requires human review.</p>
+      </div>
+      <div class="page-actions">
+        <button class="primary" id="download_rules_registry">Download rules-registry.json</button>
+      </div>
+    </section>
+
+    ${planContextHtml()}
+
+    <div class="rules-summary-grid">
+      <div><span>Mechanical</span><b>${escapeHtml(String(counts.mechanical ?? 0))}</b><small>Programable validators/generators</small></div>
+      <div><span>LLM-assisted</span><b>${escapeHtml(String(counts.llm_assisted ?? 0))}</b><small>Extraction/normalization tasks</small></div>
+      <div><span>Human review</span><b>${escapeHtml(String(counts.human_review ?? 0))}</b><small>Ambiguity and approval decisions</small></div>
+    </div>
+
+    <div class="banner subtle">
+      This registry is the implementation roadmap. Mechanical rules should become code and tests. LLM-assisted rules should become scraper prompts and schemas. Human-review rules should become explicit approval gates.
+    </div>
+
+    <div class="rules-registry-list">
+      ${rulesRegistry.map(renderRuleCard).join("")}
+    </div>
+
+    <pre id="rules_registry_status" class="code" style="margin-top:12px;"></pre>
+  `;
+
+  hydratePlanContext(container);
+
+  const downloadBtn = container.querySelector("#download_rules_registry");
+  const statusEl = container.querySelector("#rules_registry_status");
+  downloadBtn.addEventListener("click", async () => {
+    try {
+      const payload = await buildRulesRegistryExport();
+      state.lastManifest = payload.meta;
+      saveState();
+      downloadBlob(
+        new Blob([stringifyStable(payload)], { type: "application/json" }),
+        "rules-registry.json"
+      );
+      statusEl.textContent = `Downloaded rules-registry.json\n\n${JSON.stringify(payload.meta, null, 2)}`;
+    } catch (err) {
+      statusEl.textContent = `ERROR: ${err.message}`;
+    }
+  });
+}
+
+function renderRuleCard(rule) {
+  return `
+    <article class="rule-card ${escapeHtml(rule.rule_class)}">
+      <div class="workflow-card-head">
+        <h3>${escapeHtml(rule.id)}: ${escapeHtml(rule.title)}</h3>
+        <span>${escapeHtml(rule.rule_class.replace("_", " "))}</span>
+      </div>
+      <div class="rule-status">${escapeHtml(rule.status.replaceAll("_", " "))}</div>
+      <div class="requirements-columns">
+        <div><b>Deliverables</b><ul>${rule.deliverables.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
+        <div><b>Inputs</b><ul>${rule.input_artifacts.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
+        <div><b>Outputs</b><ul>${rule.output_artifacts.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
+      </div>
+      <div class="workflow-inputs">
+        <b>Governing references</b>
+        <ul>${rule.governing_references.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </div>
+    </article>
+  `;
+}
+
 function renderInputsMatrix(container) {
   const rows = buildInputRequirementRows();
   container.innerHTML = `
@@ -1665,6 +1964,7 @@ function renderInputsMatrix(container) {
       </div>
       <div class="page-actions">
         <button class="primary" id="download_inputs_matrix">Download requirements JSON</button>
+        <button class="ghost" id="open_rules_registry">Open Rules Registry</button>
       </div>
     </section>
 
@@ -1746,7 +2046,9 @@ function renderInputsMatrix(container) {
   });
 
   const downloadBtn = container.querySelector("#download_inputs_matrix");
+  const rulesBtn = container.querySelector("#open_rules_registry");
   const statusEl = container.querySelector("#inputs_matrix_status");
+  rulesBtn.addEventListener("click", () => setRoute("#/rules"));
   downloadBtn.addEventListener("click", async () => {
     try {
       const payload = await buildInputRequirementsExport();

@@ -739,6 +739,68 @@ textarea.code {
   color: var(--muted);
 }
 
+.rules-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.rules-summary-grid > div {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0.85rem;
+}
+
+.rules-summary-grid span,
+.rules-summary-grid small {
+  color: var(--muted);
+}
+
+.rules-summary-grid b {
+  font-size: 1.45rem;
+}
+
+.rules-registry-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.rule-card {
+  display: grid;
+  gap: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 1rem;
+}
+
+.rule-card.mechanical {
+  border-color: var(--accent);
+}
+
+.rule-card.llm_assisted {
+  border-color: var(--accent-2);
+}
+
+.rule-card.human_review {
+  border-color: var(--danger);
+}
+
+.rule-status {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  padding: 0.25rem 0.65rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .section-divider {
   height: 1px;
   background: var(--border);
@@ -983,6 +1045,10 @@ textarea.code {
   }
 
   .requirements-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .rules-summary-grid {
     grid-template-columns: 1fr;
   }
 }
