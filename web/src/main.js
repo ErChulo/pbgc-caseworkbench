@@ -75,17 +75,18 @@ function clearState() {
 
 const routes = [
   { path: "#/metadata", title: "Metadata", render: renderMetadata },
+  { path: "#/dashboard", title: "Dashboard", render: renderDashboard },
   { path: "#/r5-builder", title: "R5 Builder", render: renderR5Builder },
   { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
   { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer },
-  { path: "#/factors", title: "Plan Factors", render: (container) => renderArtifactModule(container, artifactModuleConfigs.factors) },
-  { path: "#/436", title: "436", render: (container) => renderArtifactModule(container, artifactModuleConfigs.section436) },
-  { path: "#/estimated-adjustments", title: "Est. Adjustments", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdjustments) },
-  { path: "#/estimated-administration", title: "Est. Administration", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdministration) },
+  { path: "#/factors", title: "Plan Factors", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.factors) },
+  { path: "#/436", title: "436", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.section436) },
+  { path: "#/estimated-adjustments", title: "Est. Adjustments", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdjustments) },
+  { path: "#/estimated-administration", title: "Est. Administration", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdministration) },
   { path: "#/v1-builder", title: "V1 Builder", render: renderV1BuilderAlias, hidden: true },
-  { path: "#/dag-viewer", title: "DAG Viewer", render: (container) => renderArtifactModule(container, artifactModuleConfigs.dagViewer) },
-  { path: "#/formula-tree", title: "Formula Tree", render: (container) => renderArtifactModule(container, artifactModuleConfigs.formulaTree) },
-  { path: "#/letters-bcv", title: "Letters/BCV", render: (container) => renderArtifactModule(container, artifactModuleConfigs.lettersBcv) },
+  { path: "#/dag-viewer", title: "DAG Viewer", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.dagViewer) },
+  { path: "#/formula-tree", title: "Formula Tree", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.formulaTree) },
+  { path: "#/letters-bcv", title: "Letters/BCV", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.lettersBcv) },
   { path: "#/audit", title: "Audit", render: renderAudit }
 ];
 
@@ -96,7 +97,8 @@ const artifactModuleConfigs = {
     description: "Package uploaded factor source files into a cited, audit-ready extraction workspace.",
     outputName: "plan-factors.artifact.json",
     accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf,.docx",
-    prompt: "Upload factor tables, plan provisions, and supporting references."
+    prompt: "Upload factor tables, plan provisions, and supporting references.",
+    requiredInputs: ["PlanMetadata", "Plan factor source files", "Cited plan provisions"]
   },
   section436: {
     id: "section-436",
@@ -104,7 +106,8 @@ const artifactModuleConfigs = {
     description: "Build a memo input package for section 436 limitations without inventing missing provisions.",
     outputName: "section-436-memo.artifact.json",
     accepted: ".json,.txt,.pdf,.docx",
-    prompt: "Upload section 436 references, plan amendments, and memo notes."
+    prompt: "Upload section 436 references, plan amendments, and memo notes.",
+    requiredInputs: ["PlanMetadata", "Section 436 references", "Plan amendments or freeze evidence"]
   },
   estimatedAdjustments: {
     id: "estimated-benefit-adjustments",
@@ -112,7 +115,8 @@ const artifactModuleConfigs = {
     description: "Create an adjustment analysis package from uploaded estimates and supporting workpapers.",
     outputName: "estimated-benefit-adjustments.artifact.json",
     accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf",
-    prompt: "Upload estimated benefit extracts, workpapers, or reconciliation notes."
+    prompt: "Upload estimated benefit extracts, workpapers, or reconciliation notes.",
+    requiredInputs: ["PlanMetadata", "Estimated benefit extracts", "Adjustment workpapers"]
   },
   estimatedAdministration: {
     id: "estimated-benefit-administration",
@@ -120,7 +124,8 @@ const artifactModuleConfigs = {
     description: "Create an administration analysis package from uploaded extracts and source notes.",
     outputName: "estimated-benefit-administration.artifact.json",
     accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf",
-    prompt: "Upload administration extracts, sample notices, or operational notes."
+    prompt: "Upload administration extracts, sample notices, or operational notes.",
+    requiredInputs: ["PlanMetadata", "Administration extracts", "Operational notes"]
   },
   dagViewer: {
     id: "dag-viewer",
@@ -128,7 +133,8 @@ const artifactModuleConfigs = {
     description: "Build a dependency graph model from uploaded formula or engine JSON.",
     outputName: "dag-viewer.graph.json",
     accepted: ".json,.txt,.csv",
-    prompt: "Upload formula inventories or engine JSON."
+    prompt: "Upload formula inventories or engine JSON.",
+    requiredInputs: ["PlanMetadata", "V1 summary/formula JSON"]
   },
   formulaTree: {
     id: "formula-tree",
@@ -136,7 +142,8 @@ const artifactModuleConfigs = {
     description: "Build a formula tree model from uploaded formula strings. Formulas are analyzed as text only.",
     outputName: "formula-tree.graph.json",
     accepted: ".json,.txt,.csv",
-    prompt: "Upload formula inventories, row-variable maps, or engine JSON."
+    prompt: "Upload formula inventories, row-variable maps, or engine JSON.",
+    requiredInputs: ["PlanMetadata", "Formula inventory JSON/text"]
   },
   lettersBcv: {
     id: "letters-bcv-config",
@@ -144,7 +151,8 @@ const artifactModuleConfigs = {
     description: "Create a deterministic BCV letter generation config package from uploaded templates and variable maps.",
     outputName: "bcv-letter-config.artifact.json",
     accepted: ".json,.txt,.csv,.docx,.xlsx,.xlsm,.xls",
-    prompt: "Upload letter templates, BSRS configs, and variable mappings."
+    prompt: "Upload letter templates, BSRS configs, and variable mappings.",
+    requiredInputs: ["PlanMetadata", "Letter templates", "BCV/BSRS config inputs"]
   }
 };
 
@@ -430,6 +438,82 @@ function sortJsonKeys(obj) {
 function stringifyStable(obj) {
   return JSON.stringify(sortJsonKeys(obj), null, 2);
 }
+
+function planContextHtml() {
+  if (!state.planMetadata) return "";
+  const planName = getPlanValue(state.planMetadata, "plan_name") || "unknown";
+  const caseNo = state.planMetadata?.meta?.case_number?.value ?? "unknown";
+  return `
+    <div class="case-context" data-plan-context>
+      <div><span>Plan</span><b>${escapeHtml(planName)}</b></div>
+      <div><span>Case</span><b>${escapeHtml(caseNo)}</b></div>
+      <div><span>Metadata Hash</span><b data-metadata-hash>computing...</b></div>
+    </div>
+  `;
+}
+
+function hydratePlanContext(container) {
+  const hashEl = container.querySelector("[data-metadata-hash]");
+  if (!hashEl || !state.planMetadata) return;
+  sha256HexString(stringifyStable(state.planMetadata))
+    .then((hash) => {
+      hashEl.textContent = hash.slice(0, 16);
+    })
+    .catch(() => {
+      hashEl.textContent = "hash error";
+    });
+}
+
+const workflowCards = [
+  {
+    route: "#/v1-engine-explorer",
+    title: "V1 Explorer",
+    status: "Primary workflow",
+    description: "Find the approved V1 engine that best fits the current R5 summary evidence.",
+    inputs: ["Approved V1Summary JSON files", "R5 summary JSON files"],
+    action: "Import approved engines, load R5, rank candidates"
+  },
+  {
+    route: "#/plan-summary",
+    title: "Plan Summary",
+    status: "Legacy workflow",
+    description: "Fill a Plan Summary DOCX using metadata and R5 JSON.",
+    inputs: ["Plan Summary DOCX template", "R5 JSON"],
+    action: "Upload template and R5 JSON"
+  },
+  {
+    route: "#/r5-builder",
+    title: "R5 Builder",
+    status: "Legacy embedded tool",
+    description: "Use the embedded legacy builder to produce R5 JSON.",
+    inputs: ["Source plan provisions", "Manual review"],
+    action: "Open legacy builder"
+  },
+  {
+    route: "#/factors",
+    title: "Plan Factors",
+    status: "Scaffold",
+    description: "Creates an audit package only; not a final factor generator yet.",
+    inputs: ["Factor source files", "Cited plan provisions"],
+    action: "Package inputs"
+  },
+  {
+    route: "#/436",
+    title: "Section 436",
+    status: "Scaffold",
+    description: "Creates a memo input package only; not a final legal/actuarial memo yet.",
+    inputs: ["436 references", "Plan amendments", "Freeze evidence"],
+    action: "Package inputs"
+  },
+  {
+    route: "#/letters-bcv",
+    title: "Letters/BCV",
+    status: "Scaffold",
+    description: "Creates a config package only; not final letter generation yet.",
+    inputs: ["Templates", "BCV/BSRS config", "Variable mappings"],
+    action: "Package inputs"
+  }
+];
 
 function normalizeValueEntry(entry) {
   if (entry && typeof entry === "object" && "value" in entry) {
@@ -1055,7 +1139,7 @@ function renderMetadata(container) {
         saveState();
         validationOutput.textContent = "Valid PlanMetadata JSON.";
         saveStatusFocus.textContent = "Loaded and saved. Other modules unlocked.";
-        renderRoute();
+        setRoute("#/dashboard");
       }
     } catch (err) {
       metadataStatus.textContent = `Invalid JSON: ${err.message}`;
@@ -1135,7 +1219,7 @@ function renderMetadata(container) {
       saveState();
       validationOutput.textContent = "Saved to workspace.";
       saveStatusFocus.textContent = "Saved. Other modules unlocked.";
-      renderRoute();
+      setRoute("#/dashboard");
     } catch (err) {
       validationOutput.textContent = `Invalid JSON: ${err.message}`;
       saveStatusFocus.textContent = "Fix errors before saving.";
@@ -1181,6 +1265,57 @@ function renderMetadata(container) {
 
   editor.addEventListener("input", () => {
     updateRequiredChecklist();
+  });
+}
+
+function renderDashboard(container) {
+  container.innerHTML = `
+    <section class="page-hero">
+      <div class="page-title">
+        <h2>Case Dashboard</h2>
+        <p>Start from the current case context, then choose the next workflow based on the inputs you have.</p>
+      </div>
+    </section>
+
+    ${planContextHtml()}
+
+    <div class="workflow-band">
+      <h3>Recommended Next Action</h3>
+      <p class="muted">Use V1 Explorer first when the goal is to identify the best reusable approved V1 engine for the current case.</p>
+      <div class="button-row">
+        <button class="primary" data-dashboard-route="#/v1-engine-explorer">Open V1 Explorer</button>
+        <button class="ghost" data-dashboard-route="#/metadata">Edit Metadata</button>
+        <button class="ghost" data-dashboard-route="#/audit">Audit / Manifest</button>
+      </div>
+    </div>
+
+    <div class="workflow-grid">
+      ${workflowCards
+        .map(
+          (card) => `
+            <article class="workflow-card ${card.status.toLowerCase().includes("scaffold") ? "scaffold" : ""}">
+              <div class="workflow-card-head">
+                <h3>${escapeHtml(card.title)}</h3>
+                <span>${escapeHtml(card.status)}</span>
+              </div>
+              <p>${escapeHtml(card.description)}</p>
+              <div class="workflow-inputs">
+                <b>Inputs</b>
+                <ul>
+                  ${card.inputs.map((input) => `<li>${escapeHtml(input)}</li>`).join("")}
+                </ul>
+              </div>
+              <button data-dashboard-route="${card.route}">${escapeHtml(card.action)}</button>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+
+  hydratePlanContext(container);
+  container.querySelectorAll("[data-dashboard-route]").forEach((btn) => {
+    btn.addEventListener("click", () => setRoute(btn.dataset.dashboardRoute));
   });
 }
 
@@ -1355,6 +1490,14 @@ function renderArtifactModule(container, config) {
       </div>
     </section>
 
+    ${planContextHtml()}
+
+    <div class="banner subtle">
+      ${config.id === "dag-viewer" || config.id === "formula-tree"
+        ? "Scaffold viewer: this packages uploaded formula/engine evidence into graph JSON. Full interactive visualization is still being integrated."
+        : "Scaffold module: this creates an audit-ready input package with manifests. It is not yet a final actuarial output generator."}
+    </div>
+
     <div id="instructions_backdrop" class="drawer-backdrop"></div>
     <aside class="drawer-panel drawer-left" id="instructions_panel">
       <div class="drawer-header">
@@ -1371,6 +1514,14 @@ function renderArtifactModule(container, config) {
     </aside>
 
     <div class="card">
+      <div class="input-checklist">
+        <b>Required inputs</b>
+        <ul>
+          ${(config.requiredInputs ?? ["PlanMetadata", "Supporting source files"])
+            .map((input) => `<li>${escapeHtml(input)}</li>`)
+            .join("")}
+        </ul>
+      </div>
       <label><b>Input files</b></label><br/>
       <input id="module_files" type="file" multiple accept="${escapeHtml(config.accepted)}" />
       <div id="module_file_list" class="meta-line">No files selected.</div>
@@ -1407,6 +1558,8 @@ function renderArtifactModule(container, config) {
   const generateBtn = container.querySelector("#module_generate");
   const manifestBtn = container.querySelector("#module_manifest");
   const status = container.querySelector("#module_status");
+
+  hydratePlanContext(container);
 
   let files = [];
 
@@ -1459,6 +1612,8 @@ function renderAudit(container) {
       </div>
     </section>
 
+    ${planContextHtml()}
+
     <div id="instructions_backdrop" class="drawer-backdrop"></div>
     <aside class="drawer-panel drawer-left" id="instructions_panel">
       <div class="drawer-header">
@@ -1489,6 +1644,7 @@ function renderAudit(container) {
   const instructionsPanel = container.querySelector("#instructions_panel");
   const instructionsBackdrop = container.querySelector("#instructions_backdrop");
   const instructionsClose = container.querySelector("#close_instructions");
+  hydratePlanContext(container);
   instructionsBtn.addEventListener("click", () => {
     instructionsPanel.classList.add("open");
     instructionsBackdrop.classList.add("show");
@@ -1533,6 +1689,10 @@ function renderR5Builder(container) {
       </div>
     </section>
 
+    ${planContextHtml()}
+
+    <div class="banner subtle">Legacy embedded tool: use it to produce R5 JSON, then return to Dashboard or V1 Explorer for the integrated workflow.</div>
+
     <div id="instructions_backdrop" class="drawer-backdrop"></div>
     <aside class="drawer-panel drawer-left" id="instructions_panel">
       <div class="drawer-header">
@@ -1559,6 +1719,7 @@ function renderR5Builder(container) {
   const instructionsPanel = container.querySelector("#instructions_panel");
   const instructionsBackdrop = container.querySelector("#instructions_backdrop");
   const instructionsClose = container.querySelector("#close_instructions");
+  hydratePlanContext(container);
   instructionsBtn.addEventListener("click", () => {
     instructionsPanel.classList.add("open");
     instructionsBackdrop.classList.add("show");
@@ -1624,6 +1785,8 @@ function renderV1EngineExplorer(container) {
       </div>
     </section>
 
+    ${planContextHtml()}
+
     <div id="instructions_backdrop" class="drawer-backdrop"></div>
     <aside class="drawer-panel drawer-left" id="instructions_panel">
       <div class="drawer-header">
@@ -1640,6 +1803,14 @@ function renderV1EngineExplorer(container) {
     </aside>
 
     <div class="card v1-control-panel">
+      <div class="input-checklist">
+        <b>Workflow inputs</b>
+        <ul>
+          <li>Approved V1Summary JSON files selected from local reference material</li>
+          <li>R5 summary JSON files for the current case</li>
+          <li>Saved PlanMetadata from this workbench</li>
+        </ul>
+      </div>
       <div class="grid two">
         <div>
           <label><b>Approved V1 engines (read-only)</b></label><br/>
@@ -1711,6 +1882,8 @@ function renderV1EngineExplorer(container) {
   const profilesEl = container.querySelector("#v1_profiles");
   const rankingsEl = container.querySelector("#v1_rankings");
   const iframe = container.querySelector("#v1_explorer_frame");
+
+  hydratePlanContext(container);
 
   function refreshV1Ui() {
     profilesEl.innerHTML = renderV1ProfilesSummary();
@@ -1869,6 +2042,8 @@ function renderPlanSummary(container) {
       </div>
     </section>
 
+    ${planContextHtml()}
+
     <div id="instructions_backdrop" class="drawer-backdrop"></div>
     <aside class="drawer-panel drawer-left" id="instructions_panel">
       <div class="drawer-header">
@@ -1884,6 +2059,14 @@ function renderPlanSummary(container) {
     </aside>
 
     <div class="card">
+      <div class="input-checklist">
+        <b>Required inputs</b>
+        <ul>
+          <li>Saved PlanMetadata</li>
+          <li>Plan Summary DOCX template</li>
+          <li>R5 JSON</li>
+        </ul>
+      </div>
       <div class="grid two">
         <div>
           <label><b>Plan Summary DOCX template</b></label><br/>
@@ -1911,6 +2094,7 @@ function renderPlanSummary(container) {
   const instructionsPanel = container.querySelector("#instructions_panel");
   const instructionsBackdrop = container.querySelector("#instructions_backdrop");
   const instructionsClose = container.querySelector("#close_instructions");
+  hydratePlanContext(container);
   instructionsBtn.addEventListener("click", () => {
     instructionsPanel.classList.add("open");
     instructionsBackdrop.classList.add("show");
