@@ -641,6 +641,10 @@ textarea.code {
   padding: 1rem;
 }
 
+.requirements-card.selected {
+  border-color: var(--accent);
+}
+
 .requirements-readiness {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -685,6 +689,53 @@ textarea.code {
 .requirements-columns ul {
   margin: 0.45rem 0 0;
   padding-left: 1.1rem;
+  color: var(--muted);
+}
+
+.v1-audit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.v1-score-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.6rem;
+}
+
+.v1-score-grid > div {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.65rem;
+}
+
+.v1-score-grid span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.v1-tab-preview-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.v1-tab-preview {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.7rem;
+}
+
+.v1-tab-preview span,
+.v1-tab-preview small {
   color: var(--muted);
 }
 

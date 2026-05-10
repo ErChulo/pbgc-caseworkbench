@@ -98,6 +98,7 @@ const routes = [
   { path: "#/r5-builder", title: "R5 Builder", render: renderR5Builder },
   { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
   { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer },
+  { path: "#/v1-audit", title: "V1 Audit", render: renderV1Audit },
   { path: "#/del", title: "DEL", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.del) },
   { path: "#/factors", title: "Plan Factors", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.factors) },
   { path: "#/436", title: "436", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.section436) },
@@ -632,6 +633,15 @@ function deliverableCards() {
       inputs: ["PlanMetadata", "R5 summary JSON", "Approved V1Summary JSON files"],
       action: "Rank and select V1",
       upstreamInputs: ["metadata", "r5"]
+    },
+    {
+      route: "#/v1-audit",
+      title: "V1 Match Audit",
+      status: "Audit preview",
+      description: "Inspect similarity evidence and workbook reconstruction assumptions before trusting a V1 candidate.",
+      inputs: ["Ranked V1 candidates", "Imported approved V1Summary JSON files", "R5 summary profile"],
+      action: "Audit V1 match",
+      upstreamInputs: ["metadata", "r5", "v1"]
     },
     {
       route: "#/letters-bcv",
@@ -1562,6 +1572,7 @@ function renderDashboard(container) {
       <p class="muted">Load or confirm R5 summary evidence, rank approved V1 engines, then package downstream deliverables from the same case state.</p>
       <div class="button-row">
         <button class="primary" data-dashboard-route="#/v1-engine-explorer">Open V1 Explorer</button>
+        <button class="ghost" data-dashboard-route="#/v1-audit">Audit V1 Match</button>
         <button class="ghost" data-dashboard-route="#/inputs">Review Inputs Matrix</button>
         <button class="ghost" data-dashboard-route="#/r5-builder">Open R5 Builder</button>
         <button class="ghost" data-dashboard-route="#/metadata">Edit Metadata</button>
@@ -1750,6 +1761,269 @@ function renderInputsMatrix(container) {
       statusEl.textContent = `ERROR: ${err.message}`;
     }
   });
+}
+
+const CANONICAL_V1_RUN_ORDER = [
+  "XRD",
+  "XRDVAL",
+  "NRD",
+  "EURD",
+  "ERD",
+  "DOR",
+  "DORNSF",
+  "DORDOTR",
+  "RBD",
+  "QPSA",
+  "PRDBVAL",
+  "RETRO",
+  "Single Run"
+];
+
+function canonicalV1RunOrder(runs) {
+  const unique = [...new Set((runs ?? []).filter(Boolean).map(String))];
+  const known = CANONICAL_V1_RUN_ORDER.filter((run) => unique.includes(run));
+  const unknown = unique.filter((run) => !CANONICAL_V1_RUN_ORDER.includes(run)).sort();
+  return [...known, ...unknown];
+}
+
+function getV1RecordById(recordId) {
+  return state.v1Warehouse.records.find((record) => record.record_id === recordId);
+}
+
+function tabRunNames(cells) {
+  const names = new Set();
+  cells.forEach((cell) => Object.keys(cell.runs ?? {}).forEach((run) => names.add(run)));
+  return canonicalV1RunOrder([...names]);
+}
+
+function buildV1ReconstructionPreview(record) {
+  if (!record?.summary) return null;
+  const cells = extractCellEntries(record.summary);
+  const byTab = new Map();
+  cells.forEach((cell) => {
+    const tab = cell.sourceTab || "unknown";
+    if (!byTab.has(tab)) byTab.set(tab, []);
+    byTab.get(tab).push(cell);
+  });
+
+  const tabs = [...byTab.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([tab, tabCells]) => {
+      const formulaCells = tabCells.filter((cell) => cell.hasFormula || cell.formula);
+      const runs = tabRunNames(tabCells);
+      const runRows = runs.map((run, index) => ({
+        run,
+        row: 4 + index
+      }));
+      const warnings = [];
+      if (!formulaCells.length) warnings.push("No formula cells identified for this tab.");
+      if (!runs.length) warnings.push("No run mappings identified for this tab.");
+      if (runs.length && runs[0] !== "XRD" && runs[0] !== "Single Run") {
+        warnings.push(`First run is ${runs[0]}, not XRD.`);
+      }
+      return {
+        tab_name: tab,
+        formula_row: 2,
+        first_run_row: runRows[0]?.row ?? "unknown",
+        cell_count: tabCells.length,
+        formula_count: formulaCells.length,
+        input_count: tabCells.length - formulaCells.length,
+        runs,
+        run_rows: runRows,
+        warnings
+      };
+    });
+
+  const warnings = [];
+  if (!tabs.length) warnings.push("No source tabs found.");
+  if (!cells.length) warnings.push("No cells found.");
+  return {
+    record_id: record.record_id,
+    workbook_name: record.workbook_name,
+    source_file: record.source_file,
+    sha256: record.sha256,
+    assumptions: {
+      formula_row: 2,
+      first_run: "XRD when present",
+      first_run_row: 4,
+      canonical_run_order: CANONICAL_V1_RUN_ORDER
+    },
+    workbook_runs: canonicalV1RunOrder(record.summary.runs ?? []),
+    tab_count: tabs.length,
+    cell_count: cells.length,
+    formula_count: cells.filter((cell) => cell.hasFormula || cell.formula).length,
+    tabs,
+    warnings
+  };
+}
+
+function selectedOrTopV1Records(limit = 5) {
+  const ids = [];
+  const selected = getSelectedV1Summary();
+  if (selected?.candidate_record_id) ids.push(selected.candidate_record_id);
+  state.v1Warehouse.rankings.slice(0, limit).forEach((ranking) => ids.push(ranking.candidate_record_id));
+  if (!ids.length) state.v1Warehouse.records.slice(0, limit).forEach((record) => ids.push(record.record_id));
+  return [...new Set(ids)].map(getV1RecordById).filter(Boolean);
+}
+
+async function buildV1AuditExport() {
+  const planMetadataHash = state.planMetadata
+    ? await sha256HexString(stringifyStable(state.planMetadata))
+    : "unknown";
+  const records = selectedOrTopV1Records(5);
+  return {
+    meta: {
+      app_version: APP_VERSION,
+      schema_version: SCHEMA_VERSION,
+      module_id: "v1-match-reconstruction-audit",
+      module_version: "0.7.0",
+      generated_at_utc: new Date().toISOString(),
+      case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+      plan_metadata_hash: planMetadataHash
+    },
+    r5_profile: getR5WorkflowSummary()?.profile ?? null,
+    selected_candidate: getSelectedV1Summary() ?? null,
+    ranking_assumptions: {
+      current_score_formula: "0.70 domain overlap + 0.15 function breadth + 0.15 field breadth",
+      warning: "Similarity is an advisory reuse signal only. It is not production approval."
+    },
+    rankings: state.v1Warehouse.rankings.slice(0, 10),
+    reconstruction_previews: records.map(buildV1ReconstructionPreview).filter(Boolean)
+  };
+}
+
+function renderV1Audit(container) {
+  const records = selectedOrTopV1Records(5);
+  const previews = records.map(buildV1ReconstructionPreview).filter(Boolean);
+  container.innerHTML = `
+    <section class="page-hero">
+      <div class="page-title">
+        <h2>V1 Match Audit</h2>
+        <p>Inspect ranking evidence and workbook reconstruction assumptions before using a V1 candidate for production work.</p>
+      </div>
+      <div class="page-actions">
+        <button class="primary" id="download_v1_audit">Download audit JSON</button>
+      </div>
+    </section>
+
+    ${planContextHtml()}
+
+    ${renderWorkflowStatePanel({ title: "Shared Case Inputs" })}
+
+    <div class="banner subtle">
+      Similarity is advisory. Production V1 generation should use this audit plus a template-based workbook reconstructor, not a blank workbook.
+    </div>
+
+    <div class="v1-audit-grid">
+      <div class="card">
+        <h3>Ranking Model</h3>
+        <ul class="instruction-list">
+          <li>Domain overlap weight: 70%</li>
+          <li>Function breadth weight: 15%</li>
+          <li>Field breadth weight: 15%</li>
+          <li>Confidence increases with recognized R5 and matched candidate domains.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Reconstruction Assumptions</h3>
+        <ul class="instruction-list">
+          <li>Formula row: row 2.</li>
+          <li>First run row: row 4.</li>
+          <li>Canonical first run: XRD when present.</li>
+          <li>Single-run tabs retain one run row.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="requirements-list">
+      ${state.v1Warehouse.rankings.length
+        ? state.v1Warehouse.rankings.slice(0, 10).map(renderV1AuditRankingCard).join("")
+        : `<div class="card"><b>No ranking results yet.</b><p class="muted">Import approved V1 summaries, load R5, and rank candidates in V1 Explorer.</p></div>`}
+    </div>
+
+    <div class="section-divider"></div>
+    <h3>Reconstruction Preview</h3>
+    <div class="requirements-list">
+      ${previews.length
+        ? previews.map(renderV1ReconstructionPreviewCard).join("")
+        : `<div class="card"><b>No imported V1 summaries available.</b><p class="muted">Upload approved V1Summary JSON files in V1 Explorer first.</p></div>`}
+    </div>
+
+    <pre id="v1_audit_status" class="code" style="margin-top:12px;"></pre>
+  `;
+
+  hydratePlanContext(container);
+
+  const downloadBtn = container.querySelector("#download_v1_audit");
+  const statusEl = container.querySelector("#v1_audit_status");
+  downloadBtn.addEventListener("click", async () => {
+    try {
+      const payload = await buildV1AuditExport();
+      state.lastManifest = payload.meta;
+      saveState();
+      downloadBlob(
+        new Blob([stringifyStable(payload)], { type: "application/json" }),
+        "v1-match-reconstruction-audit.json"
+      );
+      statusEl.textContent = `Downloaded v1-match-reconstruction-audit.json\n\n${JSON.stringify(payload.meta, null, 2)}`;
+    } catch (err) {
+      statusEl.textContent = `ERROR: ${err.message}`;
+    }
+  });
+}
+
+function renderV1AuditRankingCard(result) {
+  const selected = getSelectedV1Summary();
+  const isSelected = selected?.candidate_record_id === result.candidate_record_id;
+  return `
+    <article class="requirements-card ${isSelected ? "selected" : ""}">
+      <div class="workflow-card-head">
+        <h3>${escapeHtml(result.workbook_name)}</h3>
+        <span>${isSelected ? "Selected" : "Candidate"}</span>
+      </div>
+      <div class="v1-score-grid">
+        <div><span>Overall</span><b>${escapeHtml(String(result.overall_score))}</b></div>
+        <div><span>Confidence</span><b>${escapeHtml(String(result.confidence))}</b></div>
+        <div><span>Completeness</span><b>${escapeHtml(String(result.completeness))}</b></div>
+      </div>
+      <div class="requirements-columns">
+        <div><b>Matched domains</b><ul>${(result.matched_domains ?? []).map((d) => `<li>${escapeHtml(d)}</li>`).join("") || "<li>none</li>"}</ul></div>
+        <div><b>Missing domains</b><ul>${(result.missing_domains ?? []).map((d) => `<li>${escapeHtml(d)}</li>`).join("") || "<li>none</li>"}</ul></div>
+        <div><b>Warnings</b><ul>${(result.warnings ?? []).map((d) => `<li>${escapeHtml(d)}</li>`).join("") || "<li>none</li>"}</ul></div>
+      </div>
+    </article>
+  `;
+}
+
+function renderV1ReconstructionPreviewCard(preview) {
+  return `
+    <article class="requirements-card">
+      <div class="workflow-card-head">
+        <h3>${escapeHtml(preview.workbook_name)}</h3>
+        <span>${escapeHtml(String(preview.tab_count))} tab(s)</span>
+      </div>
+      <div class="v1-score-grid">
+        <div><span>Cells</span><b>${escapeHtml(String(preview.cell_count))}</b></div>
+        <div><span>Formulas</span><b>${escapeHtml(String(preview.formula_count))}</b></div>
+        <div><span>Runs</span><b>${escapeHtml(preview.workbook_runs.join(", ") || "none")}</b></div>
+      </div>
+      <div class="v1-tab-preview-list">
+        ${preview.tabs
+          .slice(0, 12)
+          .map(
+            (tab) => `
+              <div class="v1-tab-preview">
+                <b>${escapeHtml(tab.tab_name)}</b>
+                <span>Formula row ${escapeHtml(String(tab.formula_row))}; ${escapeHtml(String(tab.formula_count))} formulas; ${escapeHtml(String(tab.cell_count))} cells</span>
+                <small>Run rows: ${escapeHtml(tab.run_rows.map((run) => `${run.run}->row ${run.row}`).join(", ") || "none")}</small>
+                ${tab.warnings.length ? `<small>Warnings: ${escapeHtml(tab.warnings.join("; "))}</small>` : ""}
+              </div>`
+          )
+          .join("")}
+      </div>
+      ${preview.warnings.length ? `<div class="meta-line">Workbook warnings: ${escapeHtml(preview.warnings.join("; "))}</div>` : ""}
+    </article>
+  `;
 }
 
 async function buildRunManifest(moduleId, moduleVersion, files) {
@@ -2326,6 +2600,7 @@ function renderV1EngineExplorer(container) {
       </div>
       <div class="button-row">
         <button id="v1_send_bridge" class="ghost">Send context to explorer</button>
+        <button id="v1_open_audit" class="ghost">Open V1 audit</button>
         <button id="v1_clear_session" class="ghost">Clear V1 session</button>
       </div>
       <div id="v1_status" class="meta-line">Approved V1 records are read-only and stay in Caseworkbench memory for this browser session.</div>
@@ -2371,6 +2646,7 @@ function renderV1EngineExplorer(container) {
   const rankBtn = container.querySelector("#v1_run_ranking");
   const rankingManifestBtn = container.querySelector("#v1_ranking_manifest");
   const clearBtn = container.querySelector("#v1_clear_session");
+  const openAuditBtn = container.querySelector("#v1_open_audit");
   const bridgeBtn = container.querySelector("#v1_send_bridge");
   const statusEl = container.querySelector("#v1_status");
   const bridgeStatusEl = container.querySelector("#v1_bridge_status");
@@ -2473,6 +2749,10 @@ function renderV1EngineExplorer(container) {
     saveState();
     statusEl.textContent = "Cleared V1 session state.";
     refreshV1Ui();
+  });
+
+  openAuditBtn.addEventListener("click", () => {
+    setRoute("#/v1-audit");
   });
 
   bridgeBtn.addEventListener("click", () => {
