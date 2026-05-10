@@ -801,6 +801,135 @@ textarea.code {
   font-size: 0.85rem;
 }
 
+.guide-shell {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.guide-steps {
+  display: grid;
+  gap: 0.5rem;
+  position: sticky;
+  top: 7.5rem;
+}
+
+.guide-step {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.7rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.guide-step span {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--muted);
+}
+
+.guide-step small {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.guide-step.ready {
+  border-color: var(--accent);
+}
+
+.guide-step.warning,
+.guide-dialog-head .warning {
+  border-color: var(--accent-2);
+}
+
+.guide-step.missing {
+  border-color: var(--border);
+}
+
+.guide-step.active {
+  background: var(--surface-strong);
+  outline: 2px solid var(--accent);
+}
+
+.guide-dialog {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 1.1rem;
+}
+
+.guide-dialog-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+
+.guide-dialog-head span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.guide-dialog-head h3 {
+  margin: 0.2rem 0 0;
+}
+
+.guide-dialog-head > b {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  white-space: nowrap;
+}
+
+.guide-dialog-head > b.ready {
+  color: var(--accent);
+}
+
+.guide-readiness,
+.guide-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.7rem;
+}
+
+.guide-readiness > div,
+.guide-actions-grid > div {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.75rem;
+}
+
+.guide-readiness b {
+  color: var(--danger);
+}
+
+.guide-readiness .ready b {
+  color: var(--accent);
+}
+
+.guide-readiness span,
+.guide-readiness small,
+.guide-actions-grid p {
+  color: var(--muted);
+}
+
 .section-divider {
   height: 1px;
   background: var(--border);
@@ -1050,5 +1179,13 @@ textarea.code {
 
   .rules-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .guide-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-steps {
+    position: static;
   }
 }
