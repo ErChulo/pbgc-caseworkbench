@@ -3,7 +3,6 @@ import "./style.css";
 
 import JSZip from "jszip";
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
-import r5BuilderLegacyHtml from "./legacy/r5-builder.v0.7.9.html?raw";
 import v1EngineExplorerHtml from "./legacy/pbgc-v1-engine-explorer.html?raw";
 import logoSvg from "./assets/logo.svg?raw";
 import metadataScraperPrompt from "./assets/metadata-scraper-prompt.txt?raw";
@@ -97,7 +96,6 @@ const routes = [
   { path: "#/guide", title: "Case Guide", render: renderCaseGuide },
   { path: "#/inputs", title: "Inputs Matrix", render: renderInputsMatrix },
   { path: "#/rules", title: "Rules Registry", render: renderRulesRegistry },
-  { path: "#/r5-builder", title: "R5 Builder", render: renderR5Builder },
   { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
   { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer },
   { path: "#/v1-audit", title: "V1 Audit", render: renderV1Audit },
@@ -113,31 +111,121 @@ const routes = [
   { path: "#/audit", title: "Audit", render: renderAudit }
 ];
 
+const canonicalDeliverables = [
+  {
+    id: "metadata",
+    outputName: "plan-metadata.json",
+    title: "Plan Metadata",
+    route: "#/metadata",
+    summary: "Case identity, dates, staff, plan status, and document registry shared by every module.",
+    status: "Foundational"
+  },
+  {
+    id: "r5",
+    outputName: "########R5.docx",
+    title: "R5 Plan Summary",
+    route: "#/plan-summary",
+    summary: "Filled Plan Summary template driven by PlanMetadata plus R5Summary.json from the scraper.",
+    status: "Template-driven"
+  },
+  {
+    id: "del",
+    outputName: "########DEL.pdf",
+    title: "DEL",
+    route: "#/del",
+    summary: "Data Element List derived from PlanMetadata, R5Summary.json, and DD.csv.",
+    status: "Needs generator"
+  },
+  {
+    id: "pf",
+    outputName: "########PF.xlsx",
+    title: "Plan Factors",
+    route: "#/factors",
+    summary: "Mortality, interest, optional forms, and factor rules from R5 provisions and source material.",
+    status: "Needs PF integration"
+  },
+  {
+    id: "section436",
+    outputName: "436 Limitation Analysis.docx",
+    title: "436 Limitation Analysis",
+    route: "#/436",
+    summary: "Limitation memo from metadata, R5 facts, freeze/AFTAP/CBA evidence, and the 436 template.",
+    status: "Input map incomplete"
+  },
+  {
+    id: "estimatedAdjustments",
+    outputName: "Estimated Benefit Adjustments Analysis.docx",
+    title: "Estimated Adjustments",
+    route: "#/estimated-adjustments",
+    summary: "Adjustment analysis from payment history, current benefits, estimates, and workpapers.",
+    status: "Input map incomplete"
+  },
+  {
+    id: "estimatedAdministration",
+    outputName: "Estimated Benefit Administration Analysis.docx",
+    title: "Estimated Administration",
+    route: "#/estimated-administration",
+    summary: "Administration analysis from payee status, operational extracts, notices, and admin notes.",
+    status: "Input map incomplete"
+  },
+  {
+    id: "v1",
+    outputName: "########V1.xlsx",
+    title: "V1 Engine",
+    route: "#/v1-engine-explorer",
+    summary: "Production calculation workbook selected from approved V1s or built from rules using DAG/AST evidence.",
+    status: "High complexity"
+  },
+  {
+    id: "s1",
+    outputName: "########S1.cfg",
+    title: "BSRS / BCV",
+    route: "#/letters-bcv",
+    summary: "Letter generation config tied to DEL fields, V1 outputs, BSRS functions, and provided samples.",
+    status: "Sample-dependent"
+  }
+];
+
+function canonicalDeliverableById(id) {
+  return canonicalDeliverables.find((item) => item.id === id);
+}
+
+const inputMatrixToCanonicalDeliverable = {
+  "plan-summary-r5": "r5",
+  "data-elements": "del",
+  "plan-factors": "pf",
+  "section-436": "section436",
+  "estimated-benefit-adjustments": "estimatedAdjustments",
+  "estimated-benefit-administration": "estimatedAdministration",
+  "v1-engine": "v1",
+  "bsrs-bcv": "s1"
+};
+
 const artifactModuleConfigs = {
   del: {
     id: "data-elements",
     title: "DEL Data Elements",
-    description: "Package Data Element List source evidence and extracted fields for the current case.",
+    description: "Package Data Element List evidence so the eventual output can be ########DEL.pdf.",
     outputName: "data-elements.artifact.json",
     accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf,.docx",
-    prompt: "Upload DEL extracts, source worksheets, DD.csv mappings, and supporting cited references.",
-    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "DEL source files", "Cited source evidence"],
+    prompt: "Upload R5Summary.json, DD.csv mappings, DEL extracts/source worksheets, and supporting cited references.",
+    requiredInputs: ["PlanMetadata", "R5Summary.json/profile", "DD.csv", "DEL source files", "Cited source evidence"],
     upstreamInputs: ["metadata", "r5"]
   },
   factors: {
     id: "plan-factors",
     title: "Plan Factors",
-    description: "Package uploaded factor source files into a cited, audit-ready extraction workspace.",
+    description: "Package factor source files so the eventual output can be ########PF.xlsx.",
     outputName: "plan-factors.artifact.json",
     accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf,.docx",
-    prompt: "Upload factor tables, plan provisions, and supporting references.",
-    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Selected V1 engine profile when available", "Plan factor source files", "Cited plan provisions"],
+    prompt: "Upload factor tables, plan provisions, rate bases, optional-form rules, and supporting references.",
+    requiredInputs: ["PlanMetadata", "R5Summary.json/profile", "DD.csv", "Mortality and interest basis", "Optional forms/factor rules", "PF template/workbook"],
     upstreamInputs: ["metadata", "r5", "v1"]
   },
   section436: {
     id: "section-436",
     title: "Section 436 Limitation Memo",
-    description: "Build a memo input package for section 436 limitations without inventing missing provisions.",
+    description: "Build a memo input package for 436 Limitation Analysis.docx without inventing missing provisions.",
     outputName: "section-436-memo.artifact.json",
     accepted: ".json,.txt,.pdf,.docx",
     prompt: "Upload section 436 references, plan amendments, and memo notes.",
@@ -187,7 +275,7 @@ const artifactModuleConfigs = {
   lettersBcv: {
     id: "letters-bcv-config",
     title: "BSRS / BCV Letter Generation Config",
-    description: "Create a deterministic BSRS/BCV letter generation config package from uploaded templates and variable maps.",
+    description: "Create a deterministic package for the eventual ########S1.cfg letter generation config.",
     outputName: "bsrs-bcv-letter-config.artifact.json",
     accepted: ".json,.txt,.csv,.docx,.xlsx,.xlsm,.xls",
     prompt: "Upload letter templates, BSRS configs, and variable mappings.",
@@ -382,16 +470,6 @@ function renderRoute() {
   route.render(page);
 }
 
-const legacyR5SrcDoc = r5BuilderLegacyHtml
-  .replace(
-    /<script[^>]*cdnjs\.cloudflare\.com\/ajax\/libs\/jszip[^>]*><\/script>\s*/gi,
-    ""
-  )
-  .replace(
-    /<head([^>]*)>/i,
-    `<head$1><script>window.JSZip = parent.JSZip;<\/script>`
-  );
-
 const v1ExplorerBridgeScript = `
 <script>
 window.CASEWORKBENCH_CONTEXT = null;
@@ -572,22 +650,44 @@ function renderWorkflowStatePanel(options = {}) {
   `;
 }
 
+function renderCanonicalDeliverablesPanel() {
+  return `
+    <div class="canonical-panel">
+      <div class="workflow-state-title">Canonical Deliverables</div>
+      <div class="canonical-grid">
+        ${canonicalDeliverables
+          .map(
+            (item) => `
+              <button class="canonical-item" data-guide-route="${escapeHtml(item.route)}">
+                <span>${escapeHtml(item.status)}</span>
+                <b>${escapeHtml(item.outputName)}</b>
+                <small>${escapeHtml(item.summary)}</small>
+              </button>`
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
 function deliverableCards() {
   return [
     {
       route: "#/plan-summary",
-      title: "Plan Summary / R5",
+      title: "R5 Plan Summary",
       status: "Functional legacy generator",
-      description: "Generate the filled Plan Summary document and use the R5 JSON as the case summary evidence.",
-      inputs: ["PlanMetadata", "Plan Summary DOCX template", "R5 summary JSON"],
-      action: "Generate Plan Summary",
+      outputName: "########R5.docx",
+      description: "Generate ########R5.docx from PlanMetadata, R5Summary.json, and the provided Plan Summary template.",
+      inputs: ["PlanMetadata", "R5Summary.json from scraper", "Plan Summary DOCX template", "Cited plan documents"],
+      action: "Generate R5",
       upstreamInputs: ["metadata", "r5"]
     },
     {
       route: "#/del",
       title: "DEL Data Elements",
-      status: "Scaffold package",
-      description: "Package Data Element List source evidence and extracted fields.",
+      status: "Needs generator",
+      outputName: "########DEL.pdf",
+      description: "Produce the Data Element List from PlanMetadata, R5Summary.json, and DD.csv.",
       inputs: artifactModuleConfigs.del.requiredInputs,
       action: "Package DEL inputs",
       upstreamInputs: artifactModuleConfigs.del.upstreamInputs
@@ -595,17 +695,19 @@ function deliverableCards() {
     {
       route: "#/factors",
       title: "Plan Factors",
-      status: "Scaffold package",
-      description: "Package factor source files, cited plan provisions, and selected engine context.",
+      status: "Needs PF integration",
+      outputName: "########PF.xlsx",
+      description: "Produce the Plan Factors workbook with mortality, interest, optional forms, and factor tables.",
       inputs: artifactModuleConfigs.factors.requiredInputs,
       action: "Package PF inputs",
       upstreamInputs: artifactModuleConfigs.factors.upstreamInputs
     },
     {
       route: "#/436",
-      title: "Section 436",
-      status: "Scaffold package",
-      description: "Package limitation memo evidence, amendments, and freeze references.",
+      title: "436 Limitation Analysis",
+      status: "Input map incomplete",
+      outputName: "436 Limitation Analysis.docx",
+      description: "Package limitation memo evidence, amendments, freeze references, and template inputs.",
       inputs: artifactModuleConfigs.section436.requiredInputs,
       action: "Package 436 inputs",
       upstreamInputs: artifactModuleConfigs.section436.upstreamInputs
@@ -613,8 +715,9 @@ function deliverableCards() {
     {
       route: "#/estimated-adjustments",
       title: "Estimated Adjustments",
-      status: "Scaffold package",
-      description: "Package estimated benefit adjustment extracts and workpapers.",
+      status: "Input map incomplete",
+      outputName: "Estimated Benefit Adjustments Analysis.docx",
+      description: "Package payment history, current benefit status, estimates, and adjustment workpapers.",
       inputs: artifactModuleConfigs.estimatedAdjustments.requiredInputs,
       action: "Package adjustment inputs",
       upstreamInputs: artifactModuleConfigs.estimatedAdjustments.upstreamInputs
@@ -622,8 +725,9 @@ function deliverableCards() {
     {
       route: "#/estimated-administration",
       title: "Estimated Administration",
-      status: "Scaffold package",
-      description: "Package estimated benefit administration extracts and operational notes.",
+      status: "Input map incomplete",
+      outputName: "Estimated Benefit Administration Analysis.docx",
+      description: "Package payee status, operational extracts, notices, and administration notes.",
       inputs: artifactModuleConfigs.estimatedAdministration.requiredInputs,
       action: "Package administration inputs",
       upstreamInputs: artifactModuleConfigs.estimatedAdministration.upstreamInputs
@@ -632,8 +736,9 @@ function deliverableCards() {
       route: "#/v1-engine-explorer",
       title: "Calculation Engine / V1",
       status: "Primary workflow",
-      description: "Rank approved V1 engines against R5 evidence and select the current case candidate.",
-      inputs: ["PlanMetadata", "R5 summary JSON", "Approved V1Summary JSON files"],
+      outputName: "########V1.xlsx",
+      description: "Rank approved V1 engines against R5 evidence, audit DAG/AST similarity, and choose or build the production V1.",
+      inputs: ["PlanMetadata", "R5Summary.json", "Approved V1Summary JSON files", "BCV Add-in formula inventory", "DEL/PF context when available"],
       action: "Rank and select V1",
       upstreamInputs: ["metadata", "r5"]
     },
@@ -649,8 +754,9 @@ function deliverableCards() {
     {
       route: "#/letters-bcv",
       title: "BSRS / BCV Config",
-      status: "Scaffold package",
-      description: "Package letter templates, variable maps, and BSRS/BCV config inputs.",
+      status: "Sample-dependent",
+      outputName: "########S1.cfg",
+      description: "Package letter templates, variable maps, BSRS functions, and V1-linked config samples.",
       inputs: artifactModuleConfigs.lettersBcv.requiredInputs,
       action: "Package BSRS inputs",
       upstreamInputs: artifactModuleConfigs.lettersBcv.upstreamInputs
@@ -668,9 +774,11 @@ function upstreamReadiness(keys = []) {
 const inputRequirementMatrix = [
   {
     id: "plan-summary-r5",
-    title: "Plan Summary / R5",
+    title: "R5 / ########R5.docx",
     route: "#/plan-summary",
     pureInputs: [
+      "R5Summary.json produced by the current scraper contract, with citations for known facts",
+      "Plan Summary DOCX template, currently reference/Plan Summary Shell.docx unless superseded",
       "Case metadata: case number, plan name, DOPT, DOTR, BPD, DOBF, NOD, NOIT, SPARR, assets, assigned actuary/auditor",
       "Plan documents: base plan documents, restatements, amendments, SPDs, CBAs, freeze amendments, adoption/effective dates",
       "Manual fact entry is acceptable when clean PDFs cannot be used, but known facts still need doc_id/page/locator citations"
@@ -681,35 +789,38 @@ const inputRequirementMatrix = [
   },
   {
     id: "data-elements",
-    title: "DEL Data Elements",
+    title: "DEL / ########DEL.pdf",
     route: "#/del",
     pureInputs: [
+      "R5Summary.json, PlanMetadata, and DD.csv are the mechanical core inputs for the DEL deliverable",
       "Participant/census/payee records with no repo PII",
       "Source priority for each field: payroll, plan administrator files, paying agent files, participant forms, participant files",
       "Field-level citations or source notes for manually entered values"
     ],
-    upstreamOutputs: ["PlanMetadata", "R5 summary/profile"],
+    upstreamOutputs: ["PlanMetadata", "R5Summary.json/profile"],
     governingReferences: ["reference/DD.csv", "reference/CASE_PROCESSING.txt", "reference/case.schema.json"],
     readinessKeys: ["metadata", "r5"]
   },
   {
     id: "plan-factors",
-    title: "Plan Factors / PF",
+    title: "Plan Factors / ########PF.xlsx",
     route: "#/factors",
     pureInputs: [
+      "R5Summary.json, PlanMetadata, DD.csv, mortality basis, interest basis, optional forms, and factor source tables",
       "Plan factor rules from R5/plan documents: early, late, form conversion, actuarial equivalence, lump sum, optional forms",
       "PBGC/plan assumption basis: interest, mortality, lookback/stability periods, thresholds",
-      "PF template or workbook fixture when producing Excel output"
+      "PF template or workbook fixture when producing Excel output; external PF work may need to be imported from another repository"
     ],
-    upstreamOutputs: ["PlanMetadata", "R5 summary/profile", "Selected V1 engine when available"],
+    upstreamOutputs: ["PlanMetadata", "R5Summary.json/profile", "Selected V1 engine when available"],
     governingReferences: ["reference/README - plan_factors.md", "reference/24884900PF.v0.7.13.xlsx", "reference/plan-summary-rules.txt"],
     readinessKeys: ["metadata", "r5", "v1"]
   },
   {
     id: "section-436",
-    title: "Section 436 Limitation Analysis",
+    title: "436 Limitation Analysis.docx",
     route: "#/436",
     pureInputs: [
+      "The complete input map is still incomplete; keep unknown/na placeholders until the governing template and rules are mapped",
       "DOPT, DOTR, BPD, DOBF, plan year start/end",
       "Freeze amendments and plan provisions related to accrual restrictions",
       "AFTAP periods, certification facts, CBA ratification/effective/expiration facts when applicable"
@@ -720,9 +831,10 @@ const inputRequirementMatrix = [
   },
   {
     id: "estimated-benefit-adjustments",
-    title: "Estimated Benefit Adjustment Analysis",
+    title: "Estimated Benefit Adjustments Analysis.docx",
     route: "#/estimated-adjustments",
     pureInputs: [
+      "The complete input map is still incomplete; use uploaded workpapers and unknown/na placeholders until mapped",
       "Current payee list and current benefit amounts",
       "Estimated benefit extracts and prior benefit estimates",
       "Payment history since DOPT, overpayment/underpayment facts, current pay source/status",
@@ -734,9 +846,10 @@ const inputRequirementMatrix = [
   },
   {
     id: "estimated-benefit-administration",
-    title: "Estimated Benefit Administration Analysis",
+    title: "Estimated Benefit Administration Analysis.docx",
     route: "#/estimated-administration",
     pureInputs: [
+      "The complete input map is still incomplete; use uploaded operational notes and unknown/na placeholders until mapped",
       "Participant/payee administration extracts",
       "Current payment status, PIF/verification status, notices, operational notes",
       "Benefit form/payment frequency facts and administration constraints"
@@ -747,11 +860,13 @@ const inputRequirementMatrix = [
   },
   {
     id: "v1-engine",
-    title: "Calculation Engine / V1",
+    title: "V1 / ########V1.xlsx",
     route: "#/v1-engine-explorer",
     pureInputs: [
       "Approved V1Summary JSON files selected by upload from local reference material",
-      "R5 summary JSON/profile for the current case",
+      "R5Summary.json/profile for the current case",
+      "Engine choice evidence: similarity by plan provisions, population runs, workbook DAG, and formula AST",
+      "BCV Add-in formulas are treated as opaque formulas and should be preserved when relevant",
       "DEL field model and participant input schema when participant calculations are implemented"
     ],
     upstreamOutputs: ["PlanMetadata", "R5 summary/profile", "Plan Factors when available"],
@@ -760,9 +875,10 @@ const inputRequirementMatrix = [
   },
   {
     id: "bsrs-bcv",
-    title: "BSRS / BCV Letter Config",
+    title: "BSRS / ########S1.cfg",
     route: "#/letters-bcv",
     pureInputs: [
+      "User-provided S1/BSRS samples tied to V1 samples when available",
       "BCV participant field requirements and letter variable mappings",
       "BSRS statement/recalculation/OFA config templates",
       "Letter generation rules, print criteria, and allowed statement functions"
@@ -809,37 +925,37 @@ const rulesRegistry = [
     title: "R5 question inventory",
     rule_class: "mechanical",
     status: "planned_validator",
-    deliverables: ["Plan Summary / R5"],
+    deliverables: ["########R5.docx"],
     governing_references: ["reference/r5-items.txt"],
     input_artifacts: ["PlanMetadata", "Plan document extraction JSON"],
-    output_artifacts: ["r5-summary.json", "Plan Summary DOCX"]
+    output_artifacts: ["R5Summary.json", "########R5.docx"]
   },
   {
     id: "RULE-R5-002",
     title: "Plan Summary document coverage and citation rules",
     rule_class: "mechanical",
     status: "partially_implemented",
-    deliverables: ["Plan Summary / R5", "Inputs Matrix"],
+    deliverables: ["########R5.docx", "Inputs Matrix"],
     governing_references: ["reference/plan-summary-rules.txt"],
     input_artifacts: ["PlanMetadata", "document registry", "R5 summary JSON"],
-    output_artifacts: ["Plan Summary DOCX", "manifest.json"]
+    output_artifacts: ["########R5.docx", "manifest.json"]
   },
   {
     id: "RULE-R5-003",
     title: "Plan provision extraction from PDFs and amendments",
     rule_class: "llm_assisted",
     status: "planned_extractor",
-    deliverables: ["Plan Summary / R5", "Plan Factors / PF", "V1"],
+    deliverables: ["########R5.docx", "########PF.xlsx", "########V1.xlsx"],
     governing_references: ["reference/plan-summary-rules.txt", "reference/metadata-scraper-prompt.txt"],
     input_artifacts: ["plan documents", "amendments", "SPDs", "CBAs"],
-    output_artifacts: ["PlanMetadata", "r5-summary.json", "plan-layer extraction JSON"]
+    output_artifacts: ["PlanMetadata", "R5Summary.json", "plan-layer extraction JSON"]
   },
   {
     id: "RULE-R5-004",
     title: "Ambiguous provision and conflict resolution",
     rule_class: "human_review",
     status: "manual_required",
-    deliverables: ["Plan Summary / R5", "Plan Factors / PF", "V1"],
+    deliverables: ["########R5.docx", "########PF.xlsx", "########V1.xlsx"],
     governing_references: ["reference/plan-summary-rules.txt"],
     input_artifacts: ["conflicting extracted facts", "citations"],
     output_artifacts: ["approved fact selection", "review notes"]
@@ -849,17 +965,17 @@ const rulesRegistry = [
     title: "DEL direct input versus calculated field split",
     rule_class: "mechanical",
     status: "planned_validator",
-    deliverables: ["DEL Data Elements", "V1", "BSRS / BCV"],
+    deliverables: ["########DEL.pdf", "########V1.xlsx", "########S1.cfg"],
     governing_references: ["reference/DD.csv"],
     input_artifacts: ["participant/census/payee data", "DD.csv field dictionary"],
-    output_artifacts: ["data-elements.json", "field coverage report"]
+    output_artifacts: ["########DEL.pdf", "field coverage report"]
   },
   {
     id: "RULE-DEL-002",
     title: "Participant source priority and field provenance",
     rule_class: "llm_assisted",
     status: "planned_extractor",
-    deliverables: ["DEL Data Elements", "Estimated Administration"],
+    deliverables: ["########DEL.pdf", "Estimated Benefit Administration Analysis.docx"],
     governing_references: ["reference/CASE_PROCESSING.txt", "reference/DD.csv"],
     input_artifacts: ["census files", "payee files", "participant forms", "source notes"],
     output_artifacts: ["source-priority map", "DEL source citations"]
@@ -869,7 +985,7 @@ const rulesRegistry = [
     title: "Acceptance of participant data assumptions",
     rule_class: "human_review",
     status: "manual_required",
-    deliverables: ["DEL Data Elements", "Estimated Adjustments", "Estimated Administration"],
+    deliverables: ["########DEL.pdf", "Estimated Benefit Adjustments Analysis.docx", "Estimated Benefit Administration Analysis.docx"],
     governing_references: ["reference/CASE_PROCESSING.txt"],
     input_artifacts: ["DEL source report", "missing/unknown field report"],
     output_artifacts: ["approved assumptions", "case notes"]
@@ -879,7 +995,7 @@ const rulesRegistry = [
     title: "Approved V1Summary import shape",
     rule_class: "mechanical",
     status: "implemented",
-    deliverables: ["V1"],
+    deliverables: ["########V1.xlsx"],
     governing_references: ["reference/raw-approved-v1-engines"],
     input_artifacts: ["approved V1Summary JSON files"],
     output_artifacts: ["approved V1 warehouse profiles", "import manifest"]
@@ -889,7 +1005,7 @@ const rulesRegistry = [
     title: "V1 run ordering and reconstruction preview",
     rule_class: "mechanical",
     status: "implemented",
-    deliverables: ["V1", "V1 Match Audit"],
+    deliverables: ["########V1.xlsx", "V1 Match Audit"],
     governing_references: ["reference/run_catalog_seed.v0.7.0.json", "reference/sample-2-v1.xlsm"],
     input_artifacts: ["approved V1Summary JSON files"],
     output_artifacts: ["v1-match-reconstruction-audit.json"]
@@ -899,7 +1015,7 @@ const rulesRegistry = [
     title: "V1 output field contract",
     rule_class: "mechanical",
     status: "planned_validator",
-    deliverables: ["V1", "BSRS / BCV"],
+    deliverables: ["########V1.xlsx", "########S1.cfg"],
     governing_references: ["reference/output_contract_seed.v0.7.0.json"],
     input_artifacts: ["V1 engine profile", "DEL field model"],
     output_artifacts: ["output coverage report"]
@@ -909,7 +1025,7 @@ const rulesRegistry = [
     title: "V1 candidate actuarial suitability",
     rule_class: "human_review",
     status: "manual_required",
-    deliverables: ["V1"],
+    deliverables: ["########V1.xlsx"],
     governing_references: ["reference/raw-approved-v1-engines", "reference/plan-summary-rules.txt"],
     input_artifacts: ["ranking evidence", "R5 profile", "reconstruction preview"],
     output_artifacts: ["selected V1 candidate", "review signoff"]
@@ -919,17 +1035,17 @@ const rulesRegistry = [
     title: "Plan factor workbook input contract",
     rule_class: "mechanical",
     status: "planned_validator",
-    deliverables: ["Plan Factors / PF"],
+    deliverables: ["########PF.xlsx"],
     governing_references: ["reference/README - plan_factors.md", "reference/24884900PF.v0.7.13.xlsx"],
     input_artifacts: ["case.json", "planFactors.json"],
-    output_artifacts: ["########PF.v0.7.13.xlsx"]
+    output_artifacts: ["########PF.xlsx"]
   },
   {
     id: "RULE-PF-002",
     title: "Factor rule extraction from plan provisions",
     rule_class: "llm_assisted",
     status: "planned_extractor",
-    deliverables: ["Plan Factors / PF", "V1"],
+    deliverables: ["########PF.xlsx", "########V1.xlsx"],
     governing_references: ["reference/plan-summary-rules.txt", "reference/plan-layer-object-variables.txt"],
     input_artifacts: ["R5 summary", "plan provisions"],
     output_artifacts: ["planFactors.json"]
@@ -939,17 +1055,17 @@ const rulesRegistry = [
     title: "Section 436 input package and memo scaffold",
     rule_class: "mechanical",
     status: "partially_implemented",
-    deliverables: ["Section 436"],
+    deliverables: ["436 Limitation Analysis.docx"],
     governing_references: ["reference/Benefit Limitations Under PPA 2006 - Section 436.pdf", "reference/pbgc-436-webapp-v0.2.0"],
     input_artifacts: ["DOPT", "DOTR", "BPD", "DOBF", "AFTAP/CBA facts"],
-    output_artifacts: ["section-436-memo.artifact.json"]
+    output_artifacts: ["436 Limitation Analysis.docx"]
   },
   {
     id: "RULE-436-002",
     title: "Section 436 applicability judgment",
     rule_class: "human_review",
     status: "manual_required",
-    deliverables: ["Section 436"],
+    deliverables: ["436 Limitation Analysis.docx"],
     governing_references: ["reference/Benefit Limitations Under PPA 2006 - Section 436.pdf"],
     input_artifacts: ["freeze evidence", "AFTAP facts", "plan amendments"],
     output_artifacts: ["approved 436 conclusion"]
@@ -959,27 +1075,27 @@ const rulesRegistry = [
     title: "Estimated adjustment payment-history package",
     rule_class: "mechanical",
     status: "planned_validator",
-    deliverables: ["Estimated Adjustments"],
+    deliverables: ["Estimated Benefit Adjustments Analysis.docx"],
     governing_references: ["reference/Computation and Netting of Post-DOPT Overpayments and Underpayments.pdf", "reference/Benefit Corrections.pdf"],
     input_artifacts: ["payment history", "estimated benefit extract", "current benefit status"],
-    output_artifacts: ["estimated-benefit-adjustments.artifact.json"]
+    output_artifacts: ["Estimated Benefit Adjustments Analysis.docx"]
   },
   {
     id: "RULE-ADMIN-001",
     title: "Estimated administration input package",
     rule_class: "mechanical",
     status: "planned_validator",
-    deliverables: ["Estimated Administration"],
+    deliverables: ["Estimated Benefit Administration Analysis.docx"],
     governing_references: ["reference/CASE_PROCESSING.txt", "reference/Frequency of Benefit Payments.pdf"],
     input_artifacts: ["payee administration extract", "PIF/verification status", "operational notes"],
-    output_artifacts: ["estimated-benefit-administration.artifact.json"]
+    output_artifacts: ["Estimated Benefit Administration Analysis.docx"]
   },
   {
     id: "RULE-BSRS-001",
     title: "BSRS authoring function allow-list",
     rule_class: "mechanical",
     status: "planned_validator",
-    deliverables: ["BSRS / BCV"],
+    deliverables: ["########S1.cfg"],
     governing_references: ["reference/BSRS functions.txt"],
     input_artifacts: ["BSRS expression/config files"],
     output_artifacts: ["BSRS validation report"]
@@ -989,10 +1105,10 @@ const rulesRegistry = [
     title: "BSRS/BCV config template shape",
     rule_class: "mechanical",
     status: "planned_generator",
-    deliverables: ["BSRS / BCV"],
+    deliverables: ["########S1.cfg"],
     governing_references: ["reference/sample-bsrs-statement-config.txt", "reference/sample-bsrs-baseData-config.txt", "reference/DD.csv"],
     input_artifacts: ["DEL data", "V1 outputs", "letter variable mappings"],
-    output_artifacts: ["bsrs-bcv-letter-config.artifact.json"]
+    output_artifacts: ["########S1.cfg"]
   }
 ].sort((a, b) => a.id.localeCompare(b.id));
 
@@ -1010,10 +1126,10 @@ const caseGuideSteps = [
     phase: "Foundation",
     route: "#/metadata",
     readinessKeys: ["metadata"],
-    prompt: "Start or confirm the case identity, key dates, staff, plan status, and document registry.",
+    prompt: "Create plan-metadata.json from uploaded documents or manual entry so every downstream module has the same case identity.",
     uploadAction: "Upload PlanMetadata JSON",
-    manualAction: "Enter or edit metadata manually",
-    programmedAction: "Validate and save PlanMetadata",
+    manualAction: "Enter case number, plan name, key dates, staff, plan status, and document registry manually",
+    programmedAction: "Validate, save, and download plan-metadata.json",
     warnings: ["Without metadata, other modules cannot create reliable manifests."]
   },
   {
@@ -1022,7 +1138,7 @@ const caseGuideSteps = [
     phase: "Planning",
     route: "#/inputs",
     readinessKeys: ["metadata"],
-    prompt: "Review which pure inputs, upstream outputs, and governing references are needed for each deliverable.",
+    prompt: "Review the pure input contract for plan-metadata.json, ########R5.docx, ########DEL.pdf, ########PF.xlsx, the analysis DOCX files, ########V1.xlsx, and ########S1.cfg.",
     uploadAction: "No upload required",
     manualAction: "Review missing/unknown input families",
     programmedAction: "Download case-input-requirements.json",
@@ -1033,13 +1149,12 @@ const caseGuideSteps = [
     title: "R5 / Plan Summary",
     phase: "Upfront Work",
     route: "#/plan-summary",
-    alternateRoute: "#/r5-builder",
     readinessKeys: ["metadata", "r5"],
-    prompt: "Create or load the R5 summary from plan documents, amendments, SPDs, CBAs, and manual citations.",
-    uploadAction: "Upload R5 JSON or Plan Summary DOCX template",
-    manualAction: "Use R5 Builder or manual provision review",
-    programmedAction: "Generate Plan Summary or load R5 into case state",
-    warnings: ["Ambiguous provisions should remain unknown/na until reviewed."]
+    prompt: "Use the scraper to create R5Summary.json from all plan-history documents, then fill the provided template as ########R5.docx.",
+    uploadAction: "Upload R5Summary.json and the Plan Summary DOCX template",
+    manualAction: "Enter cited R5 facts manually when clean documents cannot be used",
+    programmedAction: "Generate ########R5.docx or load R5Summary.json into case state",
+    warnings: ["Ambiguous provisions should remain unknown/na until reviewed.", "The scraper contract is expected to be versioned; confirm the current v3 prompt before production use."]
   },
   {
     id: "data-elements",
@@ -1047,10 +1162,10 @@ const caseGuideSteps = [
     phase: "Upfront Work",
     route: "#/del",
     readinessKeys: ["metadata", "r5", "data-elements"],
-    prompt: "Package participant/census/payee source data against DD.csv and source-priority notes.",
-    uploadAction: "Upload DEL/census/source files",
+    prompt: "Use PlanMetadata, R5Summary.json, and DD.csv to define ########DEL.pdf, the fields other departments need for population data collection.",
+    uploadAction: "Upload R5Summary.json, DD.csv, and any DEL/census/source files",
     manualAction: "Document missing participant fields and source assumptions",
-    programmedAction: "Generate DEL input package",
+    programmedAction: "Generate the DEL input package now; later replace with ########DEL.pdf generator",
     warnings: ["No PII should be stored in repo fixtures; use browser upload only."]
   },
   {
@@ -1059,11 +1174,11 @@ const caseGuideSteps = [
     phase: "Upfront Work",
     route: "#/factors",
     readinessKeys: ["metadata", "r5", "plan-factors"],
-    prompt: "Package or derive plan factor inputs from R5 provisions and factor source material.",
-    uploadAction: "Upload factor tables/workpapers",
+    prompt: "Derive ########PF.xlsx inputs from PlanMetadata, R5Summary.json, DD.csv, rates, mortality, optional forms, and factor source material.",
+    uploadAction: "Upload factor tables/workpapers, rate basis, mortality basis, and PF template/workbook",
     manualAction: "Enter cited factor assumptions where files are unavailable",
-    programmedAction: "Generate PF input package",
-    warnings: ["Do not invent factors; unknown factors remain unknown/na."]
+    programmedAction: "Generate the PF input package now; integrate the external PF generator when available",
+    warnings: ["Do not invent factors; unknown factors remain unknown/na.", "If the PF programming is only in another repository, it still needs to be imported into this single-file app."]
   },
   {
     id: "section-436",
@@ -1071,11 +1186,11 @@ const caseGuideSteps = [
     phase: "Upfront Work",
     route: "#/436",
     readinessKeys: ["metadata", "r5", "section-436"],
-    prompt: "Package 436 limitation evidence, freeze amendments, AFTAP/CBA facts, and memo notes.",
-    uploadAction: "Upload 436 references/amendments",
+    prompt: "Map the template inputs for 436 Limitation Analysis.docx from metadata, R5 facts, freeze amendments, AFTAP/CBA facts, and memo notes.",
+    uploadAction: "Upload 436 references, amendments, and the 436 template when available",
     manualAction: "Enter AFTAP/CBA/freeze facts with citations",
-    programmedAction: "Generate 436 input package",
-    warnings: ["436 applicability conclusions require review before final use."]
+    programmedAction: "Generate the 436 input package now; later replace with the DOCX generator",
+    warnings: ["436 applicability conclusions require review before final use.", "The complete pure-input map is not finished yet."]
   },
   {
     id: "estimated-analyses",
@@ -1084,11 +1199,11 @@ const caseGuideSteps = [
     route: "#/estimated-adjustments",
     alternateRoute: "#/estimated-administration",
     readinessKeys: ["metadata", "r5", "estimated-benefit-adjustments", "estimated-benefit-administration"],
-    prompt: "Prepare estimated benefit adjustment and administration packages from payment, payee, and operational data.",
-    uploadAction: "Upload payment/admin extracts",
+    prompt: "Prepare Estimated Benefit Adjustments Analysis.docx and Estimated Benefit Administration Analysis.docx inputs from payment, payee, and operational data.",
+    uploadAction: "Upload payment history, current benefit extracts, payee/admin extracts, notices, and workpapers",
     manualAction: "Record payment history gaps and operational notes",
-    programmedAction: "Generate adjustment/admin packages",
-    warnings: ["Payment history gaps should be called out explicitly."]
+    programmedAction: "Generate adjustment/admin input packages now; later replace with DOCX generators",
+    warnings: ["Payment history gaps should be called out explicitly.", "The complete pure-input map is not finished yet."]
   },
   {
     id: "v1",
@@ -1097,11 +1212,11 @@ const caseGuideSteps = [
     route: "#/v1-engine-explorer",
     alternateRoute: "#/v1-audit",
     readinessKeys: ["metadata", "r5", "v1"],
-    prompt: "Import approved V1 summaries, rank candidates, select one, and audit reconstruction assumptions.",
-    uploadAction: "Upload approved V1Summary JSON files",
-    manualAction: "Review candidate suitability and reconstruction warnings",
-    programmedAction: "Rank V1 candidates and export audit JSON",
-    warnings: ["Similarity is advisory; selected V1 requires actuarial review."]
+    prompt: "Produce ########V1.xlsx by selecting/tweaking an approved V1 or building from rules, using R5 facts, DAG structure, formula ASTs, and BCV Add-in formulas where relevant.",
+    uploadAction: "Upload approved V1Summary JSON files and current-case R5Summary.json",
+    manualAction: "Review candidate suitability, DAG/AST gaps, reconstruction warnings, and BCV formula preservation",
+    programmedAction: "Rank V1 candidates and export audit JSON now; later generate ########V1.xlsx",
+    warnings: ["Similarity is advisory; selected V1 requires actuarial review.", "ATPBGC/BCV functions are opaque formulas: analyze and preserve strings, do not execute them."]
   },
   {
     id: "bsrs-bcv",
@@ -1109,10 +1224,10 @@ const caseGuideSteps = [
     phase: "Statements",
     route: "#/letters-bcv",
     readinessKeys: ["metadata", "r5", "data-elements", "v1", "letters-bcv-config"],
-    prompt: "Package letter templates, BSRS configs, BCV fields, and variable mappings for statement generation.",
-    uploadAction: "Upload templates/configs/mappings",
+    prompt: "Produce ########S1.cfg from BSRS samples, letter templates, BCV fields, DEL fields, and V1 outputs.",
+    uploadAction: "Upload templates/configs/mappings and S1 samples tied to V1 samples",
     manualAction: "Review letter variables and missing BCV fields",
-    programmedAction: "Generate BSRS/BCV config package",
+    programmedAction: "Generate the BSRS/BCV input package now; later replace with ########S1.cfg generator",
     warnings: ["Statement language/configs should be reviewed before production use."]
   }
 ];
@@ -1920,7 +2035,6 @@ function renderDashboard(container) {
         <button class="ghost" data-dashboard-route="#/v1-audit">Audit V1 Match</button>
         <button class="ghost" data-dashboard-route="#/inputs">Review Inputs Matrix</button>
         <button class="ghost" data-dashboard-route="#/rules">Rules Registry</button>
-        <button class="ghost" data-dashboard-route="#/r5-builder">Open R5 Builder</button>
         <button class="ghost" data-dashboard-route="#/metadata">Edit Metadata</button>
         <button class="ghost" data-dashboard-route="#/audit">Audit / Manifest</button>
       </div>
@@ -1937,6 +2051,10 @@ function renderDashboard(container) {
                 <span>${escapeHtml(card.status)}</span>
               </div>
               <p>${escapeHtml(card.description)}</p>
+              <div class="workflow-output">
+                <b>Output</b>
+                <span>${escapeHtml(card.outputName ?? "unknown/na")}</span>
+              </div>
               <div class="workflow-readiness ${readiness.complete ? "ready" : "missing"}">
                 Shared inputs: ${readiness.ready}/${readiness.total} ready
               </div>
@@ -1982,6 +2100,8 @@ function renderCaseGuide(container) {
     ${planContextHtml()}
 
     ${renderWorkflowStatePanel({ title: "Shared Case Inputs" })}
+
+    ${renderCanonicalDeliverablesPanel()}
 
     <div class="guide-shell">
       <nav class="guide-steps" aria-label="Case guide steps">
@@ -2082,9 +2202,18 @@ async function buildInputRequirementsExport() {
       "PBGC and actuarial reference assumptions",
       "Templates and approved engine references"
     ],
+    canonical_deliverables: canonicalDeliverables.map((item) => ({
+      id: item.id,
+      output_name: item.outputName,
+      title: item.title,
+      status: item.status,
+      summary: item.summary,
+      route: item.route
+    })),
     deliverables: buildInputRequirementRows().map((item) => ({
       id: item.id,
       title: item.title,
+      canonical_output_name: canonicalDeliverableById(inputMatrixToCanonicalDeliverable[item.id])?.outputName ?? "unknown/na",
       route: item.route,
       pure_inputs: item.pureInputs,
       upstream_outputs: item.upstreamOutputs,
@@ -2985,63 +3114,6 @@ function renderAudit(container) {
     });
 }
 
-function renderR5Builder(container) {
-  container.innerHTML = `
-    <section class="page-hero">
-      <div class="page-title">
-        <h2>R5 Builder</h2>
-        <p>Embedded legacy R5 builder (offline via srcdoc).</p>
-      </div>
-      <div class="page-actions">
-        <button class="icon-button help" id="toggle_instructions" aria-label="Toggle instructions" data-help="Show quick instructions">i</button>
-      </div>
-    </section>
-
-    ${planContextHtml()}
-
-    ${renderWorkflowStatePanel({ title: "Shared Case Inputs", keys: ["metadata", "r5"] })}
-
-    <div class="banner subtle">Legacy embedded tool: use it to produce R5 JSON, then return to Dashboard or V1 Explorer for the integrated workflow.</div>
-
-    <div id="instructions_backdrop" class="drawer-backdrop"></div>
-    <aside class="drawer-panel drawer-left" id="instructions_panel">
-      <div class="drawer-header">
-        <div class="drawer-title">How To Use This Module</div>
-        <button class="icon-button" id="close_instructions" aria-label="Close instructions">x</button>
-      </div>
-      <div class="drawer-body">
-        <ol class="instruction-list">
-          <li>Use the embedded legacy builder to produce R5 JSON.</li>
-          <li>Export the JSON and use it in downstream modules.</li>
-        </ol>
-      </div>
-    </aside>
-
-    <iframe
-      title="Legacy R5 Builder"
-      class="legacy-frame"
-      srcdoc="${escapeHtml(legacyR5SrcDoc)}"
-      loading="eager"
-    ></iframe>
-  `;
-
-  const instructionsBtn = container.querySelector("#toggle_instructions");
-  const instructionsPanel = container.querySelector("#instructions_panel");
-  const instructionsBackdrop = container.querySelector("#instructions_backdrop");
-  const instructionsClose = container.querySelector("#close_instructions");
-  hydratePlanContext(container);
-  instructionsBtn.addEventListener("click", () => {
-    instructionsPanel.classList.add("open");
-    instructionsBackdrop.classList.add("show");
-  });
-  function closeInstructions() {
-    instructionsPanel.classList.remove("open");
-    instructionsBackdrop.classList.remove("show");
-  }
-  instructionsClose.addEventListener("click", closeInstructions);
-  instructionsBackdrop.addEventListener("click", closeInstructions);
-}
-
 async function buildExplorerBridgeContext() {
   const planMetadataHash = state.planMetadata
     ? await sha256HexString(stringifyStable(state.planMetadata))
@@ -3320,6 +3392,20 @@ function getPlanValue(planMetadata, key) {
   return planMetadata?.plan?.[key]?.value ?? "";
 }
 
+function safeFileStem(value, fallback = "########") {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return cleaned || fallback;
+}
+
+function r5OutputFilename(planMetadata) {
+  const planNumber = getPlanValue(planMetadata, "plan_number");
+  const caseNumber = planMetadata?.meta?.case_number?.value ?? "";
+  return `${safeFileStem(planNumber || caseNumber)}R5.docx`;
+}
+
 function renderPlanSummary(container) {
   if (!state.planMetadata) {
     container.innerHTML = `
@@ -3342,7 +3428,7 @@ function renderPlanSummary(container) {
         <div class="drawer-body">
           <ol class="instruction-list">
             <li>Load Plan Metadata first from the Metadata module.</li>
-            <li>Upload the Plan Summary DOCX template and R5 JSON.</li>
+            <li>Upload the Plan Summary DOCX template and R5Summary.json.</li>
             <li>Generate the filled DOCX and download the manifest.</li>
           </ol>
         </div>
@@ -3393,7 +3479,7 @@ function renderPlanSummary(container) {
       </div>
       <div class="drawer-body">
         <ol class="instruction-list">
-          <li>Upload the Plan Summary DOCX template and R5 JSON.</li>
+          <li>Upload the Plan Summary DOCX template and R5Summary.json.</li>
           <li>Generate the filled DOCX and download the manifest.</li>
         </ol>
       </div>
@@ -3405,7 +3491,7 @@ function renderPlanSummary(container) {
         <ul>
           <li>Saved PlanMetadata</li>
           <li>Plan Summary DOCX template</li>
-          <li>R5 JSON</li>
+          <li>R5Summary.json</li>
         </ul>
       </div>
       <div class="grid two">
@@ -3416,7 +3502,7 @@ function renderPlanSummary(container) {
         </div>
 
         <div>
-          <label><b>R5 JSON</b></label><br/>
+          <label><b>R5Summary.json</b></label><br/>
           <input id="ps_r5json" type="file" accept="application/json,.json" />
           <div id="ps_r5json_name" class="meta-line"></div>
         </div>
@@ -3499,6 +3585,8 @@ function renderPlanSummary(container) {
         module_id: "plan-summary",
         module_version: "0.7.0",
         generated_at_utc: new Date().toISOString(),
+        case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+        output_name: r5OutputFilename(state.planMetadata),
         plan_metadata_hash: planMetadataHash,
         input_hashes: {
           [docxFile.name]: docxHash,
@@ -3511,10 +3599,11 @@ function renderPlanSummary(container) {
       status.textContent = "Filling DOCX...";
       const { blob, log } = await fillPlanSummaryDocx(docxFile, r5Obj, state.planMetadata);
 
-      downloadBlob(blob, "PlanSummary.FILLED.docx");
+      const outputName = r5OutputFilename(state.planMetadata);
+      downloadBlob(blob, outputName);
 
       status.textContent =
-        "DONE. Downloaded PlanSummary.FILLED.docx\n\nDOCX fill log:\n" +
+        `DONE. Downloaded ${outputName}\n\nDOCX fill log:\n` +
         log.join("\n") +
         "\n\nManifest:\n" +
         JSON.stringify(state.lastManifest, null, 2);
