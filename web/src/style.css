@@ -613,6 +613,74 @@ textarea.code {
   color: var(--accent);
 }
 
+.r5-validation {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.9rem;
+}
+
+.r5-validation.empty {
+  color: var(--muted);
+}
+
+.r5-validation.ready {
+  border-color: var(--accent);
+}
+
+.r5-validation.warning {
+  border-color: var(--accent-2);
+}
+
+.r5-validation-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+
+.r5-validation-head div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.r5-validation-head span,
+.r5-validation-grid span {
+  color: var(--muted);
+}
+
+.r5-validation-head strong {
+  white-space: nowrap;
+  color: var(--accent-2);
+}
+
+.r5-validation.ready .r5-validation-head strong {
+  color: var(--accent);
+}
+
+.r5-validation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.6rem;
+}
+
+.r5-validation-grid > div {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0.65rem;
+}
+
+.r5-validation-list ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+
 .workflow-readiness {
   border: 1px solid var(--border);
   border-radius: 8px;

@@ -6,6 +6,7 @@ import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import v1EngineExplorerHtml from "./legacy/pbgc-v1-engine-explorer.html?raw";
 import logoSvg from "./assets/logo.svg?raw";
 import metadataScraperPrompt from "./assets/metadata-scraper-prompt.txt?raw";
+import r5ItemsText from "../../reference/r5-items.txt?raw";
 
 import Ajv from "ajv";
 import planMetadataSchema from "./planMetadata.schema.json";
@@ -303,6 +304,20 @@ const REQUIRED_METADATA_FIELDS = [
   { id: "sparr", label: "SPARR", path: ["plan", "sparr"] },
   { id: "funding_status", label: "Funding Status", path: ["plan", "funding_status"] }
 ];
+
+const r5RequiredItems = r5ItemsText
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter(Boolean)
+  .map((line) => {
+    const match = line.match(/^(\d+)\)\s*(.+)$/);
+    return match
+      ? { item_id: Number(match[1]), question: match[2] }
+      : null;
+  })
+  .filter(Boolean);
+
+const R5_REQUIRED_ITEM_COUNT = r5RequiredItems.length;
 
 function setRoute(path) {
   if (location.hash !== path) location.hash = path;
@@ -3407,6 +3422,55 @@ function r5OutputFilename(planMetadata) {
   return `${safeFileStem(planNumber || caseNumber)}R5.docx`;
 }
 
+function renderR5ValidationReport(report) {
+  if (!report) {
+    return `<div class="r5-validation empty">Upload R5Summary.json to see contract validation.</div>`;
+  }
+  const score = `${report.covered_required_count}/${report.required_item_count}`;
+  const citationPct = Math.round((report.citation_coverage_ratio ?? 0) * 100);
+  const missing = report.missing_items.slice(0, 8);
+  const uncited = report.known_without_citations.slice(0, 8);
+  return `
+    <div class="r5-validation ${report.downstream_ready ? "ready" : "warning"}">
+      <div class="r5-validation-head">
+        <div>
+          <b>R5Summary.json Contract Report</b>
+          <span>${escapeHtml(report.source_file)} | ${escapeHtml(report.contract_version)}</span>
+        </div>
+        <strong>${report.downstream_ready ? "Ready" : "Needs Review"}</strong>
+      </div>
+      <div class="r5-validation-grid">
+        <div><b>${escapeHtml(score)}</b><span>required items covered</span></div>
+        <div><b>${report.unknown_or_na_count}</b><span>unknown/na answers</span></div>
+        <div><b>${report.known_without_citation_count}</b><span>known answers missing citations</span></div>
+        <div><b>${citationPct}%</b><span>known-answer citation coverage</span></div>
+      </div>
+      <div class="r5-validation-grid">
+        <div><b>${escapeHtml(report.recognized_domains.join(", ") || "none")}</b><span>recognized downstream domains</span></div>
+      </div>
+      ${
+        report.warnings.length
+          ? `<div class="banner subtle">${report.warnings.map((warning) => escapeHtml(warning)).join(" ")}</div>`
+          : ""
+      }
+      ${
+        missing.length
+          ? `<div class="r5-validation-list"><b>First missing required items</b><ul>${missing
+              .map((item) => `<li>${item.item_id}. ${escapeHtml(item.question)}</li>`)
+              .join("")}</ul></div>`
+          : ""
+      }
+      ${
+        uncited.length
+          ? `<div class="r5-validation-list"><b>First known answers without citations</b><ul>${uncited
+              .map((item) => `<li>${item.item_id}. ${escapeHtml(item.question)}</li>`)
+              .join("")}</ul></div>`
+          : ""
+      }
+    </div>
+  `;
+}
+
 function renderPlanSummary(container) {
   if (!state.planMetadata) {
     container.innerHTML = `
@@ -3541,7 +3605,10 @@ function renderPlanSummary(container) {
       <div class="button-row" style="margin-top:12px;">
         <button id="ps_generate" disabled>Generate ${escapeHtml(outputName)}</button>
         <button id="ps_manifest" disabled class="ghost">Download manifest.json</button>
+        <button id="ps_validation_report" disabled class="ghost">Download R5 validation</button>
       </div>
+
+      <div id="ps_r5_validation" style="margin-top:12px;">${renderR5ValidationReport(null)}</div>
 
       <pre id="ps_status" class="code" style="margin-top:12px;"></pre>
     </div>
@@ -3568,13 +3635,16 @@ function renderPlanSummary(container) {
   const psJson = container.querySelector("#ps_r5json");
   const btn = container.querySelector("#ps_generate");
   const btnManifest = container.querySelector("#ps_manifest");
+  const btnValidationReport = container.querySelector("#ps_validation_report");
   const status = container.querySelector("#ps_status");
+  const validationEl = container.querySelector("#ps_r5_validation");
   const checkTemplate = container.querySelector("#ps_check_template");
   const checkR5 = container.querySelector("#ps_check_r5");
   const checkOutput = container.querySelector("#ps_check_output");
 
   let docxFile = null;
   let r5File = null;
+  let r5Validation = null;
 
   function setProgressItem(el, ready, label, detail) {
     el.classList.toggle("ready", ready);
@@ -3589,7 +3659,9 @@ function renderPlanSummary(container) {
     container.querySelector("#ps_docx_name").textContent = docxFile ? docxFile.name : "";
     container.querySelector("#ps_r5json_name").textContent = r5File ? r5File.name : "";
     btnManifest.disabled = !currentPlanSummaryManifest;
+    btnValidationReport.disabled = !r5Validation;
     btn.disabled = !(docxFile && r5File);
+    validationEl.innerHTML = renderR5ValidationReport(r5Validation);
     setProgressItem(
       checkTemplate,
       !!docxFile,
@@ -3621,10 +3693,14 @@ function renderPlanSummary(container) {
     if (!r5File) return;
     try {
       const result = await importR5Files([r5File]);
+      r5Validation = result.inputs[0]?.validation ?? null;
       container.querySelector("#ps_r5json_name").textContent =
         `${r5File.name} loaded to case state (${result.profile.recognized_domains.join(", ") || "no recognized domains"})`;
+      update();
     } catch (err) {
+      r5Validation = null;
       status.textContent = `R5 case-state load warning: ${err.message}`;
+      update();
     }
   });
 
@@ -3648,6 +3724,7 @@ function renderPlanSummary(container) {
         generated_at_utc: new Date().toISOString(),
         case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
         output_name: r5OutputFilename(state.planMetadata),
+        r5_validation: r5Validation,
         plan_metadata_hash: planMetadataHash,
         input_hashes: {
           [docxFile.name]: docxHash,
@@ -3679,6 +3756,14 @@ function renderPlanSummary(container) {
       type: "application/json"
     });
     downloadBlob(blob, "manifest.plan-summary.json");
+  });
+
+  btnValidationReport.addEventListener("click", () => {
+    if (!r5Validation) return;
+    const blob = new Blob([JSON.stringify(r5Validation, null, 2)], {
+      type: "application/json"
+    });
+    downloadBlob(blob, "r5-summary-validation.json");
   });
 
   update();
@@ -3943,6 +4028,105 @@ function createR5CaseProfile(inputs) {
   };
 }
 
+function normalizeR5Items(r5Json) {
+  const rawItems = r5Json?.items ?? r5Json?.r5_items ?? r5Json?.answers ?? r5Json?.responses ?? [];
+  if (!Array.isArray(rawItems)) return [];
+  return rawItems.map((item, index) => {
+    const itemId = Number(item?.item_id ?? item?.id ?? item?.number ?? item?.r5_item_id ?? item?.r5_id);
+    const answer =
+      item?.answer ??
+      item?.response ??
+      item?.value ??
+      item?.summary ??
+      item?.text ??
+      "";
+    const citations = item?.citations ?? item?.citation ?? item?.sources ?? item?.source_citations ?? [];
+    return {
+      item_id: Number.isFinite(itemId) ? itemId : index + 1,
+      label: item?.label ?? item?.question ?? item?.name ?? "",
+      answer: String(answer ?? ""),
+      citations: Array.isArray(citations) ? citations : citations ? [citations] : []
+    };
+  });
+}
+
+function isUnknownOrNa(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return !normalized || ["unknown", "unk", "n/a", "na", "not available", "not applicable"].includes(normalized);
+}
+
+function citationHasLocator(citation) {
+  if (!citation) return false;
+  if (typeof citation === "string") return citation.trim().length > 0;
+  const doc = citation.doc_id ?? citation.document_id ?? citation.source_file ?? citation.source ?? citation.name;
+  const page = citation.page ?? citation.page_number ?? citation.pages;
+  const locator = citation.locator ?? citation.section ?? citation.line ?? citation.snippet ?? citation.quote;
+  return !!String(doc ?? "").trim() && (!!String(page ?? "").trim() || !!String(locator ?? "").trim());
+}
+
+function validateR5SummaryJson(r5Json, sourceFile = "R5Summary.json") {
+  const items = normalizeR5Items(r5Json);
+  const byId = new Map();
+  items.forEach((item) => {
+    if (!byId.has(item.item_id)) byId.set(item.item_id, item);
+  });
+
+  const missing_items = [];
+  const known_without_citations = [];
+  const unknown_or_na_items = [];
+  const duplicate_item_ids = [];
+  const seen = new Set();
+  items.forEach((item) => {
+    if (seen.has(item.item_id)) duplicate_item_ids.push(item.item_id);
+    seen.add(item.item_id);
+  });
+
+  r5RequiredItems.forEach((required) => {
+    const item = byId.get(required.item_id);
+    if (!item) {
+      missing_items.push(required);
+      return;
+    }
+    const unknown = isUnknownOrNa(item.answer);
+    if (unknown) unknown_or_na_items.push({ item_id: required.item_id, question: required.question });
+    const hasCitation = item.citations.some(citationHasLocator);
+    if (!unknown && !hasCitation) {
+      known_without_citations.push({ item_id: required.item_id, question: required.question });
+    }
+  });
+
+  const coveredCount = R5_REQUIRED_ITEM_COUNT - missing_items.length;
+  const knownCount = R5_REQUIRED_ITEM_COUNT - missing_items.length - unknown_or_na_items.length;
+  const citationCoveredKnown = Math.max(0, knownCount - known_without_citations.length);
+  const recognizedDomains = detectBenefitDomains(collectTextValues(r5Json, []));
+  const warnings = [];
+  if (missing_items.length) warnings.push(`${missing_items.length} required R5 item(s) missing.`);
+  if (known_without_citations.length) warnings.push(`${known_without_citations.length} known R5 answer(s) lack citations.`);
+  if (!recognizedDomains.length) warnings.push("No recognized benefit/provision domains found.");
+  if (duplicate_item_ids.length) warnings.push(`${duplicate_item_ids.length} duplicate R5 item id(s) found.`);
+
+  return {
+    source_file: sourceFile,
+    contract_version: `r5-items-${R5_REQUIRED_ITEM_COUNT}`,
+    required_item_count: R5_REQUIRED_ITEM_COUNT,
+    item_count: items.length,
+    covered_required_count: coveredCount,
+    missing_required_count: missing_items.length,
+    unknown_or_na_count: unknown_or_na_items.length,
+    known_answer_count: knownCount,
+    known_without_citation_count: known_without_citations.length,
+    citation_covered_known_count: citationCoveredKnown,
+    citation_coverage_ratio: knownCount ? Number((citationCoveredKnown / knownCount).toFixed(4)) : 0,
+    recognized_domains: recognizedDomains,
+    downstream_ready: missing_items.length === 0 && known_without_citations.length === 0 && recognizedDomains.length > 0,
+    missing_items,
+    unknown_or_na_items,
+    known_without_citations,
+    duplicate_item_ids: [...new Set(duplicate_item_ids)].sort((a, b) => a - b),
+    warnings
+  };
+}
+
 async function importR5Files(files) {
   const diagnostics = [];
   const inputs = [];
@@ -3955,7 +4139,8 @@ async function importR5Files(files) {
         sha256: hash,
         json: JSON.parse(stripJsonBom(text))
       });
-      diagnostics.push(`${file.name}: loaded`);
+      inputs[inputs.length - 1].validation = validateR5SummaryJson(inputs[inputs.length - 1].json, file.name);
+      diagnostics.push(`${file.name}: loaded (${inputs[inputs.length - 1].validation.covered_required_count}/${R5_REQUIRED_ITEM_COUNT} required R5 items)`);
     } catch (err) {
       diagnostics.push(`${file.name}: skipped (${err.message})`);
     }
@@ -3966,6 +4151,7 @@ async function importR5Files(files) {
     profile: state.v1Warehouse.r5Profile,
     source_files: state.v1Warehouse.r5Profile.source_files,
     input_hashes: state.v1Warehouse.r5Profile.input_hashes,
+    validations: inputs.map((input) => input.validation),
     loaded_at_utc: new Date().toISOString()
   };
   saveState();
