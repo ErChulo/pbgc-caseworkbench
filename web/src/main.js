@@ -2915,6 +2915,7 @@ function renderArtifactModule(container, config) {
       </div>
       <div class="page-actions">
         <button class="icon-button help" id="toggle_instructions" aria-label="Toggle instructions" data-help="Show quick instructions">i</button>
+        <button class="ghost" id="ps_missing_metadata">Open Metadata</button>
       </div>
     </section>
 
@@ -3434,7 +3435,7 @@ function renderPlanSummary(container) {
         </div>
       </aside>
 
-      <div class="alert error">Load Plan Metadata first.</div>
+      <div class="alert error">Load or create plan-metadata.json in the Metadata module first. The R5 page uses that saved metadata from central case state.</div>
     `;
     const instructionsBtn = container.querySelector("#toggle_instructions");
     const instructionsPanel = container.querySelector("#instructions_panel");
@@ -3450,11 +3451,14 @@ function renderPlanSummary(container) {
     }
     instructionsClose.addEventListener("click", closeInstructions);
     instructionsBackdrop.addEventListener("click", closeInstructions);
+    container.querySelector("#ps_missing_metadata").addEventListener("click", () => setRoute("#/metadata"));
     return;
   }
 
   const planName = getPlanValue(state.planMetadata, "plan_name");
   const caseNo = state.planMetadata?.meta?.case_number?.value ?? "";
+  const planNumber = getPlanValue(state.planMetadata, "plan_number") || "unknown";
+  const outputName = r5OutputFilename(state.planMetadata);
 
   container.innerHTML = `
     <section class="page-hero">
@@ -3464,12 +3468,24 @@ function renderPlanSummary(container) {
       </div>
       <div class="page-actions">
         <button class="icon-button help" id="toggle_instructions" aria-label="Toggle instructions" data-help="Show quick instructions">i</button>
+        <button class="ghost" id="ps_edit_metadata">Edit Metadata</button>
       </div>
     </section>
 
     ${planContextHtml()}
 
-    ${renderWorkflowStatePanel({ title: "Shared Case Inputs", keys: ["metadata", "r5"] })}
+    <div class="r5-context-grid">
+      <div class="workflow-output">
+        <b>Metadata Source</b>
+        <span>Loaded from central PlanMetadata state</span>
+        <small>Plan ${escapeHtml(planNumber)} | Case ${escapeHtml(caseNo || "unknown")}</small>
+      </div>
+      <div class="workflow-output">
+        <b>Canonical Output</b>
+        <span>${escapeHtml(outputName)}</span>
+        <small>Generated from PlanMetadata + R5Summary.json + Plan Summary DOCX template</small>
+      </div>
+    </div>
 
     <div id="instructions_backdrop" class="drawer-backdrop"></div>
     <aside class="drawer-panel drawer-left" id="instructions_panel">
@@ -3486,13 +3502,27 @@ function renderPlanSummary(container) {
     </aside>
 
     <div class="card">
-      <div class="input-checklist">
-        <b>Required inputs</b>
-        <ul>
-          <li>Saved PlanMetadata</li>
-          <li>Plan Summary DOCX template</li>
-          <li>R5Summary.json</li>
-        </ul>
+      <div class="r5-progress" aria-label="R5 required input status">
+        <div class="r5-progress-item ready" id="ps_check_metadata">
+          <b>Metadata</b>
+          <span>Ready</span>
+          <small>Loaded from the Metadata module.</small>
+        </div>
+        <div class="r5-progress-item missing" id="ps_check_template">
+          <b>Template</b>
+          <span>Needed</span>
+          <small>Upload the Plan Summary DOCX template.</small>
+        </div>
+        <div class="r5-progress-item missing" id="ps_check_r5">
+          <b>R5Summary.json</b>
+          <span>Needed</span>
+          <small>Upload the structured scraper output.</small>
+        </div>
+        <div class="r5-progress-item missing" id="ps_check_output">
+          <b>Output</b>
+          <span>Waiting</span>
+          <small>${escapeHtml(outputName)}</small>
+        </div>
       </div>
       <div class="grid two">
         <div>
@@ -3509,7 +3539,7 @@ function renderPlanSummary(container) {
       </div>
 
       <div class="button-row" style="margin-top:12px;">
-        <button id="ps_generate" disabled>Generate filled Plan Summary</button>
+        <button id="ps_generate" disabled>Generate ${escapeHtml(outputName)}</button>
         <button id="ps_manifest" disabled class="ghost">Download manifest.json</button>
       </div>
 
@@ -3522,6 +3552,7 @@ function renderPlanSummary(container) {
   const instructionsBackdrop = container.querySelector("#instructions_backdrop");
   const instructionsClose = container.querySelector("#close_instructions");
   hydratePlanContext(container);
+  container.querySelector("#ps_edit_metadata").addEventListener("click", () => setRoute("#/metadata"));
   instructionsBtn.addEventListener("click", () => {
     instructionsPanel.classList.add("open");
     instructionsBackdrop.classList.add("show");
@@ -3538,15 +3569,45 @@ function renderPlanSummary(container) {
   const btn = container.querySelector("#ps_generate");
   const btnManifest = container.querySelector("#ps_manifest");
   const status = container.querySelector("#ps_status");
+  const checkTemplate = container.querySelector("#ps_check_template");
+  const checkR5 = container.querySelector("#ps_check_r5");
+  const checkOutput = container.querySelector("#ps_check_output");
 
   let docxFile = null;
   let r5File = null;
 
+  function setProgressItem(el, ready, label, detail) {
+    el.classList.toggle("ready", ready);
+    el.classList.toggle("missing", !ready);
+    el.querySelector("span").textContent = label;
+    el.querySelector("small").textContent = detail;
+  }
+
   function update() {
+    const currentPlanSummaryManifest =
+      state.lastManifest?.module_id === "plan-summary" ? state.lastManifest : null;
     container.querySelector("#ps_docx_name").textContent = docxFile ? docxFile.name : "";
     container.querySelector("#ps_r5json_name").textContent = r5File ? r5File.name : "";
-    btnManifest.disabled = !state.lastManifest;
+    btnManifest.disabled = !currentPlanSummaryManifest;
     btn.disabled = !(docxFile && r5File);
+    setProgressItem(
+      checkTemplate,
+      !!docxFile,
+      docxFile ? "Ready" : "Needed",
+      docxFile ? docxFile.name : "Upload the Plan Summary DOCX template."
+    );
+    setProgressItem(
+      checkR5,
+      !!r5File,
+      r5File ? "Ready" : "Needed",
+      r5File ? r5File.name : "Upload the structured scraper output."
+    );
+    setProgressItem(
+      checkOutput,
+      !!currentPlanSummaryManifest?.output_name,
+      currentPlanSummaryManifest?.output_name ? "Generated" : "Waiting",
+      currentPlanSummaryManifest?.output_name ?? outputName
+    );
   }
 
   psDocx.addEventListener("change", (e) => {
@@ -3599,11 +3660,11 @@ function renderPlanSummary(container) {
       status.textContent = "Filling DOCX...";
       const { blob, log } = await fillPlanSummaryDocx(docxFile, r5Obj, state.planMetadata);
 
-      const outputName = r5OutputFilename(state.planMetadata);
-      downloadBlob(blob, outputName);
+      const generatedOutputName = r5OutputFilename(state.planMetadata);
+      downloadBlob(blob, generatedOutputName);
 
       status.textContent =
-        `DONE. Downloaded ${outputName}\n\nDOCX fill log:\n` +
+        `DONE. Downloaded ${generatedOutputName}\n\nDOCX fill log:\n` +
         log.join("\n") +
         "\n\nManifest:\n" +
         JSON.stringify(state.lastManifest, null, 2);
@@ -3613,7 +3674,7 @@ function renderPlanSummary(container) {
   });
 
   btnManifest.addEventListener("click", () => {
-    if (!state.lastManifest) return;
+    if (state.lastManifest?.module_id !== "plan-summary") return;
     const blob = new Blob([JSON.stringify(state.lastManifest, null, 2)], {
       type: "application/json"
     });
