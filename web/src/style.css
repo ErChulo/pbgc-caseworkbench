@@ -575,6 +575,44 @@ textarea.code {
   font-weight: 700;
 }
 
+.workflow-output small {
+  color: var(--muted);
+}
+
+.r5-context-grid,
+.r5-progress {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.r5-progress-item {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.75rem;
+}
+
+.r5-progress-item span {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.r5-progress-item small {
+  color: var(--muted);
+}
+
+.r5-progress-item.ready {
+  border-color: var(--accent);
+}
+
+.r5-progress-item.ready span {
+  color: var(--accent);
+}
+
 .workflow-readiness {
   border: 1px solid var(--border);
   border-radius: 8px;
