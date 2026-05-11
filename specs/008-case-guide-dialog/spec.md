@@ -43,7 +43,7 @@ As a case actuary, I need each guide step to take me directly to upload, manual 
 
 **Acceptance Scenarios**:
 
-1. **Given** the R5 step, **When** the user chooses upload/programmed action, **Then** the app routes to R5 Builder or V1 Explorer as appropriate.
+1. **Given** the R5 step, **When** the user chooses upload/programmed action, **Then** the app routes to the integrated Plan Summary workflow.
 2. **Given** the Rules/Inputs help action, **When** clicked, **Then** the app routes to Inputs Matrix or Rules Registry.
 
 ## Requirements

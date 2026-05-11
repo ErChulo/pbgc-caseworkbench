@@ -54,8 +54,7 @@ web/src/
 |-- style.css
 |-- version.js
 |-- legacy/
-|   |-- pbgc-v1-engine-explorer.html
-|   `-- r5-builder.v0.7.9.html
+|   `-- pbgc-v1-engine-explorer.html
 `-- planMetadata.schema.json
 
 reference/

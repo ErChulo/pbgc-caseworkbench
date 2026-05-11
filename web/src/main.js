@@ -3,7 +3,6 @@ import "./style.css";
 
 import JSZip from "jszip";
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
-import r5BuilderLegacyHtml from "./legacy/r5-builder.v0.7.9.html?raw";
 import v1EngineExplorerHtml from "./legacy/pbgc-v1-engine-explorer.html?raw";
 import logoSvg from "./assets/logo.svg?raw";
 import metadataScraperPrompt from "./assets/metadata-scraper-prompt.txt?raw";
@@ -97,7 +96,6 @@ const routes = [
   { path: "#/guide", title: "Case Guide", render: renderCaseGuide },
   { path: "#/inputs", title: "Inputs Matrix", render: renderInputsMatrix },
   { path: "#/rules", title: "Rules Registry", render: renderRulesRegistry },
-  { path: "#/r5-builder", title: "R5 Builder", render: renderR5Builder },
   { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
   { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer },
   { path: "#/v1-audit", title: "V1 Audit", render: renderV1Audit },
@@ -471,16 +469,6 @@ function renderRoute() {
   page.classList.add("page-enter");
   route.render(page);
 }
-
-const legacyR5SrcDoc = r5BuilderLegacyHtml
-  .replace(
-    /<script[^>]*cdnjs\.cloudflare\.com\/ajax\/libs\/jszip[^>]*><\/script>\s*/gi,
-    ""
-  )
-  .replace(
-    /<head([^>]*)>/i,
-    `<head$1><script>window.JSZip = parent.JSZip;<\/script>`
-  );
 
 const v1ExplorerBridgeScript = `
 <script>
@@ -1161,7 +1149,6 @@ const caseGuideSteps = [
     title: "R5 / Plan Summary",
     phase: "Upfront Work",
     route: "#/plan-summary",
-    alternateRoute: "#/r5-builder",
     readinessKeys: ["metadata", "r5"],
     prompt: "Use the scraper to create R5Summary.json from all plan-history documents, then fill the provided template as ########R5.docx.",
     uploadAction: "Upload R5Summary.json and the Plan Summary DOCX template",
@@ -2048,7 +2035,6 @@ function renderDashboard(container) {
         <button class="ghost" data-dashboard-route="#/v1-audit">Audit V1 Match</button>
         <button class="ghost" data-dashboard-route="#/inputs">Review Inputs Matrix</button>
         <button class="ghost" data-dashboard-route="#/rules">Rules Registry</button>
-        <button class="ghost" data-dashboard-route="#/r5-builder">Open R5 Builder</button>
         <button class="ghost" data-dashboard-route="#/metadata">Edit Metadata</button>
         <button class="ghost" data-dashboard-route="#/audit">Audit / Manifest</button>
       </div>
@@ -3128,63 +3114,6 @@ function renderAudit(container) {
     });
 }
 
-function renderR5Builder(container) {
-  container.innerHTML = `
-    <section class="page-hero">
-      <div class="page-title">
-        <h2>R5 Builder</h2>
-        <p>Embedded legacy R5 builder (offline via srcdoc).</p>
-      </div>
-      <div class="page-actions">
-        <button class="icon-button help" id="toggle_instructions" aria-label="Toggle instructions" data-help="Show quick instructions">i</button>
-      </div>
-    </section>
-
-    ${planContextHtml()}
-
-    ${renderWorkflowStatePanel({ title: "Shared Case Inputs", keys: ["metadata", "r5"] })}
-
-    <div class="banner subtle">Legacy embedded tool: use it to produce R5 JSON, then return to Dashboard or V1 Explorer for the integrated workflow.</div>
-
-    <div id="instructions_backdrop" class="drawer-backdrop"></div>
-    <aside class="drawer-panel drawer-left" id="instructions_panel">
-      <div class="drawer-header">
-        <div class="drawer-title">How To Use This Module</div>
-        <button class="icon-button" id="close_instructions" aria-label="Close instructions">x</button>
-      </div>
-      <div class="drawer-body">
-        <ol class="instruction-list">
-          <li>Use the embedded legacy builder to produce R5 JSON.</li>
-          <li>Export the JSON and use it in downstream modules.</li>
-        </ol>
-      </div>
-    </aside>
-
-    <iframe
-      title="Legacy R5 Builder"
-      class="legacy-frame"
-      srcdoc="${escapeHtml(legacyR5SrcDoc)}"
-      loading="eager"
-    ></iframe>
-  `;
-
-  const instructionsBtn = container.querySelector("#toggle_instructions");
-  const instructionsPanel = container.querySelector("#instructions_panel");
-  const instructionsBackdrop = container.querySelector("#instructions_backdrop");
-  const instructionsClose = container.querySelector("#close_instructions");
-  hydratePlanContext(container);
-  instructionsBtn.addEventListener("click", () => {
-    instructionsPanel.classList.add("open");
-    instructionsBackdrop.classList.add("show");
-  });
-  function closeInstructions() {
-    instructionsPanel.classList.remove("open");
-    instructionsBackdrop.classList.remove("show");
-  }
-  instructionsClose.addEventListener("click", closeInstructions);
-  instructionsBackdrop.addEventListener("click", closeInstructions);
-}
-
 async function buildExplorerBridgeContext() {
   const planMetadataHash = state.planMetadata
     ? await sha256HexString(stringifyStable(state.planMetadata))
@@ -3463,6 +3392,20 @@ function getPlanValue(planMetadata, key) {
   return planMetadata?.plan?.[key]?.value ?? "";
 }
 
+function safeFileStem(value, fallback = "########") {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return cleaned || fallback;
+}
+
+function r5OutputFilename(planMetadata) {
+  const planNumber = getPlanValue(planMetadata, "plan_number");
+  const caseNumber = planMetadata?.meta?.case_number?.value ?? "";
+  return `${safeFileStem(planNumber || caseNumber)}R5.docx`;
+}
+
 function renderPlanSummary(container) {
   if (!state.planMetadata) {
     container.innerHTML = `
@@ -3485,7 +3428,7 @@ function renderPlanSummary(container) {
         <div class="drawer-body">
           <ol class="instruction-list">
             <li>Load Plan Metadata first from the Metadata module.</li>
-            <li>Upload the Plan Summary DOCX template and R5 JSON.</li>
+            <li>Upload the Plan Summary DOCX template and R5Summary.json.</li>
             <li>Generate the filled DOCX and download the manifest.</li>
           </ol>
         </div>
@@ -3536,7 +3479,7 @@ function renderPlanSummary(container) {
       </div>
       <div class="drawer-body">
         <ol class="instruction-list">
-          <li>Upload the Plan Summary DOCX template and R5 JSON.</li>
+          <li>Upload the Plan Summary DOCX template and R5Summary.json.</li>
           <li>Generate the filled DOCX and download the manifest.</li>
         </ol>
       </div>
@@ -3548,7 +3491,7 @@ function renderPlanSummary(container) {
         <ul>
           <li>Saved PlanMetadata</li>
           <li>Plan Summary DOCX template</li>
-          <li>R5 JSON</li>
+          <li>R5Summary.json</li>
         </ul>
       </div>
       <div class="grid two">
@@ -3559,7 +3502,7 @@ function renderPlanSummary(container) {
         </div>
 
         <div>
-          <label><b>R5 JSON</b></label><br/>
+          <label><b>R5Summary.json</b></label><br/>
           <input id="ps_r5json" type="file" accept="application/json,.json" />
           <div id="ps_r5json_name" class="meta-line"></div>
         </div>
@@ -3642,6 +3585,8 @@ function renderPlanSummary(container) {
         module_id: "plan-summary",
         module_version: "0.7.0",
         generated_at_utc: new Date().toISOString(),
+        case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+        output_name: r5OutputFilename(state.planMetadata),
         plan_metadata_hash: planMetadataHash,
         input_hashes: {
           [docxFile.name]: docxHash,
@@ -3654,10 +3599,11 @@ function renderPlanSummary(container) {
       status.textContent = "Filling DOCX...";
       const { blob, log } = await fillPlanSummaryDocx(docxFile, r5Obj, state.planMetadata);
 
-      downloadBlob(blob, "PlanSummary.FILLED.docx");
+      const outputName = r5OutputFilename(state.planMetadata);
+      downloadBlob(blob, outputName);
 
       status.textContent =
-        "DONE. Downloaded PlanSummary.FILLED.docx\n\nDOCX fill log:\n" +
+        `DONE. Downloaded ${outputName}\n\nDOCX fill log:\n` +
         log.join("\n") +
         "\n\nManifest:\n" +
         JSON.stringify(state.lastManifest, null, 2);
