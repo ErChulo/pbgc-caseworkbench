@@ -33,7 +33,8 @@ const state = {
     r5Files: [],
     r5Profile: null,
     rankings: [],
-    selectedCandidate: null
+    selectedCandidate: null,
+    tabPatternCorpus: null
   },
   caseWorkflow: {
     r5Summary: null,
@@ -2664,6 +2665,223 @@ async function buildV1AuditExport() {
   };
 }
 
+function normalizeV1TabName(tabName) {
+  return String(tabName ?? "unknown")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function addCount(map, key, amount = 1) {
+  const normalized = String(key ?? "").trim();
+  if (!normalized) return;
+  map.set(normalized, (map.get(normalized) ?? 0) + amount);
+}
+
+function countMapToObject(map) {
+  return Object.fromEntries([...map.entries()].sort((a, b) => a[0].localeCompare(b[0])));
+}
+
+function topCounts(map, limit = 10) {
+  return [...map.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, limit);
+}
+
+function extractV1CellRuns(cell) {
+  const runs = cell?.runs;
+  if (!runs || typeof runs !== "object" || Array.isArray(runs)) return [];
+  return Object.entries(runs).map(([runName, runData]) => ({
+    run_name: String(runName),
+    field: runData?.field ? String(runData.field) : "",
+    iob: runData?.iob ? String(runData.iob).toUpperCase() : ""
+  }));
+}
+
+function inferV1TabPopulationSignals(tabName, fields, runs, descriptions) {
+  const haystack = [tabName, ...fields, ...runs, ...descriptions].join(" ").toLowerCase();
+  const signals = [];
+  if (/\b(ap|qdro|alternate payee)\b/.test(haystack)) signals.push("alternate_payee_or_qdro");
+  if (/\b(benes?|beneficiar|spouse|survivor|qpsa)\b/.test(haystack)) signals.push("beneficiary_or_survivor");
+  if (/\b(retiree|retired|in pay|pay status)\b/.test(haystack)) signals.push("retiree_or_in_pay");
+  if (/\b(sep|separated|vested|deferred|term vested)\b/.test(haystack)) signals.push("deferred_vested");
+  if (/\b(active|accruing|employee)\b/.test(haystack)) signals.push("active_participant");
+  if (/\b(disabled|disability)\b/.test(haystack)) signals.push("disabled_participant");
+  if (runs.some((run) => String(run).toUpperCase() === "XRD")) signals.push("has_xrd_run");
+  return [...new Set(signals)].sort();
+}
+
+function extractApprovedV1TabPattern(record) {
+  const summary = record.summary ?? {};
+  const cells = extractCellEntries(summary);
+  const tabMap = new Map();
+  const declaredTabs = Array.isArray(summary.sourceTabs) ? summary.sourceTabs : [];
+  declaredTabs.forEach((tab) => tabMap.set(String(tab), []));
+
+  cells.forEach((cell) => {
+    const tab = String(cell.sourceTab ?? String(cell.key ?? "").split("::")[0] ?? "unknown").trim() || "unknown";
+    if (!tabMap.has(tab)) tabMap.set(tab, []);
+    tabMap.get(tab).push(cell);
+  });
+
+  const tabPatterns = [...tabMap.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([tabName, tabCells]) => {
+      const fieldCounts = new Map();
+      const runCounts = new Map();
+      const iobCounts = new Map();
+      const descriptions = [];
+      let formulaCount = 0;
+
+      tabCells.forEach((cell) => {
+        if (cell.hasFormula || cell.formula) formulaCount += 1;
+        if (cell.genericField) addCount(fieldCounts, cell.genericField);
+        if (cell.description) descriptions.push(String(cell.description));
+        extractV1CellRuns(cell).forEach((run) => {
+          addCount(runCounts, run.run_name);
+          if (run.iob) addCount(iobCounts, run.iob);
+          if (run.field) addCount(fieldCounts, run.field);
+        });
+      });
+
+      const fields = [...fieldCounts.keys()].sort();
+      const runs = [...runCounts.keys()].sort();
+      const normalizedTab = normalizeV1TabName(tabName);
+      return {
+        record_id: record.record_id,
+        workbook_name: record.workbook_name,
+        source_file: record.source_file,
+        source_tab: tabName,
+        normalized_tab_name: normalizedTab,
+        pattern_signature: `${normalizedTab}|runs:${runs.join(",") || "none"}|fields:${fields.length}|formulas:${formulaCount}`,
+        cell_count: tabCells.length,
+        formula_count: formulaCount,
+        runs,
+        run_counts: countMapToObject(runCounts),
+        field_count: fields.length,
+        fields: fields.slice(0, 250),
+        top_fields: topCounts(fieldCounts, 25),
+        iob_counts: countMapToObject(iobCounts),
+        population_signals: inferV1TabPopulationSignals(tabName, fields, runs, descriptions)
+      };
+    });
+
+  return {
+    record_id: record.record_id,
+    workbook_name: record.workbook_name,
+    source_file: record.source_file,
+    sha256: record.sha256,
+    schema_version: record.schema_version,
+    declared_source_tabs: declaredTabs.map(String).sort(),
+    declared_runs: Array.isArray(summary.runs) ? summary.runs.map(String).sort() : [],
+    tab_count: tabPatterns.length,
+    tab_patterns: tabPatterns
+  };
+}
+
+async function buildV1TabPatternCorpus(records = state.v1Warehouse.records) {
+  const planMetadataHash = state.planMetadata
+    ? await sha256HexString(stringifyStable(state.planMetadata))
+    : "unknown";
+  const workbookPatterns = records.map(extractApprovedV1TabPattern);
+  const allPatterns = workbookPatterns.flatMap((workbook) => workbook.tab_patterns);
+  const tabNameFrequency = new Map();
+  const runFrequencyByTab = new Map();
+  const fieldFrequencyByTab = new Map();
+  const signatureFrequency = new Map();
+  const warnings = [];
+
+  allPatterns.forEach((pattern) => {
+    addCount(tabNameFrequency, pattern.normalized_tab_name);
+    addCount(signatureFrequency, pattern.pattern_signature);
+    if (!pattern.runs.includes("XRD")) {
+      warnings.push(`${pattern.workbook_name}/${pattern.source_tab}: no XRD run detected.`);
+    }
+    if (!runFrequencyByTab.has(pattern.normalized_tab_name)) runFrequencyByTab.set(pattern.normalized_tab_name, new Map());
+    if (!fieldFrequencyByTab.has(pattern.normalized_tab_name)) fieldFrequencyByTab.set(pattern.normalized_tab_name, new Map());
+    pattern.runs.forEach((run) => addCount(runFrequencyByTab.get(pattern.normalized_tab_name), run));
+    pattern.fields.forEach((field) => addCount(fieldFrequencyByTab.get(pattern.normalized_tab_name), field));
+  });
+
+  const tabCount = allPatterns.length;
+  const unusualTabs = topCounts(tabNameFrequency, 500)
+    .filter((item) => item.count === 1)
+    .map((item) => item.name)
+    .sort();
+  const runFrequencyObject = {};
+  const fieldFrequencyObject = {};
+  [...runFrequencyByTab.keys()].sort().forEach((tab) => {
+    runFrequencyObject[tab] = countMapToObject(runFrequencyByTab.get(tab));
+  });
+  [...fieldFrequencyByTab.keys()].sort().forEach((tab) => {
+    fieldFrequencyObject[tab] = topCounts(fieldFrequencyByTab.get(tab), 75);
+  });
+
+  return {
+    meta: {
+      app_version: APP_VERSION,
+      schema_version: SCHEMA_VERSION,
+      module_id: "v1-tab-pattern-corpus",
+      module_version: "0.7.0",
+      generated_at_utc: new Date().toISOString(),
+      case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+      plan_metadata_hash: planMetadataHash,
+      approved_v1_count: records.length,
+      read_only: true
+    },
+    summary: {
+      workbook_count: records.length,
+      tab_pattern_count: tabCount,
+      unique_tab_name_count: tabNameFrequency.size,
+      common_tabs: topCounts(tabNameFrequency, 12),
+      common_pattern_signatures: topCounts(signatureFrequency, 12),
+      unusual_tabs,
+      warning_count: warnings.length
+    },
+    workbook_patterns: workbookPatterns,
+    tab_patterns: allPatterns.sort((a, b) => {
+      const workbook = a.workbook_name.localeCompare(b.workbook_name);
+      if (workbook) return workbook;
+      return a.source_tab.localeCompare(b.source_tab);
+    }),
+    tab_name_frequencies: countMapToObject(tabNameFrequency),
+    run_frequencies_by_tab: runFrequencyObject,
+    field_frequencies_by_tab: fieldFrequencyObject,
+    warnings
+  };
+}
+
+function renderV1TabPatternCorpusSummary(corpus) {
+  if (!corpus) {
+    return `<div class="meta-line">No tab-pattern corpus built yet.</div>`;
+  }
+  return `
+    <div class="v1-summary-grid">
+      <div><b>${corpus.summary.workbook_count}</b><span>workbooks</span></div>
+      <div><b>${corpus.summary.tab_pattern_count}</b><span>tab patterns</span></div>
+      <div><b>${corpus.summary.unique_tab_name_count}</b><span>unique tab names</span></div>
+    </div>
+    <div class="requirements-columns">
+      <div>
+        <b>Common tabs</b>
+        <ul>${corpus.summary.common_tabs.map((item) => `<li>${escapeHtml(item.name)} (${item.count})</li>`).join("") || "<li>none</li>"}</ul>
+      </div>
+      <div>
+        <b>Unusual tabs</b>
+        <ul>${corpus.summary.unusual_tabs.slice(0, 10).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>none</li>"}</ul>
+      </div>
+      <div>
+        <b>Warnings</b>
+        <ul>${corpus.warnings.slice(0, 6).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>none</li>"}</ul>
+      </div>
+    </div>
+  `;
+}
+
 function renderV1Audit(container) {
   const records = selectedOrTopV1Records(5);
   const previews = records.map(buildV1ReconstructionPreview).filter(Boolean);
@@ -2714,6 +2932,24 @@ function renderV1Audit(container) {
     </div>
 
     <div class="section-divider"></div>
+    <div class="card">
+      <div class="workflow-card-head">
+        <div>
+          <h3>V1 Tab Pattern Corpus</h3>
+          <p class="muted">Mine uploaded approved V1 summaries for source-tab populations, run sets, fields, and unusual tab names.</p>
+        </div>
+        <span>${state.v1Warehouse.records.length} approved V1 summaries loaded</span>
+      </div>
+      <div class="button-row">
+        <button class="primary" id="build_v1_tab_corpus" ${state.v1Warehouse.records.length ? "" : "disabled"}>Build tab corpus</button>
+        <button class="ghost" id="download_v1_tab_corpus" ${state.v1Warehouse.tabPatternCorpus ? "" : "disabled"}>Download corpus JSON</button>
+      </div>
+      <div id="v1_tab_corpus_summary" style="margin-top:12px;">
+        ${renderV1TabPatternCorpusSummary(state.v1Warehouse.tabPatternCorpus)}
+      </div>
+    </div>
+
+    <div class="section-divider"></div>
     <h3>Reconstruction Preview</h3>
     <div class="requirements-list">
       ${previews.length
@@ -2727,6 +2963,9 @@ function renderV1Audit(container) {
   hydratePlanContext(container);
 
   const downloadBtn = container.querySelector("#download_v1_audit");
+  const buildCorpusBtn = container.querySelector("#build_v1_tab_corpus");
+  const downloadCorpusBtn = container.querySelector("#download_v1_tab_corpus");
+  const corpusSummaryEl = container.querySelector("#v1_tab_corpus_summary");
   const statusEl = container.querySelector("#v1_audit_status");
   downloadBtn.addEventListener("click", async () => {
     try {
@@ -2741,6 +2980,26 @@ function renderV1Audit(container) {
     } catch (err) {
       statusEl.textContent = `ERROR: ${err.message}`;
     }
+  });
+  buildCorpusBtn.addEventListener("click", async () => {
+    try {
+      state.v1Warehouse.tabPatternCorpus = await buildV1TabPatternCorpus();
+      state.lastManifest = state.v1Warehouse.tabPatternCorpus.meta;
+      saveState();
+      corpusSummaryEl.innerHTML = renderV1TabPatternCorpusSummary(state.v1Warehouse.tabPatternCorpus);
+      downloadCorpusBtn.disabled = false;
+      statusEl.textContent = `Built v1-tab-pattern-corpus.json\n\n${JSON.stringify(state.v1Warehouse.tabPatternCorpus.meta, null, 2)}`;
+    } catch (err) {
+      statusEl.textContent = `ERROR: ${err.message}`;
+    }
+  });
+  downloadCorpusBtn.addEventListener("click", () => {
+    if (!state.v1Warehouse.tabPatternCorpus) return;
+    downloadBlob(
+      new Blob([stringifyStable(state.v1Warehouse.tabPatternCorpus)], { type: "application/json" }),
+      "v1-tab-pattern-corpus.json"
+    );
+    statusEl.textContent = `Downloaded v1-tab-pattern-corpus.json\n\n${JSON.stringify(state.v1Warehouse.tabPatternCorpus.meta, null, 2)}`;
   });
 }
 
@@ -4368,7 +4627,8 @@ function resetV1Warehouse() {
     r5Files: [],
     r5Profile: null,
     rankings: [],
-    selectedCandidate: null
+    selectedCandidate: null,
+    tabPatternCorpus: null
   };
 }
 
@@ -4527,6 +4787,7 @@ async function importApprovedV1Files(files) {
   state.v1Warehouse.records = records;
   state.v1Warehouse.profiles = profiles;
   state.v1Warehouse.diagnostics = diagnostics;
+  state.v1Warehouse.tabPatternCorpus = null;
   state.v1Warehouse.importManifest = await buildV1RunManifest("v1-approved-import", {
     approvedProfiles: profiles,
     r5Inputs: [],
