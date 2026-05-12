@@ -6,14 +6,17 @@ import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import v1EngineExplorerHtml from "./legacy/pbgc-v1-engine-explorer.html?raw";
 import logoSvg from "./assets/logo.svg?raw";
 import metadataScraperPrompt from "./assets/metadata-scraper-prompt.txt?raw";
+import r5ScraperPrompt from "./assets/r5-scraper-prompt.v3.md?raw";
 import r5ItemsText from "../../reference/r5-items.txt?raw";
 
 import Ajv from "ajv";
 import planMetadataSchema from "./planMetadata.schema.json";
+import r5SummarySchema from "./r5Summary.schema.json";
 import { APP_VERSION, SCHEMA_VERSION } from "./version.js";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validatePlanMetadata = ajv.compile(planMetadataSchema);
+const validateR5SummarySchema = ajv.compile(r5SummarySchema);
 
 const state = {
   appVersion: APP_VERSION,
@@ -3440,6 +3443,8 @@ function renderR5ValidationReport(report) {
         <strong>${report.downstream_ready ? "Ready" : "Needs Review"}</strong>
       </div>
       <div class="r5-validation-grid">
+        <div><b>${report.schema_valid ? "Pass" : "Fail"}</b><span>JSON schema</span></div>
+        <div><b>${escapeHtml(report.summary_stage ?? "unknown")}</b><span>summary stage</span></div>
         <div><b>${escapeHtml(score)}</b><span>required items covered</span></div>
         <div><b>${report.unknown_or_na_count}</b><span>unknown/na answers</span></div>
         <div><b>${report.known_without_citation_count}</b><span>known answers missing citations</span></div>
@@ -3451,6 +3456,14 @@ function renderR5ValidationReport(report) {
       ${
         report.warnings.length
           ? `<div class="banner subtle">${report.warnings.map((warning) => escapeHtml(warning)).join(" ")}</div>`
+          : ""
+      }
+      ${
+        report.schema_errors?.length
+          ? `<div class="r5-validation-list"><b>First schema errors</b><ul>${report.schema_errors
+              .slice(0, 8)
+              .map((err) => `<li>${escapeHtml(err.instance_path || "/")}: ${escapeHtml(err.message)}</li>`)
+              .join("")}</ul></div>`
           : ""
       }
       ${
@@ -3603,6 +3616,8 @@ function renderPlanSummary(container) {
       </div>
 
       <div class="button-row" style="margin-top:12px;">
+        <button id="ps_download_r5_prompt" class="ghost">Download R5 scraper prompt v3</button>
+        <button id="ps_download_r5_schema" class="ghost">Download R5Summary.schema.json</button>
         <button id="ps_generate" disabled>Generate ${escapeHtml(outputName)}</button>
         <button id="ps_manifest" disabled class="ghost">Download manifest.json</button>
         <button id="ps_validation_report" disabled class="ghost">Download R5 validation</button>
@@ -3636,6 +3651,8 @@ function renderPlanSummary(container) {
   const btn = container.querySelector("#ps_generate");
   const btnManifest = container.querySelector("#ps_manifest");
   const btnValidationReport = container.querySelector("#ps_validation_report");
+  const btnR5Prompt = container.querySelector("#ps_download_r5_prompt");
+  const btnR5Schema = container.querySelector("#ps_download_r5_schema");
   const status = container.querySelector("#ps_status");
   const validationEl = container.querySelector("#ps_r5_validation");
   const checkTemplate = container.querySelector("#ps_check_template");
@@ -3756,6 +3773,17 @@ function renderPlanSummary(container) {
       type: "application/json"
     });
     downloadBlob(blob, "manifest.plan-summary.json");
+  });
+
+  btnR5Prompt.addEventListener("click", () => {
+    downloadBlob(new Blob([r5ScraperPrompt], { type: "text/markdown" }), "r5-scraper-prompt.v3.md");
+  });
+
+  btnR5Schema.addEventListener("click", () => {
+    downloadBlob(
+      new Blob([JSON.stringify(r5SummarySchema, null, 2)], { type: "application/json" }),
+      "R5Summary.schema.json"
+    );
   });
 
   btnValidationReport.addEventListener("click", () => {
@@ -4065,6 +4093,15 @@ function citationHasLocator(citation) {
 }
 
 function validateR5SummaryJson(r5Json, sourceFile = "R5Summary.json") {
+  const schemaValid = !!validateR5SummarySchema(r5Json);
+  const schemaErrors = schemaValid
+    ? []
+    : (validateR5SummarySchema.errors ?? []).map((err) => ({
+        instance_path: err.instancePath,
+        schema_path: err.schemaPath,
+        message: err.message,
+        params: err.params
+      }));
   const items = normalizeR5Items(r5Json);
   const byId = new Map();
   items.forEach((item) => {
@@ -4100,6 +4137,7 @@ function validateR5SummaryJson(r5Json, sourceFile = "R5Summary.json") {
   const citationCoveredKnown = Math.max(0, knownCount - known_without_citations.length);
   const recognizedDomains = detectBenefitDomains(collectTextValues(r5Json, []));
   const warnings = [];
+  if (!schemaValid) warnings.push(`R5Summary schema failed with ${schemaErrors.length} error(s).`);
   if (missing_items.length) warnings.push(`${missing_items.length} required R5 item(s) missing.`);
   if (known_without_citations.length) warnings.push(`${known_without_citations.length} known R5 answer(s) lack citations.`);
   if (!recognizedDomains.length) warnings.push("No recognized benefit/provision domains found.");
@@ -4108,6 +4146,10 @@ function validateR5SummaryJson(r5Json, sourceFile = "R5Summary.json") {
   return {
     source_file: sourceFile,
     contract_version: `r5-items-${R5_REQUIRED_ITEM_COUNT}`,
+    schema_version_expected: SCHEMA_VERSION,
+    schema_valid: schemaValid,
+    schema_errors: schemaErrors,
+    summary_stage: r5Json?.summary_stage ?? "unknown",
     required_item_count: R5_REQUIRED_ITEM_COUNT,
     item_count: items.length,
     covered_required_count: coveredCount,
@@ -4118,7 +4160,7 @@ function validateR5SummaryJson(r5Json, sourceFile = "R5Summary.json") {
     citation_covered_known_count: citationCoveredKnown,
     citation_coverage_ratio: knownCount ? Number((citationCoveredKnown / knownCount).toFixed(4)) : 0,
     recognized_domains: recognizedDomains,
-    downstream_ready: missing_items.length === 0 && known_without_citations.length === 0 && recognizedDomains.length > 0,
+    downstream_ready: schemaValid && missing_items.length === 0 && known_without_citations.length === 0 && recognizedDomains.length > 0,
     missing_items,
     unknown_or_na_items,
     known_without_citations,

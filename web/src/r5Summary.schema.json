@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "R5Summary",
+  "type": "object",
+  "required": ["schema_version", "summary_stage", "source_documents", "items"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["0.7.0"]
+    },
+    "summary_stage": {
+      "type": "string",
+      "enum": ["preliminary", "final"]
+    },
+    "source_documents": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source_document" }
+    },
+    "items": {
+      "type": "array",
+      "minItems": 61,
+      "items": { "$ref": "#/$defs/r5_item" }
+    },
+    "dependent_fields": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "source_document": {
+      "type": "object",
+      "required": ["doc_id", "name", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "doc_id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "effective_date": { "type": "string" },
+        "adoption_date": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    },
+    "citation": {
+      "type": "object",
+      "required": ["doc_id", "page", "locator", "snippet"],
+      "additionalProperties": true,
+      "properties": {
+        "doc_id": { "type": "string", "minLength": 1 },
+        "page": {
+          "anyOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "string", "minLength": 1 }
+          ]
+        },
+        "locator": { "type": "string", "minLength": 1 },
+        "snippet": { "type": "string", "minLength": 1 }
+      }
+    },
+    "r5_item": {
+      "type": "object",
+      "required": ["item_id", "question", "answer", "citations"],
+      "additionalProperties": true,
+      "properties": {
+        "item_id": { "type": "integer", "minimum": 1, "maximum": 61 },
+        "question": { "type": "string", "minLength": 1 },
+        "answer": { "type": "string", "minLength": 1 },
+        "citations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/citation" }
+        },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}
