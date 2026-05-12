@@ -38,6 +38,7 @@ const state = {
   caseWorkflow: {
     r5Summary: null,
     selectedV1: null,
+    syntheticPopulation: null,
     moduleRuns: {}
   },
   lastError: null,
@@ -76,6 +77,7 @@ function saveState() {
         caseWorkflow: {
           r5Summary: state.caseWorkflow.r5Summary,
           selectedV1: state.caseWorkflow.selectedV1,
+          syntheticPopulation: state.caseWorkflow.syntheticPopulation,
           moduleRuns: state.caseWorkflow.moduleRuns
         }
       })
@@ -90,7 +92,7 @@ function clearState() {
   state.planMetadataApproved = false;
   state.lastManifest = null;
   resetV1Warehouse();
-  state.caseWorkflow = { r5Summary: null, selectedV1: null, moduleRuns: {} };
+  state.caseWorkflow = { r5Summary: null, selectedV1: null, syntheticPopulation: null, moduleRuns: {} };
   state.lastError = null;
   localStorage.removeItem(STORAGE_KEY);
 }
@@ -235,7 +237,7 @@ const artifactModuleConfigs = {
     accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf,.docx",
     prompt: "Upload factor tables, plan provisions, rate bases, optional-form rules, and supporting references.",
     requiredInputs: ["PlanMetadata", "R5Summary.json/profile", "DD.csv", "Mortality and interest basis", "Optional forms/factor rules", "PF template/workbook"],
-    upstreamInputs: ["metadata", "r5", "v1"]
+    upstreamInputs: ["metadata", "r5", "v1", "synthetic"]
   },
   section436: {
     id: "section-436",
@@ -254,8 +256,8 @@ const artifactModuleConfigs = {
     outputName: "estimated-benefit-adjustments.artifact.json",
     accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf",
     prompt: "Upload estimated benefit extracts, workpapers, or reconciliation notes.",
-    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Selected V1 engine profile when available", "Estimated benefit extracts", "Adjustment workpapers"],
-    upstreamInputs: ["metadata", "r5", "v1"]
+    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Selected V1 engine profile when available", "Synthetic population for testing when available", "Estimated benefit extracts", "Adjustment workpapers"],
+    upstreamInputs: ["metadata", "r5", "v1", "synthetic"]
   },
   estimatedAdministration: {
     id: "estimated-benefit-administration",
@@ -264,8 +266,8 @@ const artifactModuleConfigs = {
     outputName: "estimated-benefit-administration.artifact.json",
     accepted: ".json,.csv,.txt,.xlsx,.xlsm,.xls,.pdf",
     prompt: "Upload administration extracts, sample notices, or operational notes.",
-    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Administration extracts", "Operational notes"],
-    upstreamInputs: ["metadata", "r5"]
+    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Synthetic population for testing when available", "Administration extracts", "Operational notes"],
+    upstreamInputs: ["metadata", "r5", "synthetic"]
   },
   dagViewer: {
     id: "dag-viewer",
@@ -294,8 +296,8 @@ const artifactModuleConfigs = {
     outputName: "bsrs-bcv-letter-config.artifact.json",
     accepted: ".json,.txt,.csv,.docx,.xlsx,.xlsm,.xls",
     prompt: "Upload letter templates, BSRS configs, and variable mappings.",
-    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Letter templates", "BCV/BSRS config inputs"],
-    upstreamInputs: ["metadata", "r5"]
+    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Synthetic population for testing when available", "Letter templates", "BCV/BSRS config inputs"],
+    upstreamInputs: ["metadata", "r5", "synthetic"]
   }
 };
 
@@ -645,10 +647,15 @@ function getSelectedV1Summary() {
   return state.caseWorkflow.selectedV1 ?? state.v1Warehouse.selectedCandidate ?? null;
 }
 
+function getSyntheticPopulationSummary() {
+  return state.caseWorkflow.syntheticPopulation ?? state.caseWorkflow.moduleRuns?.["synthetic-population"] ?? null;
+}
+
 function workflowInputStatus() {
   const metadataReady = isMetadataReady();
   const r5Summary = getR5WorkflowSummary();
   const selectedV1 = getSelectedV1Summary();
+  const syntheticPopulation = getSyntheticPopulationSummary();
   return {
     metadata: {
       ready: metadataReady,
@@ -670,6 +677,13 @@ function workflowInputStatus() {
       detail: selectedV1
         ? `${selectedV1.workbook_name ?? selectedV1.candidate_record_id ?? "selected candidate"}`
         : "Import approved engines, rank candidates, then select one."
+    },
+    synthetic: {
+      ready: !!syntheticPopulation,
+      label: syntheticPopulation ? "Synthetic population ready" : "Synthetic population missing",
+      detail: syntheticPopulation
+        ? `${syntheticPopulation.row_count ?? "unknown"} rows, ${syntheticPopulation.field_count ?? "unknown"} fields, seed ${syntheticPopulation.seed ?? "unknown"}`
+        : "Generate no-PII test population in Synthetic Population."
     }
   };
 }
@@ -745,7 +759,7 @@ function deliverableCards() {
       status: "Testing support",
       outputName: "########SyntheticPopulation.zip",
       description: "Generate deterministic no-PII clean and dirty population files for testing downstream modules.",
-      inputs: ["PlanMetadata", "DD.csv", "Validated R5Summary.json when available", "Seed", "Row count", "Scenario mix"],
+      inputs: ["PlanMetadata", "DD.csv", "Validated R5Summary.json when available", "DEL package when available", "Seed", "Row count", "Scenario mix"],
       action: "Generate synthetic population",
       upstreamInputs: ["metadata", "r5", "data-elements"]
     },
@@ -755,9 +769,9 @@ function deliverableCards() {
       status: "Needs PF integration",
       outputName: "########PF.xlsx",
       description: "Produce the Plan Factors workbook with mortality, interest, optional forms, and factor tables.",
-      inputs: artifactModuleConfigs.factors.requiredInputs,
+      inputs: [...artifactModuleConfigs.factors.requiredInputs, "Synthetic population for testing when available"],
       action: "Package PF inputs",
-      upstreamInputs: artifactModuleConfigs.factors.upstreamInputs
+      upstreamInputs: [...artifactModuleConfigs.factors.upstreamInputs, "synthetic"]
     },
     {
       route: "#/436",
@@ -795,9 +809,9 @@ function deliverableCards() {
       status: "Primary workflow",
       outputName: "########V1.xlsx",
       description: "Rank approved V1 engines against R5 evidence, audit DAG/AST similarity, and choose or build the production V1.",
-      inputs: ["PlanMetadata", "R5Summary.json", "Approved V1Summary JSON files", "BCV Add-in formula inventory", "DEL/PF context when available"],
+      inputs: ["PlanMetadata", "R5Summary.json", "Approved V1Summary JSON files", "BCV Add-in formula inventory", "DEL/PF context when available", "Synthetic population for testing when available"],
       action: "Rank and select V1",
-      upstreamInputs: ["metadata", "r5"]
+      upstreamInputs: ["metadata", "r5", "synthetic"]
     },
     {
       route: "#/v1-audit",
@@ -3610,6 +3624,60 @@ function defaultSyntheticFields(catalog) {
   return [...new Set([...picked, ...inputFields])].slice(0, 120);
 }
 
+function syntheticFieldPresets(catalog) {
+  const names = new Set(catalog.fields.map((field) => field.name));
+  const keep = (fields) => fields.filter((field) => names.has(field));
+  return {
+    minimal_v1: keep([
+      "CASE", "RETSTAT", "ID", "Cust_ID", "SSN", "FNAME", "LNAME", "DOB", "DOH", "DOP", "DOTE", "DOR", "DOD",
+      "SEX", "MSTAT", "SDOB", "SFNAME", "SLNAME", "PA_AMB", "AMB", "VB", "FORM_CODE_ARD", "LEV_MB_ARD"
+    ]),
+    full_dd_inputs: catalog.fields.filter((field) => field.inputField).map((field) => field.name).slice(0, 200),
+    bsrs_letters: keep([
+      "CASE", "BCV_REC_ID", "Cust_ID", "SSN", "FNAME", "LNAME", "DOB", "DOR", "DOD", "RETSTAT", "ID",
+      "SFNAME", "SLNAME", "SDOB", "FORM_CODE_ARD", "LEV_MB_ARD"
+    ]),
+    estimated_analysis: keep([
+      "CASE", "Cust_ID", "RETSTAT", "ID", "DOB", "DOTE", "DOR", "PA_AMB", "AMB", "VB", "LEV_MB_ARD",
+      "FORM_CODE_ARD", "MSTAT", "SDOB"
+    ])
+  };
+}
+
+function syntheticPresetOptionsHtml(catalog) {
+  const presets = syntheticFieldPresets(catalog);
+  return Object.entries(presets)
+    .map(([key, fields]) => `<option value="${escapeHtml(key)}">${escapeHtml(key.replaceAll("_", " "))} (${fields.length})</option>`)
+    .join("");
+}
+
+function renderSyntheticPopulationCurrentState() {
+  const summary = getSyntheticPopulationSummary();
+  if (!summary) {
+    return `
+      <div class="workflow-selected missing">
+        <b>No Synthetic Population Generated</b>
+        <span>Generate one here to make no-PII test data available to PF, V1, estimated analyses, and letters.</span>
+      </div>
+    `;
+  }
+  return `
+    <div class="workflow-selected ready">
+      <b>Synthetic Population Ready</b>
+      <span>${escapeHtml(summary.output_name ?? "synthetic population")} | ${summary.row_count ?? "unknown"} rows | ${summary.field_count ?? "unknown"} fields | seed ${summary.seed ?? "unknown"}</span>
+      <small>Synthetic test data only. Downstream modules can treat this as a no-PII testing input.</small>
+    </div>
+  `;
+}
+
+function syntheticConfigFromControls(container, fieldsBox) {
+  const rowCount = Math.max(1, Math.min(5000, Number(container.querySelector("#synthetic_rows").value) || 100));
+  const seed = Number(container.querySelector("#synthetic_seed").value) || 12345;
+  const fields = fieldsBox.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const scenarioMix = JSON.parse(container.querySelector("#synthetic_mix").value);
+  return { rowCount, seed, fields, scenarioMix };
+}
+
 function syntheticValueForField(field, context) {
   const name = field.name.toUpperCase();
   const { index, scenario, rand, metadata } = context;
@@ -3713,6 +3781,7 @@ async function renderSyntheticPopulation(container) {
     <div class="banner subtle">All generated rows are synthetic test data. Do not use this output as production participant data.</div>
 
     <div class="card">
+      <div id="synthetic_current_state">${renderSyntheticPopulationCurrentState()}</div>
       <div class="grid two">
         <div>
           <label><b>DD.csv override</b></label><br/>
@@ -3736,6 +3805,12 @@ async function renderSyntheticPopulation(container) {
       </div>
       <div style="margin-top:12px;">
         <label><b>Output fields</b></label>
+        <div class="button-row" style="margin-top:6px;">
+          <select id="synthetic_preset" aria-label="Synthetic field preset">
+            ${syntheticPresetOptionsHtml(catalog)}
+          </select>
+          <button id="synthetic_apply_preset" class="ghost">Apply preset</button>
+        </div>
         <textarea id="synthetic_fields" class="code" rows="8">${escapeHtml(defaultFields.join("\n"))}</textarea>
         <div class="meta-line">One DD.csv field per line. Defaults favor core input fields and common V1/BCV identifiers.</div>
       </div>
@@ -3754,6 +3829,7 @@ async function renderSyntheticPopulation(container) {
       <div class="button-row" style="margin-top:12px;">
         <button id="synthetic_generate" class="primary">Generate ${escapeHtml(outputName)}</button>
         <button id="synthetic_manifest" disabled class="ghost">Download manifest.json</button>
+        <button id="synthetic_clear" class="ghost">Clear synthetic state</button>
       </div>
       <pre id="synthetic_status" class="code" style="margin-top:12px;"></pre>
     </div>
@@ -3762,11 +3838,20 @@ async function renderSyntheticPopulation(container) {
 
   let activeCatalog = catalog;
   let activeDdText = defaultDdCsvText;
-  let lastManifest = null;
+  let lastManifest = state.caseWorkflow.moduleRuns?.["synthetic-population"]?.manifest ?? null;
   const ddInput = container.querySelector("#synthetic_dd");
   const status = container.querySelector("#synthetic_status");
   const manifestBtn = container.querySelector("#synthetic_manifest");
+  const fieldsBox = container.querySelector("#synthetic_fields");
+  const presetSelect = container.querySelector("#synthetic_preset");
+  const currentStateEl = container.querySelector("#synthetic_current_state");
+  manifestBtn.disabled = !lastManifest;
   container.querySelector("#synthetic_edit_metadata").addEventListener("click", () => setRoute("#/metadata"));
+  container.querySelector("#synthetic_apply_preset").addEventListener("click", () => {
+    const fields = syntheticFieldPresets(activeCatalog)[presetSelect.value] ?? defaultSyntheticFields(activeCatalog);
+    fieldsBox.value = fields.join("\n");
+    status.textContent = `Applied ${presetSelect.options[presetSelect.selectedIndex]?.textContent ?? "field preset"}.`;
+  });
   ddInput.addEventListener("change", async () => {
     const file = ddInput.files?.[0];
     if (!file) return;
@@ -3774,6 +3859,7 @@ async function renderSyntheticPopulation(container) {
       activeDdText = await file.text();
       activeCatalog = parseDdCsvCatalog(activeDdText);
       container.querySelector("#synthetic_dd_status").textContent = `${file.name} loaded (${activeCatalog.fields.length} fields).`;
+      presetSelect.innerHTML = syntheticPresetOptionsHtml(activeCatalog);
     } catch (err) {
       status.textContent = `DD.csv error: ${err.message}`;
     }
@@ -3781,12 +3867,10 @@ async function renderSyntheticPopulation(container) {
 
   container.querySelector("#synthetic_generate").addEventListener("click", async () => {
     try {
-      const rowCount = Math.max(1, Math.min(5000, Number(container.querySelector("#synthetic_rows").value) || 100));
-      const seed = Number(container.querySelector("#synthetic_seed").value) || 12345;
-      const fields = container.querySelector("#synthetic_fields").value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-      const scenarioMix = JSON.parse(container.querySelector("#synthetic_mix").value);
+      const { rowCount, seed, fields, scenarioMix } = syntheticConfigFromControls(container, fieldsBox);
       const missing = fields.filter((field) => !activeCatalog.fields.some((candidate) => candidate.name === field));
       if (missing.length) throw new Error(`Unknown DD.csv field(s): ${missing.slice(0, 8).join(", ")}`);
+      if (!fields.length) throw new Error("Select at least one output field.");
       const result = generateSyntheticPopulation(activeCatalog, fields, { rowCount, seed, scenarioMix }, state.planMetadata);
       const cleanCsv = recordsToCsv(result.clean, result.fields);
       const dirtyCsv = recordsToCsv(result.dirty, result.fields);
@@ -3821,8 +3905,20 @@ async function renderSyntheticPopulation(container) {
         generated_at_utc: lastManifest.generated_at_utc,
         manifest: lastManifest
       };
+      state.caseWorkflow.syntheticPopulation = {
+        output_name: outputName,
+        generated_at_utc: lastManifest.generated_at_utc,
+        row_count: rowCount,
+        field_count: result.fields.length,
+        seed,
+        fields: result.fields,
+        clean_output_hash: lastManifest.output_hashes["population.clean.csv"],
+        dirty_output_hash: lastManifest.output_hashes["population.dirty.csv"],
+        synthetic_only: true
+      };
       state.lastManifest = lastManifest;
       saveState();
+      currentStateEl.innerHTML = renderSyntheticPopulationCurrentState();
       const zip = new JSZip();
       zip.file("population.clean.csv", cleanCsv);
       zip.file("population.dirty.csv", dirtyCsv);
@@ -3840,6 +3936,17 @@ async function renderSyntheticPopulation(container) {
   manifestBtn.addEventListener("click", () => {
     if (!lastManifest) return;
     downloadBlob(new Blob([JSON.stringify(lastManifest, null, 2)], { type: "application/json" }), "manifest.synthetic-population.json");
+  });
+
+  container.querySelector("#synthetic_clear").addEventListener("click", () => {
+    delete state.caseWorkflow.moduleRuns["synthetic-population"];
+    state.caseWorkflow.syntheticPopulation = null;
+    if (state.lastManifest?.module_id === "synthetic-population") state.lastManifest = null;
+    lastManifest = null;
+    manifestBtn.disabled = true;
+    saveState();
+    currentStateEl.innerHTML = renderSyntheticPopulationCurrentState();
+    status.textContent = "Cleared synthetic population state. Previously downloaded files are not affected.";
   });
 }
 
