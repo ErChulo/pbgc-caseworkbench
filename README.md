@@ -25,16 +25,17 @@ Some deliverables are still in scaffold or support-artifact form. The app marks 
 Use the modules in this order:
 
 1. **Metadata**: create or upload `PlanMetadata`. This is foundational and shared by every module.
-2. **Inputs Matrix**: review which inputs are ready, missing, or unknown.
-3. **R5 / Plan Summary**: load or validate `R5Summary.json`, then generate the R5 plan-summary artifact path.
-4. **DEL**: use `PlanMetadata`, `R5Summary.json`, and `DD.csv` to define required data elements.
-5. **Synthetic Population**: generate no-PII mock population files from DD field presets for testing downstream workflows.
-6. **Plan Factors**: prepare PF inputs from metadata, R5, DD fields, rates, mortality, optional forms, and factor rules.
-7. **436 / Estimated Analyses**: prepare limitation and estimated-benefit analysis artifacts from governed inputs and templates.
-8. **V1 Explorer / V1 Audit**: import approved read-only `V1Summary.json` files, rank candidates, build a tab-pattern corpus, and build a V1 tab blueprint.
-9. **DAG / Formula Tree**: inspect V1 structural and formula evidence.
-10. **Letters / BCV**: prepare BSRS/BCV configuration support once V1 and population inputs are available.
-11. **Audit / Manifest**: download manifests and inspect versioned run evidence.
+2. **Evidence Guide**: identify the missing fact, IVS document class to search, scraper contract, manual fallback, citation rule, and downstream impact.
+3. **Inputs Matrix**: review which inputs are ready, missing, or unknown.
+4. **R5 / Plan Summary**: load or validate `R5Summary.json`, then generate the R5 plan-summary artifact path.
+5. **DEL**: use `PlanMetadata`, `R5Summary.json`, and `DD.csv` to define required data elements.
+6. **Synthetic Population**: generate no-PII mock population files from DD field presets for testing downstream workflows.
+7. **Plan Factors**: prepare PF inputs from metadata, R5, DD fields, rates, mortality, optional forms, and factor rules.
+8. **436 / Estimated Analyses**: prepare limitation and estimated-benefit analysis artifacts from governed inputs and templates.
+9. **V1 Explorer / V1 Audit**: import approved read-only `V1Summary.json` files, rank candidates, build a tab-pattern corpus, and build a V1 tab blueprint.
+10. **DAG / Formula Tree**: inspect V1 structural and formula evidence.
+11. **Letters / BCV**: prepare BSRS/BCV configuration support once V1 and population inputs are available.
+12. **Audit / Manifest**: download manifests and inspect versioned run evidence.
 
 ## Source-Document Workflow
 
@@ -56,6 +57,8 @@ This separation is important:
 - Non-programmable or judgment-heavy interpretation should remain explicit, reviewable, and warning-marked.
 
 When a required fact cannot be tied to a known named document, modules should identify the relevant IVS/IPS document class instead. The governing document-type reference is `reference/Plan File Types.pdf`, the Plan File Indexing Specification Guide. It defines plan-file indices such as plan documents, participant data, correspondence, audit documents, actuarial closeout reports, standard termination files, reconsiderations, and missing participant files. This document-class layer should be used in prompts, input requirements, and citations so the actuary knows where to search in IVS.
+
+The app includes an **Evidence Guide** page for this purpose. It maps core module facts to IVS document classes, scraper contracts, manual fallbacks, citation expectations, and downstream deliverables. The guide can be downloaded as `case-evidence-guide.json`.
 
 ## Important Inputs
 

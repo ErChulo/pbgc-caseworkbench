@@ -804,6 +804,19 @@ textarea.code {
   color: var(--muted);
 }
 
+.evidence-fact {
+  display: grid;
+  gap: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.75rem;
+}
+
+.evidence-fact span {
+  color: var(--muted);
+}
+
 .v1-audit-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

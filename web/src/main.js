@@ -103,6 +103,7 @@ const routes = [
   { path: "#/metadata", title: "Metadata", render: renderMetadata },
   { path: "#/dashboard", title: "Dashboard", render: renderDashboard },
   { path: "#/guide", title: "Case Guide", render: renderCaseGuide },
+  { path: "#/evidence-guide", title: "Evidence Guide", render: renderEvidenceGuide },
   { path: "#/inputs", title: "Inputs Matrix", render: renderInputsMatrix },
   { path: "#/rules", title: "Rules Registry", render: renderRulesRegistry },
   { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
@@ -497,7 +498,7 @@ function renderRoute() {
   if (!page) return;
   let route = currentRoute();
   const ready = isMetadataReady();
-  const preMetadataRoutes = new Set(["#/metadata", "#/guide"]);
+  const preMetadataRoutes = new Set(["#/metadata", "#/guide", "#/evidence-guide"]);
   if (!ready && !preMetadataRoutes.has(route.path)) {
     route = routes.find((r) => r.path === "#/guide") ?? routes[0];
     setRoute(route.path);
@@ -1003,6 +1004,401 @@ function buildInputRequirementRows() {
       ready_count: statuses.filter((status) => status.ready).length,
       required_count: statuses.length
     };
+  });
+}
+
+const ivsDocumentClassRegistry = [
+  {
+    code: "3A",
+    title: "Notice of Determination",
+    index: "INDEX 3: Trusteeship Documents (PBGC)",
+    searchUse: "Trusteeship/NOD evidence, termination timeline, and case status facts."
+  },
+  {
+    code: "3B",
+    title: "Trusteeship Agreement",
+    index: "INDEX 3: Trusteeship Documents (PBGC)",
+    searchUse: "DOTR/trusteeship authority and legal appointment evidence."
+  },
+  {
+    code: "5A",
+    title: "Plan Amendments and Restatements",
+    index: "INDEX 5: Pension Plan Documents",
+    searchUse: "Plan provisions, freezes, optional forms, eligibility, benefit formulas, and effective-date history."
+  },
+  {
+    code: "5A1",
+    title: "Summary Plan Description (SPD)",
+    index: "INDEX 5: Pension Plan Documents",
+    searchUse: "Participant-facing plan provisions and benefit summaries."
+  },
+  {
+    code: "5B",
+    title: "Original Plan Documents",
+    index: "INDEX 5: Pension Plan Documents",
+    searchUse: "Original governing plan provisions and plan setup."
+  },
+  {
+    code: "5C",
+    title: "Union Contracts and Amendments",
+    index: "INDEX 5: Pension Plan Documents",
+    searchUse: "CBA-covered benefit classes, service rules, and negotiated changes."
+  },
+  {
+    code: "8A",
+    title: "PBGC Internal Gross Level Participant Data and Non-ASD Spreadsheets",
+    index: "INDEX 8: Additional Plan and Participant Data/Multi-Employer Plan Data",
+    searchUse: "Post-DOPT participant/census/payee extracts and valuation data."
+  },
+  {
+    code: "8B",
+    title: "Prior Plan Administrator Data",
+    index: "INDEX 8: Additional Plan and Participant Data/Multi-Employer Plan Data",
+    searchUse: "Pre-DOPT administrator files, participant data, and source records."
+  },
+  {
+    code: "8C",
+    title: "Employee Contributions",
+    index: "INDEX 8: Additional Plan and Participant Data/Multi-Employer Plan Data",
+    searchUse: "Employee contribution balances and contributory benefit evidence."
+  },
+  {
+    code: "8D",
+    title: "Plan Assumption",
+    index: "INDEX 8: Additional Plan and Participant Data/Multi-Employer Plan Data",
+    searchUse: "DERF loads, payee records, payment assumption, and benefit-status evidence."
+  },
+  {
+    code: "9C",
+    title: "Actuarial Correspondence",
+    index: "INDEX 9: Correspondence",
+    searchUse: "Actuarial memos, questions, and plan-level correspondence."
+  },
+  {
+    code: "10",
+    title: "Pre-DOPT and Multiemployer Actuarial Data",
+    index: "INDEX 10: Pre-DOPT and Multiemployer Actuarial Data",
+    searchUse: "Pre-DOPT valuation, actuarial assumptions, and plan actuarial workpapers."
+  },
+  {
+    code: "11A",
+    title: "Participant Data Audits",
+    index: "INDEX 11: Audit Documents",
+    searchUse: "Participant data audit results and data correction evidence."
+  },
+  {
+    code: "11C",
+    title: "Source Document Audit",
+    index: "INDEX 11: Audit Documents",
+    searchUse: "Best-source determinations and source-document support."
+  },
+  {
+    code: "11C1",
+    title: "Data Element Listing",
+    index: "INDEX 11: Audit Documents",
+    searchUse: "Field requirements and best available source for each data element."
+  },
+  {
+    code: "12B",
+    title: "Actuarial Case Memo",
+    index: "INDEX 12: Actuarial Case Reports",
+    searchUse: "Actuarial closeout conclusions, PA guidance, and case memo evidence."
+  },
+  {
+    code: "12D",
+    title: "Plan Abstract/Plan Summary/APAD",
+    index: "INDEX 12: Actuarial Case Reports",
+    searchUse: "Existing plan summary and programming guides for benefit calculations."
+  },
+  {
+    code: "12E",
+    title: "Plan Conversion Factor",
+    index: "INDEX 12: Actuarial Case Reports",
+    searchUse: "J&S, early retirement, late retirement, and conversion-factor support."
+  },
+  {
+    code: "12F",
+    title: "Valuation Spreadsheets/Listings",
+    index: "INDEX 12: Actuarial Case Reports",
+    searchUse: "Population/tab listings, valuation worksheets, and participant status breakdowns."
+  },
+  {
+    code: "12H",
+    title: "Benefit Statement Recalculation Program Instructions",
+    index: "INDEX 12: Actuarial Case Reports",
+    searchUse: "BSRS/benefit statement recalculation instructions."
+  },
+  {
+    code: "12J",
+    title: "Samples of Detailed Calculations",
+    index: "INDEX 12: Actuarial Case Reports",
+    searchUse: "Historical calculation examples and formula behavior evidence."
+  },
+  {
+    code: "14C",
+    title: "Distribution Data",
+    index: "INDEX 14: Standard Termination",
+    searchUse: "Distribution schedules and participant benefit calculation data."
+  },
+  {
+    code: "20D",
+    title: "Missing Participant Plan-Level Correspondence",
+    index: "INDEX 20: Missing Participant Program",
+    searchUse: "Missing participant correspondence and plan-level MP evidence."
+  }
+];
+
+function ivsClassByCode(code) {
+  return ivsDocumentClassRegistry.find((item) => item.code === code);
+}
+
+const evidenceRequirements = [
+  {
+    id: "EV-META-001",
+    module: "Metadata",
+    route: "#/metadata",
+    requiredFact: "Plan identity, case number, DOPT, DOTR, NOD, NOIT, BPD, DOBF, assigned staff, and plan status.",
+    documentClassCodes: ["3A", "3B", "9C", "12B"],
+    scraperContract: "reference/metadata-scraper-prompt.txt",
+    acceptedInput: "PlanMetadata JSON upload or manual form entry",
+    manualFallback: "Enter unknown/na with notes until the IVS source is found.",
+    citationRule: "Known facts require doc_id, page, and locator/snippet when available.",
+    downstreamImpact: ["All manifests", "R5", "DEL", "PF", "436", "Estimated Analyses", "V1", "BSRS/BCV"]
+  },
+  {
+    id: "EV-R5-001",
+    module: "R5 / Plan Summary",
+    route: "#/plan-summary",
+    requiredFact: "Plan provisions across the full plan history, including amendments, restatements, SPDs, CBAs, freezes, optional forms, and eligibility rules.",
+    documentClassCodes: ["5A", "5A1", "5B", "5C", "12D"],
+    scraperContract: "reference/r5-scraper-prompt.md / web asset r5-scraper-prompt.v3.md",
+    acceptedInput: "R5Summary.json plus Plan Summary DOCX template",
+    manualFallback: "Enter cited R5 facts manually; ambiguous provisions remain unknown/na.",
+    citationRule: "Every known R5 answer should carry document, page, and locator evidence.",
+    downstreamImpact: ["########R5.docx", "DEL", "PF", "436", "Estimated Analyses", "V1"]
+  },
+  {
+    id: "EV-DEL-001",
+    module: "DEL",
+    route: "#/del",
+    requiredFact: "Required participant, beneficiary, alternate payee, payment, and calculation fields, with best-source evidence for each field.",
+    documentClassCodes: ["8A", "8B", "8C", "8D", "11A", "11C", "11C1", "12F"],
+    scraperContract: "planned DEL/source-priority scraper JSON schema",
+    acceptedInput: "R5Summary.json, DD.csv, source-priority JSON, participant source files by browser upload",
+    manualFallback: "Record required field as missing/unknown and name the IVS class to search next.",
+    citationRule: "Known source-priority decisions should cite the document class and document locator.",
+    downstreamImpact: ["########DEL.pdf", "Synthetic Population", "PF", "V1", "BSRS/BCV"]
+  },
+  {
+    id: "EV-PF-001",
+    module: "Plan Factors",
+    route: "#/factors",
+    requiredFact: "Mortality, interest, optional form, early/late retirement, J&S, and plan conversion-factor rules.",
+    documentClassCodes: ["5A", "5A1", "5B", "10", "12D", "12E"],
+    scraperContract: "planned planFactors.json scraper/schema",
+    acceptedInput: "R5Summary.json, factor workpapers/tables, PF template/workbook, cited factor assumptions",
+    manualFallback: "Enter cited assumption manually or keep factor unknown/na.",
+    citationRule: "Factor values and formulas require source citations; do not invent values.",
+    downstreamImpact: ["########PF.xlsx", "V1"]
+  },
+  {
+    id: "EV-436-001",
+    module: "436",
+    route: "#/436",
+    requiredFact: "Section 436 applicability, freeze/amendment evidence, AFTAP/CBA facts, BPD/DOBF dates, and limitation memo facts.",
+    documentClassCodes: ["5A", "5B", "9C", "10", "12B", "12D"],
+    scraperContract: "planned 436 evidence scraper/schema",
+    acceptedInput: "436 evidence JSON, plan amendments, memo notes, and template input package",
+    manualFallback: "Mark applicability unknown and route to human review.",
+    citationRule: "Applicability conclusions require cited facts plus review notes.",
+    downstreamImpact: ["436 Limitation Analysis.docx", "V1"]
+  },
+  {
+    id: "EV-EST-001",
+    module: "Estimated Analyses",
+    route: "#/estimated-adjustments",
+    requiredFact: "Payment history, current benefit status, estimated benefit extracts, payee status, PIF/verification status, and operational notes.",
+    documentClassCodes: ["8A", "8D", "9C", "11A", "12B", "12F", "14C", "20D"],
+    scraperContract: "planned estimated-analysis scraper/schema",
+    acceptedInput: "Payment/current-benefit JSON, workpapers, admin extracts, source notes",
+    manualFallback: "Preserve gap as warning and continue with explicit unknown/na placeholders.",
+    citationRule: "Payment and payee facts require source file/class and locator when available.",
+    downstreamImpact: ["Estimated Benefit Adjustments Analysis.docx", "Estimated Benefit Administration Analysis.docx"]
+  },
+  {
+    id: "EV-V1-001",
+    module: "V1",
+    route: "#/v1-engine-explorer",
+    requiredFact: "Candidate engine evidence, population tab structure, run structure, formula behavior, output field needs, and BCV/ATPBGC formula preservation.",
+    documentClassCodes: ["12D", "12E", "12F", "12H", "12J"],
+    scraperContract: "approved V1Summary.json import plus v1-tab-pattern-corpus.json and v1-tab-blueprint.json",
+    acceptedInput: "Approved V1Summary JSON files, R5Summary.json, tab corpus, tab blueprint, selected candidate",
+    manualFallback: "Select closest approved candidate with warnings or mark from-scratch requirement.",
+    citationRule: "Selected V1 must cite ranking evidence, corpus evidence, and review warnings.",
+    downstreamImpact: ["########V1.xlsx", "BSRS/BCV", "Estimated Analyses"]
+  },
+  {
+    id: "EV-BSRS-001",
+    module: "Letters / BCV",
+    route: "#/letters-bcv",
+    requiredFact: "Letter variables, BSRS statement/recalculation config, BCV output fields, and sample statement behavior.",
+    documentClassCodes: ["12H", "12I", "12J", "20D"],
+    scraperContract: "planned BSRS/BCV config scraper/schema",
+    acceptedInput: "S1/BSRS samples, variable mappings, V1 output contract, DEL field model",
+    manualFallback: "Mark letter variables missing and continue with review warnings.",
+    citationRule: "Config variables should trace to DEL/V1 fields or sample config source.",
+    downstreamImpact: ["########S1.cfg"]
+  }
+];
+
+function evidenceStatusForRequirement(req) {
+  if (req.id.startsWith("EV-META")) return inputRequirementStatus("metadata");
+  if (req.id.startsWith("EV-R5")) return inputRequirementStatus("r5");
+  if (req.id.startsWith("EV-DEL")) return inputRequirementStatus("data-elements");
+  if (req.id.startsWith("EV-PF")) return inputRequirementStatus("plan-factors");
+  if (req.id.startsWith("EV-436")) return inputRequirementStatus("section-436");
+  if (req.id.startsWith("EV-EST")) {
+    const adj = inputRequirementStatus("estimated-benefit-adjustments");
+    const admin = inputRequirementStatus("estimated-benefit-administration");
+    return {
+      ready: adj.ready && admin.ready,
+      label: adj.ready || admin.ready ? "Estimated analysis evidence started" : "Estimated analysis evidence missing",
+      detail: `${adj.label}; ${admin.label}`
+    };
+  }
+  if (req.id.startsWith("EV-V1")) return inputRequirementStatus("v1");
+  if (req.id.startsWith("EV-BSRS")) return inputRequirementStatus("letters-bcv-config");
+  return { ready: false, label: "Evidence missing", detail: "No status rule configured." };
+}
+
+async function buildEvidenceGuideExport() {
+  const planMetadataHash = state.planMetadata
+    ? await sha256HexString(stringifyStable(state.planMetadata))
+    : "unknown";
+  return {
+    meta: {
+      app_version: APP_VERSION,
+      schema_version: SCHEMA_VERSION,
+      module_id: "guided-evidence-ivs-assistant",
+      module_version: "0.7.0",
+      generated_at_utc: new Date().toISOString(),
+      case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+      plan_metadata_hash: planMetadataHash
+    },
+    source_document_dictionary: {
+      governing_reference: "reference/Plan File Types.pdf",
+      title: "Plan File Indexing Specification Guide",
+      usage: "Use IVS/IPS document class when a required fact is searchable by class rather than by a known named document.",
+      classes: ivsDocumentClassRegistry
+    },
+    requirements: evidenceRequirements.map((req) => ({
+      ...req,
+      documentClasses: req.documentClassCodes.map(ivsClassByCode).filter(Boolean),
+      readiness: evidenceStatusForRequirement(req)
+    }))
+  };
+}
+
+function renderEvidenceRequirementCard(req) {
+  const status = evidenceStatusForRequirement(req);
+  const classes = req.documentClassCodes.map(ivsClassByCode).filter(Boolean);
+  return `
+    <article class="requirements-card">
+      <div class="workflow-card-head">
+        <h3>${escapeHtml(req.id)}: ${escapeHtml(req.module)}</h3>
+        <span>${status.ready ? "ready" : "needs evidence"}</span>
+      </div>
+      <div class="requirements-readiness">
+        <div class="${status.ready ? "ready" : "missing"}">
+          <b>${status.ready ? "Ready" : "Needed"}</b>
+          <span>${escapeHtml(status.label)}</span>
+          <small>${escapeHtml(status.detail)}</small>
+        </div>
+      </div>
+      <div class="evidence-fact">
+        <b>Fact needed</b>
+        <span>${escapeHtml(req.requiredFact)}</span>
+      </div>
+      <div class="requirements-columns">
+        <div>
+          <b>Search IVS classes</b>
+          <ul>${classes.map((cls) => `<li><b>${escapeHtml(cls.code)}</b> ${escapeHtml(cls.title)}<br/><small>${escapeHtml(cls.searchUse)}</small></li>`).join("")}</ul>
+        </div>
+        <div>
+          <b>Scrape / enter</b>
+          <ul>
+            <li>Contract: ${escapeHtml(req.scraperContract)}</li>
+            <li>Input: ${escapeHtml(req.acceptedInput)}</li>
+            <li>Fallback: ${escapeHtml(req.manualFallback)}</li>
+          </ul>
+        </div>
+        <div>
+          <b>Why it matters</b>
+          <ul>
+            <li>Citation: ${escapeHtml(req.citationRule)}</li>
+            ${req.downstreamImpact.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+          </ul>
+        </div>
+      </div>
+      <button class="ghost" data-evidence-route="${escapeHtml(req.route)}">Open workflow</button>
+    </article>
+  `;
+}
+
+function renderEvidenceGuide(container) {
+  const readyCount = evidenceRequirements.filter((req) => evidenceStatusForRequirement(req).ready).length;
+  container.innerHTML = `
+    <section class="page-hero">
+      <div class="page-title">
+        <h2>Evidence Guide</h2>
+        <p>Translate each missing case fact into IVS document classes, scraper JSON contracts, manual fallback, and downstream impact.</p>
+      </div>
+      <div class="page-actions">
+        <button class="primary" id="download_evidence_guide">Download evidence guide JSON</button>
+        <button class="ghost" id="evidence_open_inputs">Inputs Matrix</button>
+      </div>
+    </section>
+
+    ${planContextHtml()}
+
+    ${renderWorkflowStatePanel({ title: "Shared Case Inputs", keys: ["metadata", "r5", "v1", "synthetic"] })}
+
+    <div class="banner subtle">
+      Use this page when the app needs a fact but the exact source document is not known. Search the listed IVS class, scrape to JSON with the listed contract, then load or enter the result in the target workflow.
+    </div>
+
+    <div class="rules-summary-grid">
+      <div><span>Evidence requirements</span><b>${evidenceRequirements.length}</b><small>module-level needs</small></div>
+      <div><span>Ready</span><b>${readyCount}</b><small>based on current case state</small></div>
+      <div><span>IVS classes</span><b>${ivsDocumentClassRegistry.length}</b><small>seeded from Plan File Types</small></div>
+    </div>
+
+    <div class="requirements-list">
+      ${evidenceRequirements.map(renderEvidenceRequirementCard).join("")}
+    </div>
+
+    <pre id="evidence_guide_status" class="code" style="margin-top:12px;"></pre>
+  `;
+
+  hydratePlanContext(container);
+  container.querySelectorAll("[data-evidence-route]").forEach((btn) => {
+    btn.addEventListener("click", () => setRoute(btn.dataset.evidenceRoute));
+  });
+  container.querySelector("#evidence_open_inputs").addEventListener("click", () => setRoute("#/inputs"));
+  const statusEl = container.querySelector("#evidence_guide_status");
+  container.querySelector("#download_evidence_guide").addEventListener("click", async () => {
+    try {
+      const payload = await buildEvidenceGuideExport();
+      state.lastManifest = payload.meta;
+      saveState();
+      downloadBlob(
+        new Blob([stringifyStable(payload)], { type: "application/json" }),
+        "case-evidence-guide.json"
+      );
+      statusEl.textContent = `Downloaded case-evidence-guide.json\n\n${JSON.stringify(payload.meta, null, 2)}`;
+    } catch (err) {
+      statusEl.textContent = `ERROR: ${err.message}`;
+    }
   });
 }
 
@@ -2130,6 +2526,7 @@ function renderDashboard(container) {
       <p class="muted">Use Case Guide as the primary workflow. It walks through Metadata, Inputs Matrix, R5, DEL, PF, 436, Estimated Analyses, V1, and BSRS/BCV with warnings instead of hard blocks.</p>
       <div class="button-row">
         <button class="primary" data-dashboard-route="#/guide">Open Case Guide</button>
+        <button class="ghost" data-dashboard-route="#/evidence-guide">Evidence Guide</button>
         <button class="ghost" data-dashboard-route="#/v1-engine-explorer">Open V1 Explorer</button>
         <button class="ghost" data-dashboard-route="#/v1-audit">Audit V1 Match</button>
         <button class="ghost" data-dashboard-route="#/inputs">Review Inputs Matrix</button>
@@ -2191,6 +2588,7 @@ function renderCaseGuide(container) {
         <p>Follow the caseworkbench flow. Missing inputs are allowed, but they stay visible as warnings and unknown/na placeholders.</p>
       </div>
       <div class="page-actions">
+        <button class="ghost" data-guide-route="#/evidence-guide">Evidence Guide</button>
         <button class="ghost" data-guide-route="#/inputs">Inputs Matrix</button>
         <button class="ghost" data-guide-route="#/rules">Rules Registry</button>
       </div>
