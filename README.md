@@ -36,6 +36,25 @@ Use the modules in this order:
 10. **Letters / BCV**: prepare BSRS/BCV configuration support once V1 and population inputs are available.
 11. **Audit / Manifest**: download manifests and inspect versioned run evidence.
 
+## Source-Document Workflow
+
+The actuary works back and forth between Caseworkbench and the PBGC source-document repository, commonly the **Image Viewer System (IVS)**. Caseworkbench should not pretend that all case facts are already structured.
+
+The intended pattern is:
+
+1. The actuary identifies the needed source material in IVS or another governed document source.
+2. The actuary uses an LLM with a module-specific scraper prompt and JSON schema to extract the needed facts.
+3. The scraper output is loaded into Caseworkbench as JSON.
+4. Caseworkbench validates, renders, and explains the extracted facts to the user.
+5. Caseworkbench deterministically prepares downstream artifacts from validated structured inputs and PBGC business logic.
+
+This separation is important:
+
+- LLMs may assist with extraction from unstructured documents.
+- Caseworkbench owns validation, state, manifests, hashing, warnings, and deterministic output generation.
+- PBGC business logic should be programmed when it is mechanical and supported by `reference/`.
+- Non-programmable or judgment-heavy interpretation should remain explicit, reviewable, and warning-marked.
+
 ## Important Inputs
 
 Reference material lives in `reference/` and governs the implementation. Do not replace it with guesses.
