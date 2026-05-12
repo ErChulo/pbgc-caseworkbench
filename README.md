@@ -60,6 +60,8 @@ When a required fact cannot be tied to a known named document, modules should id
 
 The app includes an **Evidence Guide** page for this purpose. It maps core module facts to IVS document classes, scraper contracts, manual fallbacks, citation expectations, and downstream deliverables. The guide can be downloaded as `case-evidence-guide.json`.
 
+The Evidence Guide also includes an **Evidence Coverage** check. It marks each requirement as ready, warning, or missing based on current structured inputs, PlanMetadata document-registry matches to expected IVS classes, and available citation validators. The coverage report can be downloaded as `case-evidence-coverage.json`.
+
 ## Important Inputs
 
 Reference material lives in `reference/` and governs the implementation. Do not replace it with guesses.

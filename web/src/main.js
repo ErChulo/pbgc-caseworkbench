@@ -1129,6 +1129,12 @@ const ivsDocumentClassRegistry = [
     searchUse: "BSRS/benefit statement recalculation instructions."
   },
   {
+    code: "12I",
+    title: "Samples of ARIEL Benefit and Retirement Statements",
+    index: "INDEX 12: Actuarial Case Reports",
+    searchUse: "Sample benefit and retirement statements."
+  },
+  {
     code: "12J",
     title: "Samples of Detailed Calculations",
     index: "INDEX 12: Actuarial Case Reports",
@@ -1271,10 +1277,177 @@ function evidenceStatusForRequirement(req) {
   return { ready: false, label: "Evidence missing", detail: "No status rule configured." };
 }
 
+function normalizeEvidenceText(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function metadataDocumentRegistryEntries() {
+  return (state.planMetadata?.documents ?? []).map((doc) => {
+    const readEntry = (entry) => (entry && typeof entry === "object" && "value" in entry ? entry.value : entry);
+    return {
+      doc_id: readEntry(doc.doc_id) ?? "",
+      name: readEntry(doc.name) ?? "",
+      type: readEntry(doc.type) ?? "",
+      notes: readEntry(doc.notes) ?? "",
+      raw: doc
+    };
+  });
+}
+
+function documentMatchesIvsClass(doc, ivsClass) {
+  const haystack = normalizeEvidenceText([doc.doc_id, doc.name, doc.type, doc.notes].join(" "));
+  const code = normalizeEvidenceText(ivsClass.code);
+  const title = normalizeEvidenceText(ivsClass.title);
+  const index = normalizeEvidenceText(ivsClass.index);
+  if (!haystack) return false;
+  if (code && new RegExp(`(^| )${code.replace(/\s+/g, "\\s*")}( |$)`).test(haystack)) return true;
+  if (title && haystack.includes(title)) return true;
+  return index
+    .split(" ")
+    .filter((part) => part.length > 4)
+    .some((part) => haystack.includes(part)) &&
+    title
+      .split(" ")
+      .filter((part) => part.length > 4)
+      .some((part) => haystack.includes(part));
+}
+
+function coverageCitationHealth(req) {
+  if (req.id === "EV-META-001") {
+    const metadata = state.planMetadata;
+    if (!metadata) {
+      return { status: "missing", detail: "PlanMetadata is not loaded.", known_without_citations: [] };
+    }
+    const missing = [];
+    REQUIRED_METADATA_FIELDS.forEach((field) => {
+      let cur = metadata;
+      field.path.forEach((part) => {
+        cur = cur?.[part];
+      });
+      const value = String(cur?.value ?? "").trim().toLowerCase();
+      const hasKnownValue = value && value !== "unknown" && value !== "na" && value !== "n/a";
+      if (hasKnownValue && !(cur?.citations ?? []).length) missing.push(field.label);
+    });
+    return {
+      status: missing.length ? "warning" : "ready",
+      detail: missing.length ? `${missing.length} known metadata field(s) lack citations.` : "Known metadata fields have citation arrays or no known value.",
+      known_without_citations: missing
+    };
+  }
+  if (req.id === "EV-R5-001") {
+    const validations = state.caseWorkflow.r5Summary?.validations ?? [];
+    if (!validations.length) {
+      return { status: "missing", detail: "No R5Summary validation is loaded.", known_without_citations: [] };
+    }
+    const missingCount = validations.reduce((sum, item) => sum + (item.known_without_citation_count ?? 0), 0);
+    const missingItems = validations.flatMap((item) => item.known_without_citations ?? []).slice(0, 25);
+    return {
+      status: missingCount ? "warning" : "ready",
+      detail: missingCount ? `${missingCount} known R5 answer(s) lack citations.` : "Loaded R5 validation has no known answer citation gaps.",
+      known_without_citations: missingItems
+    };
+  }
+  const runKeyByRequirement = {
+    "EV-DEL-001": "data-elements",
+    "EV-PF-001": "plan-factors",
+    "EV-436-001": "section-436",
+    "EV-EST-001": "estimated-benefit-adjustments",
+    "EV-V1-001": "v1-tab-blueprint",
+    "EV-BSRS-001": "letters-bcv-config"
+  };
+  const runKey = runKeyByRequirement[req.id];
+  const hasRun = !!state.caseWorkflow.moduleRuns?.[runKey];
+  return {
+    status: hasRun ? "warning" : "missing",
+    detail: hasRun
+      ? "A module package exists; detailed citation validation is not implemented for this package yet."
+      : "No module package is available yet for citation validation.",
+    known_without_citations: []
+  };
+}
+
+function evaluateEvidenceCoverage(req) {
+  const readiness = evidenceStatusForRequirement(req);
+  const docs = metadataDocumentRegistryEntries();
+  const expectedClasses = req.documentClassCodes.map(ivsClassByCode).filter(Boolean);
+  const matchedClasses = expectedClasses
+    .map((ivsClass) => ({
+      ...ivsClass,
+      matched_documents: docs
+        .filter((doc) => documentMatchesIvsClass(doc, ivsClass))
+        .map((doc) => ({
+          doc_id: doc.doc_id || "unknown",
+          name: doc.name || "unknown",
+          type: doc.type || "unknown"
+        }))
+    }))
+    .filter((entry) => entry.matched_documents.length);
+  const citation = coverageCitationHealth(req);
+  const warnings = [];
+  if (!readiness.ready) warnings.push(readiness.detail);
+  if (!matchedClasses.length) warnings.push("No PlanMetadata document registry entry matched the expected IVS classes.");
+  if (citation.status !== "ready") warnings.push(citation.detail);
+  const hasAnyEvidence = readiness.ready || matchedClasses.length || citation.status !== "missing";
+  const status = warnings.length === 0 ? "ready" : hasAnyEvidence ? "warning" : "missing";
+  return {
+    requirement_id: req.id,
+    module: req.module,
+    status,
+    readiness,
+    expected_ivs_classes: expectedClasses.map((item) => ({ code: item.code, title: item.title })),
+    matched_ivs_classes: matchedClasses,
+    citation_health: citation,
+    downstream_impact: req.downstreamImpact,
+    warnings
+  };
+}
+
+async function buildEvidenceCoverageReport() {
+  const planMetadataHash = state.planMetadata
+    ? await sha256HexString(stringifyStable(state.planMetadata))
+    : "unknown";
+  const coverage = evidenceRequirements.map(evaluateEvidenceCoverage);
+  const counts = coverage.reduce(
+    (acc, item) => {
+      acc[item.status] = (acc[item.status] ?? 0) + 1;
+      return acc;
+    },
+    { ready: 0, warning: 0, missing: 0 }
+  );
+  return {
+    meta: {
+      app_version: APP_VERSION,
+      schema_version: SCHEMA_VERSION,
+      module_id: "evidence-requirement-coverage-validator",
+      module_version: "0.7.0",
+      generated_at_utc: new Date().toISOString(),
+      case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+      plan_metadata_hash: planMetadataHash
+    },
+    summary: {
+      requirement_count: coverage.length,
+      ready_count: counts.ready ?? 0,
+      warning_count: counts.warning ?? 0,
+      missing_count: counts.missing ?? 0,
+      document_registry_count: metadataDocumentRegistryEntries().length
+    },
+    assumptions: [
+      "Coverage is a deterministic readiness validator, not actuarial approval.",
+      "IVS class matches use the PlanMetadata document registry text and may require manual refinement.",
+      "Module package citation validation is shallow until each module has a final artifact schema."
+    ],
+    coverage
+  };
+}
+
 async function buildEvidenceGuideExport() {
   const planMetadataHash = state.planMetadata
     ? await sha256HexString(stringifyStable(state.planMetadata))
     : "unknown";
+  const coverageReport = await buildEvidenceCoverageReport();
   return {
     meta: {
       app_version: APP_VERSION,
@@ -1295,24 +1468,36 @@ async function buildEvidenceGuideExport() {
       ...req,
       documentClasses: req.documentClassCodes.map(ivsClassByCode).filter(Boolean),
       readiness: evidenceStatusForRequirement(req)
-    }))
+    })),
+    coverage_summary: coverageReport.summary
   };
 }
 
 function renderEvidenceRequirementCard(req) {
   const status = evidenceStatusForRequirement(req);
+  const coverage = evaluateEvidenceCoverage(req);
   const classes = req.documentClassCodes.map(ivsClassByCode).filter(Boolean);
   return `
-    <article class="requirements-card">
+    <article class="requirements-card coverage-${escapeHtml(coverage.status)}">
       <div class="workflow-card-head">
         <h3>${escapeHtml(req.id)}: ${escapeHtml(req.module)}</h3>
-        <span>${status.ready ? "ready" : "needs evidence"}</span>
+        <span>${escapeHtml(coverage.status)}</span>
       </div>
       <div class="requirements-readiness">
         <div class="${status.ready ? "ready" : "missing"}">
           <b>${status.ready ? "Ready" : "Needed"}</b>
           <span>${escapeHtml(status.label)}</span>
           <small>${escapeHtml(status.detail)}</small>
+        </div>
+        <div class="${coverage.matched_ivs_classes.length ? "ready" : "missing"}">
+          <b>${coverage.matched_ivs_classes.length ? "IVS class matched" : "IVS class needed"}</b>
+          <span>${coverage.matched_ivs_classes.length ? `${coverage.matched_ivs_classes.length} class(es) matched in document registry` : "No matching registry document"}</span>
+          <small>${escapeHtml(coverage.expected_ivs_classes.map((cls) => cls.code).join(", "))}</small>
+        </div>
+        <div class="${coverage.citation_health.status === "ready" ? "ready" : "missing"}">
+          <b>${coverage.citation_health.status === "ready" ? "Citation check" : "Citation warning"}</b>
+          <span>${escapeHtml(coverage.citation_health.status)}</span>
+          <small>${escapeHtml(coverage.citation_health.detail)}</small>
         </div>
       </div>
       <div class="evidence-fact">
@@ -1340,13 +1525,25 @@ function renderEvidenceRequirementCard(req) {
           </ul>
         </div>
       </div>
+      ${coverage.warnings.length ? `<div class="coverage-warning-list"><b>Coverage warnings</b><ul>${coverage.warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
       <button class="ghost" data-evidence-route="${escapeHtml(req.route)}">Open workflow</button>
     </article>
   `;
 }
 
-function renderEvidenceGuide(container) {
+function renderEvidenceCoverageSummary(report) {
+  return `
+    <div class="rules-summary-grid">
+      <div><span>Ready</span><b>${report.summary.ready_count}</b><small>requirements</small></div>
+      <div><span>Warnings</span><b>${report.summary.warning_count}</b><small>requirements</small></div>
+      <div><span>Missing</span><b>${report.summary.missing_count}</b><small>requirements</small></div>
+    </div>
+  `;
+}
+
+async function renderEvidenceGuide(container) {
   const readyCount = evidenceRequirements.filter((req) => evidenceStatusForRequirement(req).ready).length;
+  const coverageReport = await buildEvidenceCoverageReport();
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
@@ -1355,6 +1552,7 @@ function renderEvidenceGuide(container) {
       </div>
       <div class="page-actions">
         <button class="primary" id="download_evidence_guide">Download evidence guide JSON</button>
+        <button class="ghost" id="download_evidence_coverage">Download coverage JSON</button>
         <button class="ghost" id="evidence_open_inputs">Inputs Matrix</button>
       </div>
     </section>
@@ -1372,6 +1570,9 @@ function renderEvidenceGuide(container) {
       <div><span>Ready</span><b>${readyCount}</b><small>based on current case state</small></div>
       <div><span>IVS classes</span><b>${ivsDocumentClassRegistry.length}</b><small>seeded from Plan File Types</small></div>
     </div>
+
+    <h3>Evidence Coverage</h3>
+    ${renderEvidenceCoverageSummary(coverageReport)}
 
     <div class="requirements-list">
       ${evidenceRequirements.map(renderEvidenceRequirementCard).join("")}
@@ -1396,6 +1597,20 @@ function renderEvidenceGuide(container) {
         "case-evidence-guide.json"
       );
       statusEl.textContent = `Downloaded case-evidence-guide.json\n\n${JSON.stringify(payload.meta, null, 2)}`;
+    } catch (err) {
+      statusEl.textContent = `ERROR: ${err.message}`;
+    }
+  });
+  container.querySelector("#download_evidence_coverage").addEventListener("click", async () => {
+    try {
+      const payload = await buildEvidenceCoverageReport();
+      state.lastManifest = payload.meta;
+      saveState();
+      downloadBlob(
+        new Blob([stringifyStable(payload)], { type: "application/json" }),
+        "case-evidence-coverage.json"
+      );
+      statusEl.textContent = `Downloaded case-evidence-coverage.json\n\n${JSON.stringify(payload.meta, null, 2)}`;
     } catch (err) {
       statusEl.textContent = `ERROR: ${err.message}`;
     }
