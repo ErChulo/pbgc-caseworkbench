@@ -3651,6 +3651,33 @@ function syntheticPresetOptionsHtml(catalog) {
     .join("");
 }
 
+function renderSyntheticPopulationCurrentState() {
+  const summary = getSyntheticPopulationSummary();
+  if (!summary) {
+    return `
+      <div class="workflow-selected missing">
+        <b>No Synthetic Population Generated</b>
+        <span>Generate one here to make no-PII test data available to PF, V1, estimated analyses, and letters.</span>
+      </div>
+    `;
+  }
+  return `
+    <div class="workflow-selected ready">
+      <b>Synthetic Population Ready</b>
+      <span>${escapeHtml(summary.output_name ?? "synthetic population")} | ${summary.row_count ?? "unknown"} rows | ${summary.field_count ?? "unknown"} fields | seed ${summary.seed ?? "unknown"}</span>
+      <small>Synthetic test data only. Downstream modules can treat this as a no-PII testing input.</small>
+    </div>
+  `;
+}
+
+function syntheticConfigFromControls(container, fieldsBox) {
+  const rowCount = Math.max(1, Math.min(5000, Number(container.querySelector("#synthetic_rows").value) || 100));
+  const seed = Number(container.querySelector("#synthetic_seed").value) || 12345;
+  const fields = fieldsBox.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const scenarioMix = JSON.parse(container.querySelector("#synthetic_mix").value);
+  return { rowCount, seed, fields, scenarioMix };
+}
+
 function syntheticValueForField(field, context) {
   const name = field.name.toUpperCase();
   const { index, scenario, rand, metadata } = context;
@@ -3754,6 +3781,7 @@ async function renderSyntheticPopulation(container) {
     <div class="banner subtle">All generated rows are synthetic test data. Do not use this output as production participant data.</div>
 
     <div class="card">
+      <div id="synthetic_current_state">${renderSyntheticPopulationCurrentState()}</div>
       <div class="grid two">
         <div>
           <label><b>DD.csv override</b></label><br/>
@@ -3801,6 +3829,7 @@ async function renderSyntheticPopulation(container) {
       <div class="button-row" style="margin-top:12px;">
         <button id="synthetic_generate" class="primary">Generate ${escapeHtml(outputName)}</button>
         <button id="synthetic_manifest" disabled class="ghost">Download manifest.json</button>
+        <button id="synthetic_clear" class="ghost">Clear synthetic state</button>
       </div>
       <pre id="synthetic_status" class="code" style="margin-top:12px;"></pre>
     </div>
@@ -3809,16 +3838,19 @@ async function renderSyntheticPopulation(container) {
 
   let activeCatalog = catalog;
   let activeDdText = defaultDdCsvText;
-  let lastManifest = null;
+  let lastManifest = state.caseWorkflow.moduleRuns?.["synthetic-population"]?.manifest ?? null;
   const ddInput = container.querySelector("#synthetic_dd");
   const status = container.querySelector("#synthetic_status");
   const manifestBtn = container.querySelector("#synthetic_manifest");
   const fieldsBox = container.querySelector("#synthetic_fields");
   const presetSelect = container.querySelector("#synthetic_preset");
+  const currentStateEl = container.querySelector("#synthetic_current_state");
+  manifestBtn.disabled = !lastManifest;
   container.querySelector("#synthetic_edit_metadata").addEventListener("click", () => setRoute("#/metadata"));
   container.querySelector("#synthetic_apply_preset").addEventListener("click", () => {
     const fields = syntheticFieldPresets(activeCatalog)[presetSelect.value] ?? defaultSyntheticFields(activeCatalog);
     fieldsBox.value = fields.join("\n");
+    status.textContent = `Applied ${presetSelect.options[presetSelect.selectedIndex]?.textContent ?? "field preset"}.`;
   });
   ddInput.addEventListener("change", async () => {
     const file = ddInput.files?.[0];
@@ -3835,12 +3867,10 @@ async function renderSyntheticPopulation(container) {
 
   container.querySelector("#synthetic_generate").addEventListener("click", async () => {
     try {
-      const rowCount = Math.max(1, Math.min(5000, Number(container.querySelector("#synthetic_rows").value) || 100));
-      const seed = Number(container.querySelector("#synthetic_seed").value) || 12345;
-      const fields = fieldsBox.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-      const scenarioMix = JSON.parse(container.querySelector("#synthetic_mix").value);
+      const { rowCount, seed, fields, scenarioMix } = syntheticConfigFromControls(container, fieldsBox);
       const missing = fields.filter((field) => !activeCatalog.fields.some((candidate) => candidate.name === field));
       if (missing.length) throw new Error(`Unknown DD.csv field(s): ${missing.slice(0, 8).join(", ")}`);
+      if (!fields.length) throw new Error("Select at least one output field.");
       const result = generateSyntheticPopulation(activeCatalog, fields, { rowCount, seed, scenarioMix }, state.planMetadata);
       const cleanCsv = recordsToCsv(result.clean, result.fields);
       const dirtyCsv = recordsToCsv(result.dirty, result.fields);
@@ -3888,6 +3918,7 @@ async function renderSyntheticPopulation(container) {
       };
       state.lastManifest = lastManifest;
       saveState();
+      currentStateEl.innerHTML = renderSyntheticPopulationCurrentState();
       const zip = new JSZip();
       zip.file("population.clean.csv", cleanCsv);
       zip.file("population.dirty.csv", dirtyCsv);
@@ -3905,6 +3936,17 @@ async function renderSyntheticPopulation(container) {
   manifestBtn.addEventListener("click", () => {
     if (!lastManifest) return;
     downloadBlob(new Blob([JSON.stringify(lastManifest, null, 2)], { type: "application/json" }), "manifest.synthetic-population.json");
+  });
+
+  container.querySelector("#synthetic_clear").addEventListener("click", () => {
+    delete state.caseWorkflow.moduleRuns["synthetic-population"];
+    state.caseWorkflow.syntheticPopulation = null;
+    if (state.lastManifest?.module_id === "synthetic-population") state.lastManifest = null;
+    lastManifest = null;
+    manifestBtn.disabled = true;
+    saveState();
+    currentStateEl.innerHTML = renderSyntheticPopulationCurrentState();
+    status.textContent = "Cleared synthetic population state. Previously downloaded files are not affected.";
   });
 }
 
