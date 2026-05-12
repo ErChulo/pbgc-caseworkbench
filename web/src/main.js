@@ -6,14 +6,17 @@ import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import v1EngineExplorerHtml from "./legacy/pbgc-v1-engine-explorer.html?raw";
 import logoSvg from "./assets/logo.svg?raw";
 import metadataScraperPrompt from "./assets/metadata-scraper-prompt.txt?raw";
+import r5ScraperPrompt from "./assets/r5-scraper-prompt.v3.md?raw";
 import r5ItemsText from "../../reference/r5-items.txt?raw";
 
 import Ajv from "ajv";
 import planMetadataSchema from "./planMetadata.schema.json";
+import r5SummarySchema from "./r5Summary.schema.json";
 import { APP_VERSION, SCHEMA_VERSION } from "./version.js";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validatePlanMetadata = ajv.compile(planMetadataSchema);
+const validateR5SummarySchema = ajv.compile(r5SummarySchema);
 
 const state = {
   appVersion: APP_VERSION,
@@ -318,6 +321,24 @@ const r5RequiredItems = r5ItemsText
   .filter(Boolean);
 
 const R5_REQUIRED_ITEM_COUNT = r5RequiredItems.length;
+
+const R5_ITEM_TO_PLAN_PROVISIONS_ROW = {
+  1: 2, 2: 5, 3: 9, 4: 10, 5: 11,
+  6: 13, 7: 14, 8: 15, 9: 16, 10: 17,
+  11: 18, 12: 19, 13: 20, 14: 21,
+  15: 23, 16: 24, 17: 25, 18: 26,
+  19: 28, 20: 29, 21: 30, 22: 31,
+  23: 32, 24: 33, 25: 34,
+  26: 36, 27: 37, 28: 38, 29: 39, 30: 40, 31: 41,
+  32: 43, 33: 44, 34: 45,
+  35: 47, 36: 48, 37: 49,
+  38: 50, 39: 51, 40: 52,
+  41: 53, 42: 55, 43: 56,
+  44: 58, 45: 59, 46: 60,
+  47: 61, 48: 63, 49: 64, 50: 65, 51: 66,
+  52: 68, 53: 69, 54: 70, 55: 71, 56: 72, 57: 73,
+  58: 74, 59: 75, 60: 76, 61: 77
+};
 
 function setRoute(path) {
   if (location.hash !== path) location.hash = path;
@@ -3440,6 +3461,8 @@ function renderR5ValidationReport(report) {
         <strong>${report.downstream_ready ? "Ready" : "Needs Review"}</strong>
       </div>
       <div class="r5-validation-grid">
+        <div><b>${report.schema_valid ? "Pass" : "Fail"}</b><span>JSON schema</span></div>
+        <div><b>${escapeHtml(report.summary_stage ?? "unknown")}</b><span>summary stage</span></div>
         <div><b>${escapeHtml(score)}</b><span>required items covered</span></div>
         <div><b>${report.unknown_or_na_count}</b><span>unknown/na answers</span></div>
         <div><b>${report.known_without_citation_count}</b><span>known answers missing citations</span></div>
@@ -3451,6 +3474,14 @@ function renderR5ValidationReport(report) {
       ${
         report.warnings.length
           ? `<div class="banner subtle">${report.warnings.map((warning) => escapeHtml(warning)).join(" ")}</div>`
+          : ""
+      }
+      ${
+        report.schema_errors?.length
+          ? `<div class="r5-validation-list"><b>First schema errors</b><ul>${report.schema_errors
+              .slice(0, 8)
+              .map((err) => `<li>${escapeHtml(err.instance_path || "/")}: ${escapeHtml(err.message)}</li>`)
+              .join("")}</ul></div>`
           : ""
       }
       ${
@@ -3603,6 +3634,8 @@ function renderPlanSummary(container) {
       </div>
 
       <div class="button-row" style="margin-top:12px;">
+        <button id="ps_download_r5_prompt" class="ghost">Download R5 scraper prompt v3</button>
+        <button id="ps_download_r5_schema" class="ghost">Download R5Summary.schema.json</button>
         <button id="ps_generate" disabled>Generate ${escapeHtml(outputName)}</button>
         <button id="ps_manifest" disabled class="ghost">Download manifest.json</button>
         <button id="ps_validation_report" disabled class="ghost">Download R5 validation</button>
@@ -3636,6 +3669,8 @@ function renderPlanSummary(container) {
   const btn = container.querySelector("#ps_generate");
   const btnManifest = container.querySelector("#ps_manifest");
   const btnValidationReport = container.querySelector("#ps_validation_report");
+  const btnR5Prompt = container.querySelector("#ps_download_r5_prompt");
+  const btnR5Schema = container.querySelector("#ps_download_r5_schema");
   const status = container.querySelector("#ps_status");
   const validationEl = container.querySelector("#ps_r5_validation");
   const checkTemplate = container.querySelector("#ps_check_template");
@@ -3756,6 +3791,17 @@ function renderPlanSummary(container) {
       type: "application/json"
     });
     downloadBlob(blob, "manifest.plan-summary.json");
+  });
+
+  btnR5Prompt.addEventListener("click", () => {
+    downloadBlob(new Blob([r5ScraperPrompt], { type: "text/markdown" }), "r5-scraper-prompt.v3.md");
+  });
+
+  btnR5Schema.addEventListener("click", () => {
+    downloadBlob(
+      new Blob([JSON.stringify(r5SummarySchema, null, 2)], { type: "application/json" }),
+      "R5Summary.schema.json"
+    );
   });
 
   btnValidationReport.addEventListener("click", () => {
@@ -4030,17 +4076,28 @@ function createR5CaseProfile(inputs) {
 
 function normalizeR5Items(r5Json) {
   const rawItems = r5Json?.items ?? r5Json?.r5_items ?? r5Json?.answers ?? r5Json?.responses ?? [];
-  if (!Array.isArray(rawItems)) return [];
-  return rawItems.map((item, index) => {
+  let items = [];
+  if (Array.isArray(rawItems)) {
+    items = rawItems;
+  } else if (rawItems && typeof rawItems === "object") {
+    items = Object.entries(rawItems)
+      .map(([key, value]) => {
+        if (!value || typeof value !== "object") return null;
+        return { item_id: Number(value.item_id ?? key), ...value };
+      })
+      .filter(Boolean);
+  }
+  return items.map((item, index) => {
     const itemId = Number(item?.item_id ?? item?.id ?? item?.number ?? item?.r5_item_id ?? item?.r5_id);
     const answer =
       item?.answer ??
       item?.response ??
+      item?.summary_1line ??
       item?.value ??
       item?.summary ??
       item?.text ??
       "";
-    const citations = item?.citations ?? item?.citation ?? item?.sources ?? item?.source_citations ?? [];
+    const citations = item?.citations ?? item?.references ?? item?.citation ?? item?.sources ?? item?.source_citations ?? [];
     return {
       item_id: Number.isFinite(itemId) ? itemId : index + 1,
       label: item?.label ?? item?.question ?? item?.name ?? "",
@@ -4065,6 +4122,15 @@ function citationHasLocator(citation) {
 }
 
 function validateR5SummaryJson(r5Json, sourceFile = "R5Summary.json") {
+  const schemaValid = !!validateR5SummarySchema(r5Json);
+  const schemaErrors = schemaValid
+    ? []
+    : (validateR5SummarySchema.errors ?? []).map((err) => ({
+        instance_path: err.instancePath,
+        schema_path: err.schemaPath,
+        message: err.message,
+        params: err.params
+      }));
   const items = normalizeR5Items(r5Json);
   const byId = new Map();
   items.forEach((item) => {
@@ -4100,6 +4166,7 @@ function validateR5SummaryJson(r5Json, sourceFile = "R5Summary.json") {
   const citationCoveredKnown = Math.max(0, knownCount - known_without_citations.length);
   const recognizedDomains = detectBenefitDomains(collectTextValues(r5Json, []));
   const warnings = [];
+  if (!schemaValid) warnings.push(`R5Summary schema failed with ${schemaErrors.length} error(s).`);
   if (missing_items.length) warnings.push(`${missing_items.length} required R5 item(s) missing.`);
   if (known_without_citations.length) warnings.push(`${known_without_citations.length} known R5 answer(s) lack citations.`);
   if (!recognizedDomains.length) warnings.push("No recognized benefit/provision domains found.");
@@ -4108,6 +4175,10 @@ function validateR5SummaryJson(r5Json, sourceFile = "R5Summary.json") {
   return {
     source_file: sourceFile,
     contract_version: `r5-items-${R5_REQUIRED_ITEM_COUNT}`,
+    schema_version_expected: SCHEMA_VERSION,
+    schema_valid: schemaValid,
+    schema_errors: schemaErrors,
+    summary_stage: r5Json?.summary_stage ?? "unknown",
     required_item_count: R5_REQUIRED_ITEM_COUNT,
     item_count: items.length,
     covered_required_count: coveredCount,
@@ -4118,7 +4189,7 @@ function validateR5SummaryJson(r5Json, sourceFile = "R5Summary.json") {
     citation_covered_known_count: citationCoveredKnown,
     citation_coverage_ratio: knownCount ? Number((citationCoveredKnown / knownCount).toFixed(4)) : 0,
     recognized_domains: recognizedDomains,
-    downstream_ready: missing_items.length === 0 && known_without_citations.length === 0 && recognizedDomains.length > 0,
+    downstream_ready: schemaValid && missing_items.length === 0 && known_without_citations.length === 0 && recognizedDomains.length > 0,
     missing_items,
     unknown_or_na_items,
     known_without_citations,
@@ -4329,6 +4400,44 @@ function nodeText(node) {
   return out;
 }
 
+function isWordNode(node, localName) {
+  return (
+    node?.nodeType === 1 &&
+    (node.localName === localName || node.nodeName === `w:${localName}` || String(node.nodeName ?? "").endsWith(`:${localName}`))
+  );
+}
+
+function wordDirectChildren(parent, localName) {
+  return Array.from(parent?.childNodes ?? []).filter((node) => isWordNode(node, localName));
+}
+
+function wordFirstChild(parent, localName) {
+  return wordDirectChildren(parent, localName)[0] ?? null;
+}
+
+function wordAttr(el, localName) {
+  if (!el?.attributes) return null;
+  return (
+    el.getAttribute(`w:${localName}`) ??
+    el.getAttribute(localName) ??
+    Array.from(el.attributes).find((attr) => String(attr.name ?? "").endsWith(`:${localName}`))?.value ??
+    null
+  );
+}
+
+function getCellByGridCol(tr, gridCol) {
+  const cells = wordDirectChildren(tr, "tc");
+  let col = 0;
+  for (const cell of cells) {
+    const tcPr = wordFirstChild(cell, "tcPr");
+    const gridSpan = tcPr ? wordFirstChild(tcPr, "gridSpan") : null;
+    const span = Math.max(1, Number.parseInt(wordAttr(gridSpan, "val") ?? "1", 10) || 1);
+    if (gridCol >= col && gridCol < col + span) return cell;
+    col += span;
+  }
+  return null;
+}
+
 function findTableAfterHeadingParagraph(doc, headingText) {
   const body = doc.getElementsByTagName("w:body")[0];
   if (!body) return null;
@@ -4366,6 +4475,16 @@ function findRatesBlockTable(doc, headingText) {
     findTableAfterHeadingParagraph(doc, headingText) ||
     findTableContainingText(doc, headingText)
   );
+}
+
+function findPlanProvisionsTable(doc) {
+  const tables = doc.getElementsByTagName("w:tbl");
+  for (let i = 0; i < tables.length; i++) {
+    const text = nodeText(tables[i]);
+    const rows = tables[i].getElementsByTagName("w:tr").length;
+    if (text.includes("Plan Provisions") && rows >= 70) return tables[i];
+  }
+  return null;
 }
 
 function findCellByLabelInTable(tbl, label) {
@@ -4449,12 +4568,7 @@ function setCellText(doc, tc, value) {
   while (tc.firstChild) tc.removeChild(tc.firstChild);
 
   const p = doc.createElementNS(W_NS, "w:p");
-  const r = doc.createElementNS(W_NS, "w:r");
-  const t = doc.createElementNS(W_NS, "w:t");
-  t.setAttribute("xml:space", "preserve");
-  t.appendChild(doc.createTextNode(String(value ?? "")));
-  r.appendChild(t);
-  p.appendChild(r);
+  appendTextWithBreaks(doc, p, String(value ?? ""));
   tc.appendChild(p);
 }
 
@@ -4485,6 +4599,65 @@ function setValueInCellRightOfLabel(doc, tbl, label, value) {
     }
   }
   return { ok: false, reason: `label not found in metadata table: '${label}'` };
+}
+
+function citationToDisplayText(citation) {
+  if (!citation) return "";
+  if (typeof citation === "string") return citation.trim();
+  const parts = [];
+  const doc = citation.doc_id ?? citation.document_id ?? citation.source_file ?? citation.source ?? citation.name;
+  const page = citation.page ?? citation.page_number ?? citation.pages;
+  const locator = citation.locator ?? citation.section ?? citation.line;
+  if (doc) parts.push(String(doc));
+  if (page) parts.push(`p. ${page}`);
+  if (locator) parts.push(String(locator));
+  return parts.join("; ");
+}
+
+function fillR5PlanProvisionItems(doc, r5Json) {
+  const table = findPlanProvisionsTable(doc);
+  if (!table) {
+    return { ok: false, reason: "Could not locate Plan Provisions table.", written: 0, missing: R5_REQUIRED_ITEM_COUNT };
+  }
+
+  const rows = wordDirectChildren(table, "tr");
+  const itemsById = new Map();
+  normalizeR5Items(r5Json).forEach((item) => {
+    if (!itemsById.has(item.item_id)) itemsById.set(item.item_id, item);
+  });
+
+  let written = 0;
+  let missing = 0;
+  let cellsMissing = 0;
+  for (const required of r5RequiredItems) {
+    const rowIndex = R5_ITEM_TO_PLAN_PROVISIONS_ROW[required.item_id];
+    const row = rows[rowIndex];
+    const cell = row ? getCellByGridCol(row, 1) : null;
+    if (!cell) {
+      cellsMissing++;
+      continue;
+    }
+
+    const item = itemsById.get(required.item_id);
+    const answer = String(item?.answer ?? "").trim();
+    if (!answer) {
+      missing++;
+      setCellText(doc, cell, "");
+      continue;
+    }
+
+    const citationLine = (item?.citations ?? []).map(citationToDisplayText).filter(Boolean).join("; ");
+    setCellText(doc, cell, citationLine ? `${answer}\n${citationLine}` : answer);
+    written++;
+  }
+
+  return {
+    ok: cellsMissing === 0,
+    reason: cellsMissing ? `${cellsMissing} Plan Provisions cell(s) not found.` : "Filled available R5 items.",
+    written,
+    missing,
+    cells_missing: cellsMissing
+  };
 }
 
 function pickValue(r5, meta, key, keywords = []) {
@@ -4582,6 +4755,10 @@ async function fillPlanSummaryDocx(docxFile, r5Json, planMetadata) {
     log.push(JSON.stringify(appendValueToLabelInTable(doc, annTbl, "Immediate Rate", annImm), null, 0));
     log.push(JSON.stringify(appendValueToLabelInTable(doc, annTbl, "Deferral Rate", annDef), null, 0));
   }
+
+  const provisionFill = fillR5PlanProvisionItems(doc, r5Json);
+  log.push(`Plan Provisions R5 items: written=${provisionFill.written}, missing_answers=${provisionFill.missing}, missing_cells=${provisionFill.cells_missing}`);
+  if (!provisionFill.ok) log.push(`Plan Provisions warning: ${provisionFill.reason}`);
 
   const serializer = new XMLSerializer();
   const newXml = serializer.serializeToString(doc);
