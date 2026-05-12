@@ -55,6 +55,8 @@ This separation is important:
 - PBGC business logic should be programmed when it is mechanical and supported by `reference/`.
 - Non-programmable or judgment-heavy interpretation should remain explicit, reviewable, and warning-marked.
 
+When a required fact cannot be tied to a known named document, modules should identify the relevant IVS/IPS document class instead. The governing document-type reference is `reference/Plan File Types.pdf`, the Plan File Indexing Specification Guide. It defines plan-file indices such as plan documents, participant data, correspondence, audit documents, actuarial closeout reports, standard termination files, reconsiderations, and missing participant files. This document-class layer should be used in prompts, input requirements, and citations so the actuary knows where to search in IVS.
+
 ## Important Inputs
 
 Reference material lives in `reference/` and governs the implementation. Do not replace it with guesses.
@@ -67,6 +69,7 @@ Important files include:
 - `reference/metadata-scraper-prompt.txt`
 - `reference/r5-scraper-prompt.md`
 - `reference/CASE_PROCESSING.txt`
+- `reference/Plan File Types.pdf`
 - `reference/raw-approved-v1-engines/*.json`
 - templates and sample files under `reference/`
 
