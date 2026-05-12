@@ -16,6 +16,7 @@ As a case actuary, I need a downloadable scraper prompt and JSON Schema so exter
 - **FR-003**: Schema MUST require citations with `doc_id`, `page`, `locator`, and `snippet` for cited facts.
 - **FR-004**: Plan Summary page MUST download the R5 scraper prompt v3 and schema.
 - **FR-005**: R5 validation report MUST include schema pass/fail and schema errors.
+- **FR-006**: Integrated Plan Summary generation MUST fill all available R5 items 1-61 into the Plan Provisions table.
 
 ## Success Criteria
 

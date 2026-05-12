@@ -322,6 +322,24 @@ const r5RequiredItems = r5ItemsText
 
 const R5_REQUIRED_ITEM_COUNT = r5RequiredItems.length;
 
+const R5_ITEM_TO_PLAN_PROVISIONS_ROW = {
+  1: 2, 2: 5, 3: 9, 4: 10, 5: 11,
+  6: 13, 7: 14, 8: 15, 9: 16, 10: 17,
+  11: 18, 12: 19, 13: 20, 14: 21,
+  15: 23, 16: 24, 17: 25, 18: 26,
+  19: 28, 20: 29, 21: 30, 22: 31,
+  23: 32, 24: 33, 25: 34,
+  26: 36, 27: 37, 28: 38, 29: 39, 30: 40, 31: 41,
+  32: 43, 33: 44, 34: 45,
+  35: 47, 36: 48, 37: 49,
+  38: 50, 39: 51, 40: 52,
+  41: 53, 42: 55, 43: 56,
+  44: 58, 45: 59, 46: 60,
+  47: 61, 48: 63, 49: 64, 50: 65, 51: 66,
+  52: 68, 53: 69, 54: 70, 55: 71, 56: 72, 57: 73,
+  58: 74, 59: 75, 60: 76, 61: 77
+};
+
 function setRoute(path) {
   if (location.hash !== path) location.hash = path;
 }
@@ -4058,17 +4076,28 @@ function createR5CaseProfile(inputs) {
 
 function normalizeR5Items(r5Json) {
   const rawItems = r5Json?.items ?? r5Json?.r5_items ?? r5Json?.answers ?? r5Json?.responses ?? [];
-  if (!Array.isArray(rawItems)) return [];
-  return rawItems.map((item, index) => {
+  let items = [];
+  if (Array.isArray(rawItems)) {
+    items = rawItems;
+  } else if (rawItems && typeof rawItems === "object") {
+    items = Object.entries(rawItems)
+      .map(([key, value]) => {
+        if (!value || typeof value !== "object") return null;
+        return { item_id: Number(value.item_id ?? key), ...value };
+      })
+      .filter(Boolean);
+  }
+  return items.map((item, index) => {
     const itemId = Number(item?.item_id ?? item?.id ?? item?.number ?? item?.r5_item_id ?? item?.r5_id);
     const answer =
       item?.answer ??
       item?.response ??
+      item?.summary_1line ??
       item?.value ??
       item?.summary ??
       item?.text ??
       "";
-    const citations = item?.citations ?? item?.citation ?? item?.sources ?? item?.source_citations ?? [];
+    const citations = item?.citations ?? item?.references ?? item?.citation ?? item?.sources ?? item?.source_citations ?? [];
     return {
       item_id: Number.isFinite(itemId) ? itemId : index + 1,
       label: item?.label ?? item?.question ?? item?.name ?? "",
@@ -4371,6 +4400,44 @@ function nodeText(node) {
   return out;
 }
 
+function isWordNode(node, localName) {
+  return (
+    node?.nodeType === 1 &&
+    (node.localName === localName || node.nodeName === `w:${localName}` || String(node.nodeName ?? "").endsWith(`:${localName}`))
+  );
+}
+
+function wordDirectChildren(parent, localName) {
+  return Array.from(parent?.childNodes ?? []).filter((node) => isWordNode(node, localName));
+}
+
+function wordFirstChild(parent, localName) {
+  return wordDirectChildren(parent, localName)[0] ?? null;
+}
+
+function wordAttr(el, localName) {
+  if (!el?.attributes) return null;
+  return (
+    el.getAttribute(`w:${localName}`) ??
+    el.getAttribute(localName) ??
+    Array.from(el.attributes).find((attr) => String(attr.name ?? "").endsWith(`:${localName}`))?.value ??
+    null
+  );
+}
+
+function getCellByGridCol(tr, gridCol) {
+  const cells = wordDirectChildren(tr, "tc");
+  let col = 0;
+  for (const cell of cells) {
+    const tcPr = wordFirstChild(cell, "tcPr");
+    const gridSpan = tcPr ? wordFirstChild(tcPr, "gridSpan") : null;
+    const span = Math.max(1, Number.parseInt(wordAttr(gridSpan, "val") ?? "1", 10) || 1);
+    if (gridCol >= col && gridCol < col + span) return cell;
+    col += span;
+  }
+  return null;
+}
+
 function findTableAfterHeadingParagraph(doc, headingText) {
   const body = doc.getElementsByTagName("w:body")[0];
   if (!body) return null;
@@ -4408,6 +4475,16 @@ function findRatesBlockTable(doc, headingText) {
     findTableAfterHeadingParagraph(doc, headingText) ||
     findTableContainingText(doc, headingText)
   );
+}
+
+function findPlanProvisionsTable(doc) {
+  const tables = doc.getElementsByTagName("w:tbl");
+  for (let i = 0; i < tables.length; i++) {
+    const text = nodeText(tables[i]);
+    const rows = tables[i].getElementsByTagName("w:tr").length;
+    if (text.includes("Plan Provisions") && rows >= 70) return tables[i];
+  }
+  return null;
 }
 
 function findCellByLabelInTable(tbl, label) {
@@ -4491,12 +4568,7 @@ function setCellText(doc, tc, value) {
   while (tc.firstChild) tc.removeChild(tc.firstChild);
 
   const p = doc.createElementNS(W_NS, "w:p");
-  const r = doc.createElementNS(W_NS, "w:r");
-  const t = doc.createElementNS(W_NS, "w:t");
-  t.setAttribute("xml:space", "preserve");
-  t.appendChild(doc.createTextNode(String(value ?? "")));
-  r.appendChild(t);
-  p.appendChild(r);
+  appendTextWithBreaks(doc, p, String(value ?? ""));
   tc.appendChild(p);
 }
 
@@ -4527,6 +4599,65 @@ function setValueInCellRightOfLabel(doc, tbl, label, value) {
     }
   }
   return { ok: false, reason: `label not found in metadata table: '${label}'` };
+}
+
+function citationToDisplayText(citation) {
+  if (!citation) return "";
+  if (typeof citation === "string") return citation.trim();
+  const parts = [];
+  const doc = citation.doc_id ?? citation.document_id ?? citation.source_file ?? citation.source ?? citation.name;
+  const page = citation.page ?? citation.page_number ?? citation.pages;
+  const locator = citation.locator ?? citation.section ?? citation.line;
+  if (doc) parts.push(String(doc));
+  if (page) parts.push(`p. ${page}`);
+  if (locator) parts.push(String(locator));
+  return parts.join("; ");
+}
+
+function fillR5PlanProvisionItems(doc, r5Json) {
+  const table = findPlanProvisionsTable(doc);
+  if (!table) {
+    return { ok: false, reason: "Could not locate Plan Provisions table.", written: 0, missing: R5_REQUIRED_ITEM_COUNT };
+  }
+
+  const rows = wordDirectChildren(table, "tr");
+  const itemsById = new Map();
+  normalizeR5Items(r5Json).forEach((item) => {
+    if (!itemsById.has(item.item_id)) itemsById.set(item.item_id, item);
+  });
+
+  let written = 0;
+  let missing = 0;
+  let cellsMissing = 0;
+  for (const required of r5RequiredItems) {
+    const rowIndex = R5_ITEM_TO_PLAN_PROVISIONS_ROW[required.item_id];
+    const row = rows[rowIndex];
+    const cell = row ? getCellByGridCol(row, 1) : null;
+    if (!cell) {
+      cellsMissing++;
+      continue;
+    }
+
+    const item = itemsById.get(required.item_id);
+    const answer = String(item?.answer ?? "").trim();
+    if (!answer) {
+      missing++;
+      setCellText(doc, cell, "");
+      continue;
+    }
+
+    const citationLine = (item?.citations ?? []).map(citationToDisplayText).filter(Boolean).join("; ");
+    setCellText(doc, cell, citationLine ? `${answer}\n${citationLine}` : answer);
+    written++;
+  }
+
+  return {
+    ok: cellsMissing === 0,
+    reason: cellsMissing ? `${cellsMissing} Plan Provisions cell(s) not found.` : "Filled available R5 items.",
+    written,
+    missing,
+    cells_missing: cellsMissing
+  };
 }
 
 function pickValue(r5, meta, key, keywords = []) {
@@ -4624,6 +4755,10 @@ async function fillPlanSummaryDocx(docxFile, r5Json, planMetadata) {
     log.push(JSON.stringify(appendValueToLabelInTable(doc, annTbl, "Immediate Rate", annImm), null, 0));
     log.push(JSON.stringify(appendValueToLabelInTable(doc, annTbl, "Deferral Rate", annDef), null, 0));
   }
+
+  const provisionFill = fillR5PlanProvisionItems(doc, r5Json);
+  log.push(`Plan Provisions R5 items: written=${provisionFill.written}, missing_answers=${provisionFill.missing}, missing_cells=${provisionFill.cells_missing}`);
+  if (!provisionFill.ok) log.push(`Plan Provisions warning: ${provisionFill.reason}`);
 
   const serializer = new XMLSerializer();
   const newXml = serializer.serializeToString(doc);
