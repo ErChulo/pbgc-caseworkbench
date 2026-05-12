@@ -34,7 +34,8 @@ const state = {
     r5Profile: null,
     rankings: [],
     selectedCandidate: null,
-    tabPatternCorpus: null
+    tabPatternCorpus: null,
+    tabBlueprintRecommendation: null
   },
   caseWorkflow: {
     r5Summary: null,
@@ -2882,6 +2883,175 @@ function renderV1TabPatternCorpusSummary(corpus) {
   `;
 }
 
+function collectBlueprintInputFields() {
+  const fieldSet = new Set();
+  const synthetic = getSyntheticPopulationSummary();
+  (synthetic?.fields ?? []).forEach((field) => fieldSet.add(String(field).trim()));
+  if (!fieldSet.size) {
+    try {
+      parseDdCsvCatalog(defaultDdCsvText).fields
+        .filter((field) => field.inputField)
+        .forEach((field) => fieldSet.add(field.name));
+    } catch {
+      // The bundled DD.csv is validated elsewhere; keep blueprint generation resilient.
+    }
+  }
+  return [...fieldSet].filter(Boolean).sort();
+}
+
+function desiredV1PopulationSignals(r5Domains, inputFields) {
+  const domains = new Set(r5Domains ?? []);
+  const fields = new Set((inputFields ?? []).map((field) => String(field).toUpperCase()));
+  const signals = new Set(["retiree_or_in_pay", "deferred_vested"]);
+  if (domains.has("qpsa_qdro")) {
+    signals.add("alternate_payee_or_qdro");
+    signals.add("beneficiary_or_survivor");
+  }
+  if (domains.has("retirement_dates") || domains.has("service") || fields.has("RETSTAT")) {
+    signals.add("active_participant");
+  }
+  if ([...fields].some((field) => field.includes("BEN") || field.includes("SP") || field.includes("SURV"))) {
+    signals.add("beneficiary_or_survivor");
+  }
+  if ([...fields].some((field) => field.includes("QDRO") || /^AP(_|$)/.test(field) || field.includes("ALTERNATE_PAYEE"))) {
+    signals.add("alternate_payee_or_qdro");
+  }
+  return [...signals].sort();
+}
+
+function findRepresentativeV1TabPattern(corpus, signal, selectedRecordId) {
+  const patterns = corpus?.tab_patterns ?? [];
+  const matching = patterns.filter((pattern) => (pattern.population_signals ?? []).includes(signal));
+  if (!matching.length) return null;
+  return matching
+    .map((pattern) => ({
+      pattern,
+      score:
+        (selectedRecordId && pattern.record_id === selectedRecordId ? 1000 : 0) +
+        (pattern.runs.includes("XRD") ? 100 : 0) +
+        pattern.formula_count / 100 +
+        pattern.cell_count / 1000
+    }))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.pattern.pattern_signature.localeCompare(b.pattern.pattern_signature);
+    })[0].pattern;
+}
+
+function fallbackV1TabNameForSignal(signal) {
+  return {
+    active_participant: "Active",
+    alternate_payee_or_qdro: "AP",
+    beneficiary_or_survivor: "Benes",
+    deferred_vested: "Sep Vested",
+    disabled_participant: "DBs",
+    retiree_or_in_pay: "Retirees"
+  }[signal] ?? signal;
+}
+
+async function buildV1TabBlueprintRecommendation() {
+  if (!state.v1Warehouse.tabPatternCorpus) {
+    if (!state.v1Warehouse.records.length) throw new Error("Build or import the V1 tab-pattern corpus first.");
+    state.v1Warehouse.tabPatternCorpus = await buildV1TabPatternCorpus();
+  }
+  const corpus = state.v1Warehouse.tabPatternCorpus;
+  const planMetadataHash = state.planMetadata
+    ? await sha256HexString(stringifyStable(state.planMetadata))
+    : "unknown";
+  const r5Profile = getR5WorkflowSummary()?.profile ?? null;
+  const selected = getSelectedV1Summary();
+  const inputFields = collectBlueprintInputFields();
+  const desiredSignals = desiredV1PopulationSignals(r5Profile?.recognized_domains ?? [], inputFields);
+  const warnings = [];
+  if (!r5Profile) warnings.push("No R5Summary profile loaded; recommendation uses default population classes and input fields only.");
+  if (!selected) warnings.push("No selected V1 candidate; tab representatives are chosen from the corpus instead of a chosen workbook.");
+  if (!getSyntheticPopulationSummary()) warnings.push("No synthetic/population field inventory found; bundled DD.csv input fields were used.");
+
+  const tabs = desiredSignals.map((signal) => {
+    const representative = findRepresentativeV1TabPattern(corpus, signal, selected?.candidate_record_id);
+    const observedFields = representative?.fields ?? [];
+    const fieldOverlap = inputFields.filter((field) => observedFields.includes(field));
+    const missingFromRepresentative = inputFields.filter((field) => !observedFields.includes(field)).slice(0, 100);
+    const runs = representative?.runs?.length ? representative.runs : ["XRD"];
+    const tabWarnings = [];
+    if (!representative) tabWarnings.push("No approved V1 corpus tab matched this population signal; tab name and XRD run are inferred.");
+    if (!runs.includes("XRD")) tabWarnings.push("Representative approved tab lacks XRD run; review before workbook generation.");
+    if (missingFromRepresentative.length) tabWarnings.push(`${missingFromRepresentative.length} input field(s) not observed on the representative tab.`);
+    return {
+      population_signal: signal,
+      recommended_source_tab: representative?.source_tab ?? fallbackV1TabNameForSignal(signal),
+      evidence_level: representative ? "observed_approved_v1_pattern" : "inferred_no_direct_pattern",
+      representative_workbook: representative?.workbook_name ?? "none",
+      representative_record_id: representative?.record_id ?? "none",
+      pattern_signature: representative?.pattern_signature ?? "none",
+      recommended_runs: runs,
+      formula_row: 2,
+      first_run_row: 4,
+      run_order_rule: "XRD first when present; remaining runs retain approved/canonical order.",
+      observed_formula_count: representative?.formula_count ?? 0,
+      observed_cell_count: representative?.cell_count ?? 0,
+      input_field_overlap: fieldOverlap,
+      input_fields_not_observed_on_representative: missingFromRepresentative,
+      warnings: tabWarnings
+    };
+  });
+
+  return {
+    meta: {
+      app_version: APP_VERSION,
+      schema_version: SCHEMA_VERSION,
+      module_id: "v1-tab-blueprint-recommender",
+      module_version: "0.7.0",
+      generated_at_utc: new Date().toISOString(),
+      case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+      plan_metadata_hash: planMetadataHash,
+      read_only: true
+    },
+    inputs: {
+      r5_profile_loaded: !!r5Profile,
+      recognized_r5_domains: r5Profile?.recognized_domains ?? [],
+      selected_v1_candidate: selected ?? null,
+      synthetic_population_loaded: !!getSyntheticPopulationSummary(),
+      input_field_count: inputFields.length,
+      corpus_meta: corpus.meta
+    },
+    recommendation: {
+      status: warnings.length ? "usable_with_warnings" : "ready_for_review",
+      recommended_tab_count: tabs.length,
+      desired_population_signals: desiredSignals,
+      tabs,
+      non_mechanical_items: [
+        "Plan-specific benefit formula interpretation remains outside this tab blueprint.",
+        "Any tab without observed approved-V1 evidence requires actuarial review before production use.",
+        "BCV/ATPBGC formula selection is not executed here; formulas remain opaque strings."
+      ],
+      warnings
+    }
+  };
+}
+
+function renderV1TabBlueprintSummary(blueprint) {
+  if (!blueprint) return `<div class="meta-line">No V1 tab blueprint recommendation built yet.</div>`;
+  return `
+    <div class="v1-summary-grid">
+      <div><b>${blueprint.recommendation.recommended_tab_count}</b><span>recommended tabs</span></div>
+      <div><b>${blueprint.inputs.input_field_count}</b><span>input fields</span></div>
+      <div><b>${blueprint.recommendation.warnings.length}</b><span>warnings</span></div>
+    </div>
+    <div class="requirements-list" style="margin-top:12px;">
+      ${blueprint.recommendation.tabs
+        .map(
+          (tab) => `
+            <div class="v1-list-item">
+              <b>${escapeHtml(tab.recommended_source_tab)} | ${escapeHtml(tab.population_signal)}</b>
+              <span>${escapeHtml(tab.evidence_level)} | runs: ${escapeHtml(tab.recommended_runs.join(", "))} | representative: ${escapeHtml(tab.representative_workbook)}</span>
+            </div>`
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderV1Audit(container) {
   const records = selectedOrTopV1Records(5);
   const previews = records.map(buildV1ReconstructionPreview).filter(Boolean);
@@ -2949,6 +3119,23 @@ function renderV1Audit(container) {
       </div>
     </div>
 
+    <div class="card" style="margin-top:12px;">
+      <div class="workflow-card-head">
+        <div>
+          <h3>V1 Tab Blueprint Recommendation</h3>
+          <p class="muted">Recommend population tabs and run structure from R5 domains, population/DD fields, selected V1 evidence, and the approved tab corpus.</p>
+        </div>
+        <span>review required</span>
+      </div>
+      <div class="button-row">
+        <button class="primary" id="build_v1_tab_blueprint" ${state.v1Warehouse.records.length || state.v1Warehouse.tabPatternCorpus ? "" : "disabled"}>Build tab blueprint</button>
+        <button class="ghost" id="download_v1_tab_blueprint" ${state.v1Warehouse.tabBlueprintRecommendation ? "" : "disabled"}>Download blueprint JSON</button>
+      </div>
+      <div id="v1_tab_blueprint_summary" style="margin-top:12px;">
+        ${renderV1TabBlueprintSummary(state.v1Warehouse.tabBlueprintRecommendation)}
+      </div>
+    </div>
+
     <div class="section-divider"></div>
     <h3>Reconstruction Preview</h3>
     <div class="requirements-list">
@@ -2966,6 +3153,9 @@ function renderV1Audit(container) {
   const buildCorpusBtn = container.querySelector("#build_v1_tab_corpus");
   const downloadCorpusBtn = container.querySelector("#download_v1_tab_corpus");
   const corpusSummaryEl = container.querySelector("#v1_tab_corpus_summary");
+  const buildBlueprintBtn = container.querySelector("#build_v1_tab_blueprint");
+  const downloadBlueprintBtn = container.querySelector("#download_v1_tab_blueprint");
+  const blueprintSummaryEl = container.querySelector("#v1_tab_blueprint_summary");
   const statusEl = container.querySelector("#v1_audit_status");
   downloadBtn.addEventListener("click", async () => {
     try {
@@ -2984,10 +3174,13 @@ function renderV1Audit(container) {
   buildCorpusBtn.addEventListener("click", async () => {
     try {
       state.v1Warehouse.tabPatternCorpus = await buildV1TabPatternCorpus();
+      state.v1Warehouse.tabBlueprintRecommendation = null;
       state.lastManifest = state.v1Warehouse.tabPatternCorpus.meta;
       saveState();
       corpusSummaryEl.innerHTML = renderV1TabPatternCorpusSummary(state.v1Warehouse.tabPatternCorpus);
       downloadCorpusBtn.disabled = false;
+      downloadBlueprintBtn.disabled = true;
+      blueprintSummaryEl.innerHTML = renderV1TabBlueprintSummary(null);
       statusEl.textContent = `Built v1-tab-pattern-corpus.json\n\n${JSON.stringify(state.v1Warehouse.tabPatternCorpus.meta, null, 2)}`;
     } catch (err) {
       statusEl.textContent = `ERROR: ${err.message}`;
@@ -3000,6 +3193,33 @@ function renderV1Audit(container) {
       "v1-tab-pattern-corpus.json"
     );
     statusEl.textContent = `Downloaded v1-tab-pattern-corpus.json\n\n${JSON.stringify(state.v1Warehouse.tabPatternCorpus.meta, null, 2)}`;
+  });
+  buildBlueprintBtn.addEventListener("click", async () => {
+    try {
+      state.v1Warehouse.tabBlueprintRecommendation = await buildV1TabBlueprintRecommendation();
+      state.lastManifest = state.v1Warehouse.tabBlueprintRecommendation.meta;
+      state.caseWorkflow.moduleRuns["v1-tab-blueprint"] = {
+        output_name: "v1-tab-blueprint.json",
+        generated_at_utc: state.v1Warehouse.tabBlueprintRecommendation.meta.generated_at_utc,
+        manifest: state.v1Warehouse.tabBlueprintRecommendation.meta
+      };
+      saveState();
+      corpusSummaryEl.innerHTML = renderV1TabPatternCorpusSummary(state.v1Warehouse.tabPatternCorpus);
+      blueprintSummaryEl.innerHTML = renderV1TabBlueprintSummary(state.v1Warehouse.tabBlueprintRecommendation);
+      downloadCorpusBtn.disabled = !state.v1Warehouse.tabPatternCorpus;
+      downloadBlueprintBtn.disabled = false;
+      statusEl.textContent = `Built v1-tab-blueprint.json\n\n${JSON.stringify(state.v1Warehouse.tabBlueprintRecommendation.meta, null, 2)}`;
+    } catch (err) {
+      statusEl.textContent = `ERROR: ${err.message}`;
+    }
+  });
+  downloadBlueprintBtn.addEventListener("click", () => {
+    if (!state.v1Warehouse.tabBlueprintRecommendation) return;
+    downloadBlob(
+      new Blob([stringifyStable(state.v1Warehouse.tabBlueprintRecommendation)], { type: "application/json" }),
+      "v1-tab-blueprint.json"
+    );
+    statusEl.textContent = `Downloaded v1-tab-blueprint.json\n\n${JSON.stringify(state.v1Warehouse.tabBlueprintRecommendation.meta, null, 2)}`;
   });
 }
 
@@ -4628,7 +4848,8 @@ function resetV1Warehouse() {
     r5Profile: null,
     rankings: [],
     selectedCandidate: null,
-    tabPatternCorpus: null
+    tabPatternCorpus: null,
+    tabBlueprintRecommendation: null
   };
 }
 
@@ -4788,6 +5009,7 @@ async function importApprovedV1Files(files) {
   state.v1Warehouse.profiles = profiles;
   state.v1Warehouse.diagnostics = diagnostics;
   state.v1Warehouse.tabPatternCorpus = null;
+  state.v1Warehouse.tabBlueprintRecommendation = null;
   state.v1Warehouse.importManifest = await buildV1RunManifest("v1-approved-import", {
     approvedProfiles: profiles,
     r5Inputs: [],
