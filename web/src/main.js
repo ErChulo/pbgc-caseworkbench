@@ -8,6 +8,7 @@ import logoSvg from "./assets/logo.svg?raw";
 import metadataScraperPrompt from "./assets/metadata-scraper-prompt.txt?raw";
 import r5ScraperPrompt from "./assets/r5-scraper-prompt.v3.md?raw";
 import r5ItemsText from "../../reference/r5-items.txt?raw";
+import defaultDdCsvText from "../../reference/DD.csv?raw";
 
 import Ajv from "ajv";
 import planMetadataSchema from "./planMetadata.schema.json";
@@ -104,6 +105,7 @@ const routes = [
   { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer },
   { path: "#/v1-audit", title: "V1 Audit", render: renderV1Audit },
   { path: "#/del", title: "DEL", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.del) },
+  { path: "#/synthetic-population", title: "Synthetic Population", render: renderSyntheticPopulation },
   { path: "#/factors", title: "Plan Factors", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.factors) },
   { path: "#/436", title: "436", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.section436) },
   { path: "#/estimated-adjustments", title: "Est. Adjustments", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdjustments) },
@@ -147,6 +149,14 @@ const canonicalDeliverables = [
     route: "#/factors",
     summary: "Mortality, interest, optional forms, and factor rules from R5 provisions and source material.",
     status: "Needs PF integration"
+  },
+  {
+    id: "syntheticPopulation",
+    outputName: "########SyntheticPopulation.zip",
+    title: "Synthetic Population",
+    route: "#/synthetic-population",
+    summary: "Deterministic no-PII participant/payee population for testing DEL, PF, V1, and estimated analyses.",
+    status: "Testing support"
   },
   {
     id: "section436",
@@ -197,6 +207,7 @@ function canonicalDeliverableById(id) {
 const inputMatrixToCanonicalDeliverable = {
   "plan-summary-r5": "r5",
   "data-elements": "del",
+  "synthetic-population": "syntheticPopulation",
   "plan-factors": "pf",
   "section-436": "section436",
   "estimated-benefit-adjustments": "estimatedAdjustments",
@@ -729,6 +740,16 @@ function deliverableCards() {
       upstreamInputs: artifactModuleConfigs.del.upstreamInputs
     },
     {
+      route: "#/synthetic-population",
+      title: "Synthetic Population",
+      status: "Testing support",
+      outputName: "########SyntheticPopulation.zip",
+      description: "Generate deterministic no-PII clean and dirty population files for testing downstream modules.",
+      inputs: ["PlanMetadata", "DD.csv", "Validated R5Summary.json when available", "Seed", "Row count", "Scenario mix"],
+      action: "Generate synthetic population",
+      upstreamInputs: ["metadata", "r5", "data-elements"]
+    },
+    {
       route: "#/factors",
       title: "Plan Factors",
       status: "Needs PF integration",
@@ -850,6 +871,20 @@ const inputRequirementMatrix = [
     upstreamOutputs: ["PlanMetadata", "R5Summary.json/profile", "Selected V1 engine when available"],
     governingReferences: ["reference/README - plan_factors.md", "reference/24884900PF.v0.7.13.xlsx", "reference/plan-summary-rules.txt"],
     readinessKeys: ["metadata", "r5", "v1"]
+  },
+  {
+    id: "synthetic-population",
+    title: "Synthetic Population / ########SyntheticPopulation.zip",
+    route: "#/synthetic-population",
+    pureInputs: [
+      "DD.csv field dictionary, preferably the governing reference/DD.csv",
+      "PlanMetadata for case number, plan number, DOPT, DOBF, and manifest hashes",
+      "Validated R5Summary.json and DEL package when available to guide required field selection",
+      "Synthetic generation settings: row count, seed, scenario mix, dirty issue rates"
+    ],
+    upstreamOutputs: ["PlanMetadata", "R5Summary.json/profile", "DEL package when available"],
+    governingReferences: ["reference/DD.csv", "https://github.com/ErChulo/pbgc-mock-population-module"],
+    readinessKeys: ["metadata", "r5", "data-elements"]
   },
   {
     id: "section-436",
@@ -1203,6 +1238,18 @@ const caseGuideSteps = [
     manualAction: "Document missing participant fields and source assumptions",
     programmedAction: "Generate the DEL input package now; later replace with ########DEL.pdf generator",
     warnings: ["No PII should be stored in repo fixtures; use browser upload only."]
+  },
+  {
+    id: "synthetic-population",
+    title: "Synthetic Population",
+    phase: "Testing Support",
+    route: "#/synthetic-population",
+    readinessKeys: ["metadata", "r5", "data-elements", "synthetic-population"],
+    prompt: "Generate deterministic no-PII population files that match DD.csv so DEL, PF, V1, estimated analyses, and BSRS can be tested without real participant data.",
+    uploadAction: "Use bundled reference/DD.csv or upload a DD.csv override",
+    manualAction: "Set seed, row count, scenario mix, and required field list",
+    programmedAction: "Download ########SyntheticPopulation.zip with clean CSV, dirty CSV, config, and manifest",
+    warnings: ["Synthetic population is for testing only and must not be treated as production participant data."]
   },
   {
     id: "plan-factors",
@@ -3423,6 +3470,377 @@ function renderV1EngineExplorer(container) {
   });
 
   refreshV1Ui();
+}
+
+function parseCsvRows(csvText) {
+  const normalized = String(csvText ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  for (let i = 0; i < normalized.length; i++) {
+    const ch = normalized[i];
+    if (inQuotes) {
+      if (ch === "\"") {
+        if (normalized[i + 1] === "\"") {
+          cell += "\"";
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += ch;
+      }
+      continue;
+    }
+    if (ch === "\"") {
+      inQuotes = true;
+    } else if (ch === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n") {
+      row.push(cell);
+      if (row.some((value) => String(value).trim() !== "")) rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += ch;
+    }
+  }
+  row.push(cell);
+  if (row.some((value) => String(value).trim() !== "")) rows.push(row);
+  return rows;
+}
+
+function parseDdCsvCatalog(csvText) {
+  const rows = parseCsvRows(csvText);
+  if (rows.length < 2) throw new Error("DD.csv must include a header and at least one field row.");
+  const headers = rows[0].map((header) => String(header).trim().toLowerCase());
+  const fieldIdx = headers.findIndex((header) => ["field_name", "field", "fieldname", "name", "column", "columnname"].includes(header));
+  const descIdx = headers.findIndex((header) => ["description", "desc", "definition"].includes(header));
+  const typeIdx = headers.findIndex((header) => ["data_type", "datatype", "type"].includes(header));
+  const inputIdx = headers.findIndex((header) => ["input_field", "input", "inputfield"].includes(header));
+  if (fieldIdx < 0) throw new Error("DD.csv missing FIELD_NAME column.");
+  const fields = rows
+    .slice(1)
+    .map((row) => {
+      const name = String(row[fieldIdx] ?? "").trim();
+      if (!name) return null;
+      const description = descIdx >= 0 ? String(row[descIdx] ?? "").trim() : "";
+      const explicitType = typeIdx >= 0 ? String(row[typeIdx] ?? "").trim() : "";
+      return {
+        name,
+        description,
+        dataType: inferSyntheticFieldType(name, explicitType, description),
+        inputField: inputIdx >= 0 ? String(row[inputIdx] ?? "").trim().toUpperCase() === "X" : false
+      };
+    })
+    .filter(Boolean);
+  return { fields };
+}
+
+function inferSyntheticFieldType(name, explicitType = "", description = "") {
+  const normalized = explicitType.trim().toLowerCase();
+  if (["date", "datetime"].includes(normalized)) return "date";
+  if (["number", "numeric", "decimal", "money", "currency"].includes(normalized)) return "number";
+  if (["integer", "int"].includes(normalized)) return "integer";
+  const haystack = `${name} ${description}`.toLowerCase();
+  if (/(^|[_\s])(dob|doh|dop|dote|dor|dod|sdob|bdob|dopt|dobf)([_\s]|$)/.test(haystack) || /\bdate\b/.test(haystack)) return "date";
+  if (/\b(age|count|years?|months?)\b/.test(haystack)) return "integer";
+  if (/\b(amount|benefit|balance|salary|compensation|rate|percent|pay)\b/.test(haystack)) return "number";
+  return "string";
+}
+
+function seededRandom(seed) {
+  let stateValue = Math.abs(Number(seed) || 1) % 2147483647;
+  if (stateValue === 0) stateValue = 1;
+  return () => {
+    stateValue = (stateValue * 48271) % 2147483647;
+    return stateValue / 2147483647;
+  };
+}
+
+function randInt(rand, min, max) {
+  return min + Math.floor(rand() * (max - min + 1));
+}
+
+function dateUtc(year, month, day) {
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function addYears(date, years) {
+  return dateUtc(date.getUTCFullYear() + years, date.getUTCMonth() + 1, date.getUTCDate());
+}
+
+function formatDateIso(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function syntheticScenarioPlan(rowCount, mix) {
+  const entries = Object.entries(mix).filter(([, weight]) => Number(weight) > 0);
+  const active = entries.length ? entries : [["participant_in_pay", 1]];
+  const total = active.reduce((sum, [, weight]) => sum + Number(weight), 0);
+  const counts = active.map(([scenario, weight]) => {
+    const raw = (Number(weight) / total) * rowCount;
+    return { scenario, count: Math.floor(raw), fraction: raw - Math.floor(raw) };
+  });
+  let assigned = counts.reduce((sum, item) => sum + item.count, 0);
+  counts
+    .slice()
+    .sort((a, b) => b.fraction - a.fraction || a.scenario.localeCompare(b.scenario))
+    .forEach((item) => {
+      if (assigned < rowCount) {
+        counts.find((candidate) => candidate.scenario === item.scenario).count++;
+        assigned++;
+      }
+    });
+  return counts
+    .sort((a, b) => a.scenario.localeCompare(b.scenario))
+    .flatMap((item) => Array.from({ length: item.count }, () => item.scenario));
+}
+
+function defaultSyntheticFields(catalog) {
+  const preferred = [
+    "BCV_REC_ID", "CASE", "RETSTAT", "ID", "Cust_ID", "SSN", "FNAME", "LNAME", "DOB", "DOH", "DOP", "DOTE", "DOR",
+    "DOD", "SEX", "MSTAT", "SFNAME", "SLNAME", "SDOB", "PA_AMB", "AMB", "VB", "FORM_CODE_ARD", "LEV_MB_ARD"
+  ];
+  const names = new Set(catalog.fields.map((field) => field.name));
+  const picked = preferred.filter((field) => names.has(field));
+  const inputFields = catalog.fields.filter((field) => field.inputField).map((field) => field.name).slice(0, 80);
+  return [...new Set([...picked, ...inputFields])].slice(0, 120);
+}
+
+function syntheticValueForField(field, context) {
+  const name = field.name.toUpperCase();
+  const { index, scenario, rand, metadata } = context;
+  if (name === "CASE") return metadata?.meta?.case_number?.value ?? "SYNTHETIC-CASE";
+  if (name === "BCV_REC_ID") return `SYN_BCV_${String(index + 1).padStart(7, "0")}`;
+  if (name === "CUST_ID") return `SYN_CUST_${String(index + 1).padStart(7, "0")}`;
+  if (name === "SSN") return `000-00-${String(index + 1).padStart(4, "0").slice(-4)}`;
+  if (name === "FNAME" || name === "PFNAME") return `SYN_FN_${String(index + 1).padStart(4, "0")}`;
+  if (name === "LNAME" || name === "PLNAME") return `SYN_LN_${String(index + 1).padStart(4, "0")}`;
+  if (name === "SFNAME") return context.married ? `SYN_SFN_${String(index + 1).padStart(4, "0")}` : "";
+  if (name === "SLNAME") return context.married ? `SYN_SLN_${String(index + 1).padStart(4, "0")}` : "";
+  if (name === "ID") return scenario === "beneficiary_in_pay" ? "2" : scenario === "alternate_payee_in_pay" ? "4" : "1";
+  if (name === "RETSTAT") {
+    if (scenario === "participant_in_pay" || scenario === "beneficiary_in_pay" || scenario === "alternate_payee_in_pay") return "1";
+    if (scenario === "participant_deferred_vested") return "2";
+    if (scenario === "participant_active_vested") return "3";
+    if (scenario === "participant_not_vested") return "4";
+    if (scenario === "excluded") return "5";
+    return "1";
+  }
+  if (name === "SEX" || name === "GENDER") return rand() > 0.5 ? "M" : "F";
+  if (name === "MSTAT") return context.married ? "M" : "S";
+  if (name === "DOB") return context.dob;
+  if (name === "SDOB") return context.married ? context.sdob : "";
+  if (name === "DOH") return context.doh;
+  if (name === "DOP") return context.dop;
+  if (name === "DOTE") return context.dote;
+  if (name === "DOR") return ["participant_in_pay", "beneficiary_in_pay", "alternate_payee_in_pay"].includes(scenario) ? context.dor : "";
+  if (name === "DOD") return scenario === "beneficiary_in_pay" ? context.dod : "";
+  if (name.includes("FORM_CODE")) return ["participant_in_pay", "beneficiary_in_pay", "alternate_payee_in_pay"].includes(scenario) ? "SYN_FORM" : "";
+  if (field.dataType === "date") return "";
+  if (field.dataType === "integer") return String(randInt(rand, 0, 40));
+  if (field.dataType === "number") return String((randInt(rand, 100, 500000) / 100).toFixed(2));
+  if (name.includes("FLAG") || name.startsWith("IS_") || name.startsWith("HAS_")) return rand() > 0.5 ? "Y" : "N";
+  return `SYN_${field.name}_${String(index + 1).padStart(4, "0")}`;
+}
+
+function generateSyntheticPopulation(catalog, fields, config, metadata) {
+  const selectedFields = fields.map((name) => catalog.fields.find((field) => field.name === name)).filter(Boolean);
+  const rand = seededRandom(config.seed);
+  const scenarios = syntheticScenarioPlan(config.rowCount, config.scenarioMix);
+  const clean = scenarios.map((scenario, index) => {
+    const dobDate = dateUtc(randInt(rand, 1940, 1975), randInt(rand, 1, 12), randInt(rand, 1, 28));
+    const dohDate = addYears(dobDate, randInt(rand, 18, 32));
+    const dopDate = addYears(dohDate, randInt(rand, 0, 3));
+    const doteDate = addYears(dopDate, randInt(rand, 5, 30));
+    const dorDate = addYears(dobDate, randInt(rand, 55, 70));
+    const married = rand() > 0.45;
+    const context = {
+      index,
+      scenario,
+      rand,
+      metadata,
+      married,
+      dob: formatDateIso(dobDate),
+      sdob: formatDateIso(addYears(dobDate, randInt(rand, -3, 3))),
+      doh: formatDateIso(dohDate),
+      dop: formatDateIso(dopDate),
+      dote: formatDateIso(doteDate),
+      dor: formatDateIso(dorDate),
+      dod: formatDateIso(addYears(dorDate, randInt(rand, 1, 20)))
+    };
+    return Object.fromEntries(selectedFields.map((field) => [field.name, syntheticValueForField(field, context)]));
+  });
+  const dirty = clean.map((record, index) => {
+    const copy = { ...record };
+    if (index % 10 === 0 && "SDOB" in copy) copy.SDOB = "";
+    if (index % 13 === 0 && "DOR" in copy && "DOTE" in copy) copy.DOR = copy.DOTE ? "1900-01-01" : copy.DOR;
+    return copy;
+  });
+  return { clean, dirty, fields: selectedFields.map((field) => field.name), scenarios };
+}
+
+function recordsToCsv(records, fields) {
+  const escape = (value) => {
+    const text = String(value ?? "");
+    return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+  };
+  return [fields.map(escape).join(","), ...records.map((record) => fields.map((field) => escape(record[field])).join(","))].join("\n");
+}
+
+async function renderSyntheticPopulation(container) {
+  const catalog = parseDdCsvCatalog(defaultDdCsvText);
+  const defaultFields = defaultSyntheticFields(catalog);
+  const caseNo = state.planMetadata?.meta?.case_number?.value ?? "unknown";
+  const outputName = `${safeFileStem(getPlanValue(state.planMetadata, "plan_number") || caseNo)}SyntheticPopulation.zip`;
+  container.innerHTML = `
+    <section class="page-hero">
+      <div class="page-title">
+        <h2>Synthetic Population Builder</h2>
+        <p>Generate deterministic no-PII participant/payee data for testing DEL, PF, V1, estimated analyses, and BSRS.</p>
+      </div>
+      <div class="page-actions">
+        <button class="ghost" id="synthetic_edit_metadata">Edit Metadata</button>
+      </div>
+    </section>
+
+    ${planContextHtml()}
+    ${renderWorkflowStatePanel({ title: "Synthetic Population Inputs", keys: ["metadata", "r5"] })}
+
+    <div class="banner subtle">All generated rows are synthetic test data. Do not use this output as production participant data.</div>
+
+    <div class="card">
+      <div class="grid two">
+        <div>
+          <label><b>DD.csv override</b></label><br/>
+          <input id="synthetic_dd" type="file" accept=".csv,text/csv" />
+          <div id="synthetic_dd_status" class="meta-line">Using bundled reference/DD.csv (${catalog.fields.length} fields).</div>
+        </div>
+        <div>
+          <label><b>Output</b></label>
+          <div class="workflow-output"><span>${escapeHtml(outputName)}</span><small>clean CSV, dirty CSV, config, and manifest</small></div>
+        </div>
+      </div>
+      <div class="grid two" style="margin-top:12px;">
+        <div>
+          <label><b>Rows</b></label><br/>
+          <input id="synthetic_rows" type="number" min="1" max="5000" value="100" />
+        </div>
+        <div>
+          <label><b>Seed</b></label><br/>
+          <input id="synthetic_seed" type="number" value="12345" />
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <label><b>Output fields</b></label>
+        <textarea id="synthetic_fields" class="code" rows="8">${escapeHtml(defaultFields.join("\n"))}</textarea>
+        <div class="meta-line">One DD.csv field per line. Defaults favor core input fields and common V1/BCV identifiers.</div>
+      </div>
+      <div style="margin-top:12px;">
+        <label><b>Scenario mix JSON</b></label>
+        <textarea id="synthetic_mix" class="code" rows="8">{
+  "participant_in_pay": 35,
+  "participant_deferred_vested": 25,
+  "participant_active_vested": 15,
+  "participant_not_vested": 10,
+  "beneficiary_in_pay": 10,
+  "alternate_payee_in_pay": 3,
+  "excluded": 2
+}</textarea>
+      </div>
+      <div class="button-row" style="margin-top:12px;">
+        <button id="synthetic_generate" class="primary">Generate ${escapeHtml(outputName)}</button>
+        <button id="synthetic_manifest" disabled class="ghost">Download manifest.json</button>
+      </div>
+      <pre id="synthetic_status" class="code" style="margin-top:12px;"></pre>
+    </div>
+  `;
+  hydratePlanContext(container);
+
+  let activeCatalog = catalog;
+  let activeDdText = defaultDdCsvText;
+  let lastManifest = null;
+  const ddInput = container.querySelector("#synthetic_dd");
+  const status = container.querySelector("#synthetic_status");
+  const manifestBtn = container.querySelector("#synthetic_manifest");
+  container.querySelector("#synthetic_edit_metadata").addEventListener("click", () => setRoute("#/metadata"));
+  ddInput.addEventListener("change", async () => {
+    const file = ddInput.files?.[0];
+    if (!file) return;
+    try {
+      activeDdText = await file.text();
+      activeCatalog = parseDdCsvCatalog(activeDdText);
+      container.querySelector("#synthetic_dd_status").textContent = `${file.name} loaded (${activeCatalog.fields.length} fields).`;
+    } catch (err) {
+      status.textContent = `DD.csv error: ${err.message}`;
+    }
+  });
+
+  container.querySelector("#synthetic_generate").addEventListener("click", async () => {
+    try {
+      const rowCount = Math.max(1, Math.min(5000, Number(container.querySelector("#synthetic_rows").value) || 100));
+      const seed = Number(container.querySelector("#synthetic_seed").value) || 12345;
+      const fields = container.querySelector("#synthetic_fields").value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      const scenarioMix = JSON.parse(container.querySelector("#synthetic_mix").value);
+      const missing = fields.filter((field) => !activeCatalog.fields.some((candidate) => candidate.name === field));
+      if (missing.length) throw new Error(`Unknown DD.csv field(s): ${missing.slice(0, 8).join(", ")}`);
+      const result = generateSyntheticPopulation(activeCatalog, fields, { rowCount, seed, scenarioMix }, state.planMetadata);
+      const cleanCsv = recordsToCsv(result.clean, result.fields);
+      const dirtyCsv = recordsToCsv(result.dirty, result.fields);
+      const planMetadataHash = state.planMetadata ? await sha256HexString(stringifyStable(state.planMetadata)) : "unknown";
+      const inputHashes = {
+        "DD.csv": await sha256HexString(activeDdText),
+        "synthetic-config.json": await sha256HexString(JSON.stringify({ rowCount, seed, scenarioMix, fields }, null, 2))
+      };
+      lastManifest = {
+        app_version: APP_VERSION,
+        schema_version: SCHEMA_VERSION,
+        module_id: "synthetic-population",
+        module_version: "0.7.0",
+        generator_source: "Integrated from https://github.com/ErChulo/pbgc-mock-population-module patterns",
+        generated_at_utc: new Date().toISOString(),
+        case_number: caseNo,
+        output_name: outputName,
+        plan_metadata_hash: planMetadataHash,
+        input_hashes: inputHashes,
+        output_hashes: {
+          "population.clean.csv": await sha256HexString(cleanCsv),
+          "population.dirty.csv": await sha256HexString(dirtyCsv)
+        },
+        row_count: rowCount,
+        seed,
+        field_count: result.fields.length,
+        synthetic_only: true,
+        warnings: ["Synthetic test data only. No real participant data or PII source files used."]
+      };
+      state.caseWorkflow.moduleRuns["synthetic-population"] = {
+        output_name: outputName,
+        generated_at_utc: lastManifest.generated_at_utc,
+        manifest: lastManifest
+      };
+      state.lastManifest = lastManifest;
+      saveState();
+      const zip = new JSZip();
+      zip.file("population.clean.csv", cleanCsv);
+      zip.file("population.dirty.csv", dirtyCsv);
+      zip.file("synthetic-config.json", JSON.stringify({ rowCount, seed, scenarioMix, fields }, null, 2));
+      zip.file("manifest.synthetic-population.json", JSON.stringify(lastManifest, null, 2));
+      const blob = await zip.generateAsync({ type: "blob" });
+      downloadBlob(blob, outputName);
+      manifestBtn.disabled = false;
+      status.textContent = `Generated ${rowCount} synthetic rows and ${result.fields.length} fields.\nDownloaded ${outputName}`;
+    } catch (err) {
+      status.textContent = `ERROR: ${err.message}`;
+    }
+  });
+
+  manifestBtn.addEventListener("click", () => {
+    if (!lastManifest) return;
+    downloadBlob(new Blob([JSON.stringify(lastManifest, null, 2)], { type: "application/json" }), "manifest.synthetic-population.json");
+  });
 }
 
 function getPlanValue(planMetadata, key) {
