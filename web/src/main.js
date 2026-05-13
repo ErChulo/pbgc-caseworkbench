@@ -1709,6 +1709,146 @@ function renderR5TaskIntake() {
   `;
 }
 
+function delWorkflowRun() {
+  return state.caseWorkflow.moduleRuns?.["data-elements"] ?? null;
+}
+
+function summarizeR5ForDel() {
+  const r5Summary = getR5WorkflowSummary();
+  const validations = r5Summary?.validations ?? [];
+  const summary = summarizeR5Validations(validations);
+  return {
+    loaded: !!r5Summary,
+    source_files: r5Summary?.source_files ?? [],
+    input_hashes: r5Summary?.input_hashes ?? {},
+    recognized_domains: [...summary.recognized_domains].sort(),
+    validation_summary: {
+      file_count: summary.file_count,
+      schema_valid_count: summary.schema_valid_count,
+      required_item_count: summary.required_item_count,
+      covered_required_count: summary.covered_required_count,
+      missing_required_count: summary.missing_required_count,
+      unknown_or_na_count: summary.unknown_or_na_count,
+      known_without_citation_count: summary.known_without_citation_count,
+      duplicate_item_count: summary.duplicate_item_count,
+      warning_count: summary.warnings.length
+    },
+    warnings: summary.warnings
+  };
+}
+
+async function buildDelTaskPackage() {
+  if (!isMetadataReady()) throw new Error("PlanMetadata must be saved before generating the DEL package.");
+  const r5 = summarizeR5ForDel();
+  if (!r5.loaded) throw new Error("R5Summary JSON must be loaded before generating the DEL package.");
+  const catalog = parseDdCsvCatalog(defaultDdCsvText);
+  const planMetadataHash = await sha256HexString(stringifyStable(state.planMetadata));
+  const ddHash = await sha256HexString(defaultDdCsvText);
+  const inputFields = catalog.fields.filter((field) => field.inputField);
+  const calculatedFields = catalog.fields.filter((field) => field.calculatedField);
+  const warnings = [
+    ...r5.warnings,
+    "This package is a deterministic DEL input package, not the final ########DEL.pdf.",
+    "Participant-level PII source files must be supplied by browser upload and must not be committed to the repository."
+  ];
+  if (!inputFields.length) warnings.push("DD.csv did not mark any INPUT_FIELD rows.");
+
+  return {
+    meta: {
+      app_version: APP_VERSION,
+      schema_version: SCHEMA_VERSION,
+      module_id: "data-elements",
+      module_version: "0.7.0",
+      generated_at_utc: new Date().toISOString(),
+      case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+      plan_metadata_hash: planMetadataHash,
+      input_hashes: {
+        "PlanMetadata.json": planMetadataHash,
+        "DD.csv": ddHash,
+        ...Object.fromEntries(Object.entries(r5.input_hashes).map(([name, hash]) => [`R5:${name}`, hash]))
+      }
+    },
+    purpose: "Data Element List input package for participant data collection and later ########DEL.pdf generation.",
+    plan: {
+      case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+      plan_name: getPlanValue(state.planMetadata, "plan_name") || "unknown",
+      plan_number: getPlanValue(state.planMetadata, "plan_number") || "unknown",
+      dopt: getPlanValue(state.planMetadata, "dopt") || "unknown",
+      dotr: getPlanValue(state.planMetadata, "dotr") || "unknown"
+    },
+    r5,
+    dd_catalog: {
+      source: "reference/DD.csv",
+      total_field_count: catalog.fields.length,
+      input_field_count: inputFields.length,
+      calculated_field_count: calculatedFields.length,
+      fields: catalog.fields
+        .map((field) => ({
+          name: field.name,
+          description: field.description,
+          data_type: field.dataType,
+          input_field: field.inputField,
+          calculated_field: field.calculatedField
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    },
+    source_priority: {
+      status: "planned",
+      instruction: "Collect participant/census/payee source files through browser upload and map each known field to doc_id, page, and locator before final DEL PDF generation."
+    },
+    downstream: ["Synthetic Population", "Plan Factors", "V1", "BSRS/BCV", "Estimated Analyses"],
+    warnings
+  };
+}
+
+function renderDelTaskPackage() {
+  let catalog;
+  let catalogError = "";
+  try {
+    catalog = parseDdCsvCatalog(defaultDdCsvText);
+  } catch (err) {
+    catalogError = err.message;
+  }
+  const r5 = summarizeR5ForDel();
+  const run = delWorkflowRun();
+  const canGenerate = isMetadataReady() && r5.loaded && !catalogError;
+  const inputCount = catalog?.fields.filter((field) => field.inputField).length ?? 0;
+  const calculatedCount = catalog?.fields.filter((field) => field.calculatedField).length ?? 0;
+  return `
+    <div class="task-intake-panel del-package-panel">
+      <div class="task-intake-head">
+        <div>
+          <b>DEL input package</b>
+          <span>Generate the governed field inventory package from PlanMetadata, loaded R5Summary, and bundled reference/DD.csv.</span>
+        </div>
+        <button class="ghost" id="del_task_download_dd">Download DD.csv</button>
+      </div>
+      <div class="task-validation-grid">
+        <div><span>DD fields</span><b>${catalog?.fields.length ?? 0}</b><small>${catalogError ? escapeHtml(catalogError) : "bundled reference/DD.csv"}</small></div>
+        <div><span>Input fields</span><b>${inputCount}</b><small>direct collection candidates</small></div>
+        <div><span>Calculated fields</span><b>${calculatedCount}</b><small>computed/downstream fields</small></div>
+        <div><span>R5 domains</span><b>${r5.recognized_domains.length}</b><small>${escapeHtml(r5.recognized_domains.join(", ") || "none")}</small></div>
+        <div><span>R5 warnings</span><b>${r5.validation_summary.warning_count}</b><small>embedded in package</small></div>
+        <div><span>Last run</span><b>${run ? "Yes" : "No"}</b><small>${escapeHtml(run?.generated_at_utc ?? "not generated")}</small></div>
+      </div>
+      ${
+        canGenerate
+          ? `<div class="banner subtle">Ready to generate a DEL input package. This is not yet the final ########DEL.pdf.</div>`
+          : `<div class="coverage-warning-list"><b>Cannot generate yet</b><ul>
+              ${!isMetadataReady() ? "<li>Save PlanMetadata first.</li>" : ""}
+              ${!r5.loaded ? "<li>Load R5Summary JSON first.</li>" : ""}
+              ${catalogError ? `<li>${escapeHtml(catalogError)}</li>` : ""}
+            </ul></div>`
+      }
+      <div class="button-row">
+        <button class="primary" id="del_task_generate" ${canGenerate ? "" : "disabled"}>Generate DEL package JSON</button>
+        ${run ? `<button class="ghost" id="del_task_manifest">Download DEL manifest</button>` : ""}
+      </div>
+      <div id="del_task_status" class="meta-line">${run ? `Last package: ${escapeHtml(run.output_name ?? "data-elements.artifact.json")}` : "No DEL package generated yet."}</div>
+    </div>
+  `;
+}
+
 function renderTaskEngineSurface(step) {
   const task = workflowTaskForStep(step);
   const primaryClass = task.sourceGuidance.ivsClasses[0];
@@ -1778,6 +1918,7 @@ function renderTaskEngineSurface(step) {
       </div>
       ${task.review.warnings.length ? `<div class="coverage-warning-list"><b>Task warnings</b><ul>${task.review.warnings.slice(0, 4).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul></div>` : ""}
       ${task.id === "r5" ? renderR5TaskIntake() : ""}
+      ${task.id === "data-elements" ? renderDelTaskPackage() : ""}
       <div class="task-downstream">
         <b>Feeds downstream</b>
         <span>${escapeHtml(task.downstream.join(", ") || "Next case task")}</span>
@@ -3136,6 +3277,54 @@ function renderCaseGuide(container) {
     saveState();
     activeGuideStepId = "r5";
     renderCaseGuide(container);
+  });
+  const delDdBtn = container.querySelector("#del_task_download_dd");
+  delDdBtn?.addEventListener("click", () => {
+    downloadBlob(new Blob([defaultDdCsvText], { type: "text/csv" }), "DD.csv");
+  });
+  const delGenerateBtn = container.querySelector("#del_task_generate");
+  delGenerateBtn?.addEventListener("click", async () => {
+    const statusEl = container.querySelector("#del_task_status");
+    statusEl.textContent = "Generating DEL input package...";
+    try {
+      const artifact = await buildDelTaskPackage();
+      state.lastManifest = artifact.meta;
+      state.caseWorkflow.moduleRuns["data-elements"] = {
+        generated_at_utc: artifact.meta.generated_at_utc,
+        output_name: "data-elements.artifact.json",
+        input_hashes: artifact.meta.input_hashes,
+        field_count: artifact.dd_catalog.total_field_count,
+        input_field_count: artifact.dd_catalog.input_field_count,
+        calculated_field_count: artifact.dd_catalog.calculated_field_count,
+        warning_count: artifact.warnings.length
+      };
+      saveState();
+      downloadBlob(new Blob([stringifyStable(artifact)], { type: "application/json" }), "data-elements.artifact.json");
+      activeGuideStepId = "data-elements";
+      renderCaseGuide(container);
+    } catch (err) {
+      statusEl.textContent = `DEL package error: ${err.message}`;
+    }
+  });
+  const delManifestBtn = container.querySelector("#del_task_manifest");
+  delManifestBtn?.addEventListener("click", () => {
+    const run = delWorkflowRun();
+    if (!run) return;
+    const manifest = {
+      app_version: APP_VERSION,
+      schema_version: SCHEMA_VERSION,
+      module_id: "data-elements",
+      module_version: "0.7.0",
+      generated_at_utc: run.generated_at_utc,
+      case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+      input_hashes: run.input_hashes ?? {},
+      output_name: run.output_name ?? "data-elements.artifact.json",
+      field_count: run.field_count,
+      input_field_count: run.input_field_count,
+      calculated_field_count: run.calculated_field_count,
+      warning_count: run.warning_count
+    };
+    downloadBlob(new Blob([stringifyStable(manifest)], { type: "application/json" }), "manifest.data-elements.json");
   });
 }
 
@@ -4881,6 +5070,7 @@ function parseDdCsvCatalog(csvText) {
   const descIdx = headers.findIndex((header) => ["description", "desc", "definition"].includes(header));
   const typeIdx = headers.findIndex((header) => ["data_type", "datatype", "type"].includes(header));
   const inputIdx = headers.findIndex((header) => ["input_field", "input", "inputfield"].includes(header));
+  const calculatedIdx = headers.findIndex((header) => ["calculated_field", "calculated", "calculatedfield"].includes(header));
   if (fieldIdx < 0) throw new Error("DD.csv missing FIELD_NAME column.");
   const fields = rows
     .slice(1)
@@ -4893,7 +5083,8 @@ function parseDdCsvCatalog(csvText) {
         name,
         description,
         dataType: inferSyntheticFieldType(name, explicitType, description),
-        inputField: inputIdx >= 0 ? String(row[inputIdx] ?? "").trim().toUpperCase() === "X" : false
+        inputField: inputIdx >= 0 ? String(row[inputIdx] ?? "").trim().toUpperCase() === "X" : false,
+        calculatedField: calculatedIdx >= 0 ? String(row[calculatedIdx] ?? "").trim().toUpperCase() === "X" : false
       };
     })
     .filter(Boolean);
