@@ -1477,57 +1477,63 @@ function renderEvidenceRequirementCard(req) {
   const status = evidenceStatusForRequirement(req);
   const coverage = evaluateEvidenceCoverage(req);
   const classes = req.documentClassCodes.map(ivsClassByCode).filter(Boolean);
+  const primaryClass = classes[0];
   return `
-    <article class="requirements-card coverage-${escapeHtml(coverage.status)}">
-      <div class="workflow-card-head">
-        <h3>${escapeHtml(req.id)}: ${escapeHtml(req.module)}</h3>
-        <span>${escapeHtml(coverage.status)}</span>
-      </div>
-      <div class="requirements-readiness">
-        <div class="${status.ready ? "ready" : "missing"}">
-          <b>${status.ready ? "Ready" : "Needed"}</b>
-          <span>${escapeHtml(status.label)}</span>
-          <small>${escapeHtml(status.detail)}</small>
-        </div>
-        <div class="${coverage.matched_ivs_classes.length ? "ready" : "missing"}">
-          <b>${coverage.matched_ivs_classes.length ? "IVS class matched" : "IVS class needed"}</b>
-          <span>${coverage.matched_ivs_classes.length ? `${coverage.matched_ivs_classes.length} class(es) matched in document registry` : "No matching registry document"}</span>
-          <small>${escapeHtml(coverage.expected_ivs_classes.map((cls) => cls.code).join(", "))}</small>
-        </div>
-        <div class="${coverage.citation_health.status === "ready" ? "ready" : "missing"}">
-          <b>${coverage.citation_health.status === "ready" ? "Citation check" : "Citation warning"}</b>
-          <span>${escapeHtml(coverage.citation_health.status)}</span>
-          <small>${escapeHtml(coverage.citation_health.detail)}</small>
-        </div>
-      </div>
-      <div class="evidence-fact">
-        <b>Fact needed</b>
-        <span>${escapeHtml(req.requiredFact)}</span>
-      </div>
-      <div class="requirements-columns">
+    <details class="requirements-card evidence-card coverage-${escapeHtml(coverage.status)}" ${coverage.status === "missing" ? "open" : ""}>
+      <summary>
         <div>
-          <b>Search IVS classes</b>
-          <ul>${classes.map((cls) => `<li><b>${escapeHtml(cls.code)}</b> ${escapeHtml(cls.title)}<br/><small>${escapeHtml(cls.searchUse)}</small></li>`).join("")}</ul>
+          <b>${escapeHtml(req.module)}</b>
+          <span>${escapeHtml(req.requiredFact)}</span>
         </div>
-        <div>
-          <b>Scrape / enter</b>
-          <ul>
-            <li>Contract: ${escapeHtml(req.scraperContract)}</li>
-            <li>Input: ${escapeHtml(req.acceptedInput)}</li>
-            <li>Fallback: ${escapeHtml(req.manualFallback)}</li>
-          </ul>
+        <span class="coverage-chip ${escapeHtml(coverage.status)}">${escapeHtml(coverage.status)}</span>
+      </summary>
+      <div class="evidence-card-body">
+        <div class="evidence-next-action">
+          <b>Next action</b>
+          <span>${coverage.status === "ready" ? "Review and proceed to the workflow." : `Search IVS ${primaryClass ? `${primaryClass.code} - ${primaryClass.title}` : "for the listed document class"}, then load scraper JSON or enter the fact manually.`}</span>
         </div>
-        <div>
-          <b>Why it matters</b>
-          <ul>
-            <li>Citation: ${escapeHtml(req.citationRule)}</li>
-            ${req.downstreamImpact.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-          </ul>
+        <div class="requirements-readiness">
+          <div class="${status.ready ? "ready" : "missing"}">
+            <b>${status.ready ? "Structured input ready" : "Structured input needed"}</b>
+            <span>${escapeHtml(status.label)}</span>
+            <small>${escapeHtml(status.detail)}</small>
+          </div>
+          <div class="${coverage.matched_ivs_classes.length ? "ready" : "missing"}">
+            <b>${coverage.matched_ivs_classes.length ? "IVS class matched" : "IVS class needed"}</b>
+            <span>${escapeHtml(coverage.matched_ivs_classes.length ? `${coverage.matched_ivs_classes.length} class(es) matched in document registry` : "No matching registry document")}</span>
+            <small>${escapeHtml(coverage.expected_ivs_classes.map((cls) => cls.code).join(", "))}</small>
+          </div>
+          <div class="${coverage.citation_health.status === "ready" ? "ready" : "missing"}">
+            <b>${coverage.citation_health.status === "ready" ? "Citation check" : "Citation warning"}</b>
+            <span>${escapeHtml(coverage.citation_health.status)}</span>
+            <small>${escapeHtml(coverage.citation_health.detail)}</small>
+          </div>
         </div>
+        <div class="requirements-columns">
+          <div>
+            <b>Search IVS classes</b>
+            <ul>${classes.map((cls) => `<li><b>${escapeHtml(cls.code)}</b> ${escapeHtml(cls.title)}<br/><small>${escapeHtml(cls.searchUse)}</small></li>`).join("")}</ul>
+          </div>
+          <div>
+            <b>Scrape / enter</b>
+            <ul>
+              <li>Contract: ${escapeHtml(req.scraperContract)}</li>
+              <li>Input: ${escapeHtml(req.acceptedInput)}</li>
+              <li>Fallback: ${escapeHtml(req.manualFallback)}</li>
+            </ul>
+          </div>
+          <div>
+            <b>Why it matters</b>
+            <ul>
+              <li>Citation: ${escapeHtml(req.citationRule)}</li>
+              ${req.downstreamImpact.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+            </ul>
+          </div>
+        </div>
+        ${coverage.warnings.length ? `<div class="coverage-warning-list"><b>Coverage warnings</b><ul>${coverage.warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
+        <button class="ghost" data-evidence-route="${escapeHtml(req.route)}">Open workflow</button>
       </div>
-      ${coverage.warnings.length ? `<div class="coverage-warning-list"><b>Coverage warnings</b><ul>${coverage.warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
-      <button class="ghost" data-evidence-route="${escapeHtml(req.route)}">Open workflow</button>
-    </article>
+    </details>
   `;
 }
 
@@ -1544,6 +1550,11 @@ function renderEvidenceCoverageSummary(report) {
 async function renderEvidenceGuide(container) {
   const readyCount = evidenceRequirements.filter((req) => evidenceStatusForRequirement(req).ready).length;
   const coverageReport = await buildEvidenceCoverageReport();
+  const firstBlocking = coverageReport.coverage.find((item) => item.status !== "ready");
+  const firstBlockingRequirement = firstBlocking
+    ? evidenceRequirements.find((req) => req.id === firstBlocking.requirement_id)
+    : null;
+  const firstBlockingClass = firstBlocking?.expected_ivs_classes?.[0] ?? null;
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
@@ -1561,8 +1572,19 @@ async function renderEvidenceGuide(container) {
 
     ${renderWorkflowStatePanel({ title: "Shared Case Inputs", keys: ["metadata", "r5", "v1", "synthetic"] })}
 
+    <div class="workflow-band">
+      <h3>Start Here</h3>
+      <p class="muted">${firstBlockingRequirement
+        ? `Next: ${firstBlockingRequirement.module}. Search IVS ${firstBlockingClass ? `${firstBlockingClass.code} (${firstBlockingClass.title})` : "for the listed document class"}, then load the scraper JSON or enter the fact manually.`
+        : "All evidence requirements are ready or warning-level only. Review warnings, then proceed through Case Guide."}</p>
+      <div class="button-row">
+        <button class="primary" data-evidence-route="${escapeHtml(firstBlockingRequirement?.route ?? "#/guide")}">${firstBlockingRequirement ? `Open ${escapeHtml(firstBlockingRequirement.module)}` : "Open Case Guide"}</button>
+        <button class="ghost" id="evidence_open_inputs_top">Inputs Matrix</button>
+      </div>
+    </div>
+
     <div class="banner subtle">
-      Use this page when the app needs a fact but the exact source document is not known. Search the listed IVS class, scrape to JSON with the listed contract, then load or enter the result in the target workflow.
+      Evidence Guide is a checklist, not another deliverable. Expand only the module you are working on.
     </div>
 
     <div class="rules-summary-grid">
@@ -1574,7 +1596,7 @@ async function renderEvidenceGuide(container) {
     <h3>Evidence Coverage</h3>
     ${renderEvidenceCoverageSummary(coverageReport)}
 
-    <div class="requirements-list">
+    <div class="requirements-list evidence-list">
       ${evidenceRequirements.map(renderEvidenceRequirementCard).join("")}
     </div>
 
@@ -1586,6 +1608,7 @@ async function renderEvidenceGuide(container) {
     btn.addEventListener("click", () => setRoute(btn.dataset.evidenceRoute));
   });
   container.querySelector("#evidence_open_inputs").addEventListener("click", () => setRoute("#/inputs"));
+  container.querySelector("#evidence_open_inputs_top").addEventListener("click", () => setRoute("#/inputs"));
   const statusEl = container.querySelector("#evidence_guide_status");
   container.querySelector("#download_evidence_guide").addEventListener("click", async () => {
     try {
@@ -2724,6 +2747,8 @@ function renderMetadata(container) {
 
 function renderDashboard(container) {
   const cards = deliverableCards();
+  const startRoute = isMetadataReady() ? "#/guide" : "#/metadata";
+  const startLabel = isMetadataReady() ? "Open Case Guide" : "Start Metadata";
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
@@ -2738,9 +2763,10 @@ function renderDashboard(container) {
 
     <div class="workflow-band">
       <h3>Recommended Next Action</h3>
-      <p class="muted">Use Case Guide as the primary workflow. It walks through Metadata, Inputs Matrix, R5, DEL, PF, 436, Estimated Analyses, V1, and BSRS/BCV with warnings instead of hard blocks.</p>
+      <p class="muted">The final goal is the Actuarial Case Memo. Start with Metadata, then use Case Guide and Evidence Guide to gather only the next missing evidence needed for downstream deliverables.</p>
       <div class="button-row">
-        <button class="primary" data-dashboard-route="#/guide">Open Case Guide</button>
+        <button class="primary" data-dashboard-route="${startRoute}">${startLabel}</button>
+        <button class="ghost" data-dashboard-route="#/guide">Case Guide</button>
         <button class="ghost" data-dashboard-route="#/evidence-guide">Evidence Guide</button>
         <button class="ghost" data-dashboard-route="#/v1-engine-explorer">Open V1 Explorer</button>
         <button class="ghost" data-dashboard-route="#/v1-audit">Audit V1 Match</button>

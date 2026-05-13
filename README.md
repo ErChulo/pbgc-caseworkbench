@@ -4,6 +4,8 @@ PBGC Caseworkbench is a browser-only, single-file workbench for PBGC terminated-
 
 The packaged app is `release/pbgc-workbench.html`. It must run locally under `file://` with no backend, no server, no CDN, and no external network calls.
 
+The long-term end goal is the **Actuarial Case Memo**, the final comprehensive case-actuary report. The current modules gather, validate, and prepare the evidence and intermediate deliverables needed to support that final memo.
+
 ## What It Produces
 
 The workbench is being built around this deliverable set for a plan number `########`:
@@ -60,7 +62,7 @@ When a required fact cannot be tied to a known named document, modules should id
 
 The app includes an **Evidence Guide** page for this purpose. It maps core module facts to IVS document classes, scraper contracts, manual fallbacks, citation expectations, and downstream deliverables. The guide can be downloaded as `case-evidence-guide.json`.
 
-The Evidence Guide also includes an **Evidence Coverage** check. It marks each requirement as ready, warning, or missing based on current structured inputs, PlanMetadata document-registry matches to expected IVS classes, and available citation validators. The coverage report can be downloaded as `case-evidence-coverage.json`.
+The Evidence Guide also includes an **Evidence Coverage** check. It marks each requirement as ready, warning, or missing based on current structured inputs, PlanMetadata document-registry matches to expected IVS classes, and available citation validators. The page is intentionally progressive: start with the top "Start Here" action, then expand only the module evidence card you are working on. The coverage report can be downloaded as `case-evidence-coverage.json`.
 
 ## Important Inputs
 

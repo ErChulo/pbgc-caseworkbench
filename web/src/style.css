@@ -769,6 +769,69 @@ textarea.code {
   border-color: var(--danger);
 }
 
+.evidence-list {
+  gap: 0.65rem;
+}
+
+.evidence-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.evidence-card summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+  padding: 0.9rem 1rem;
+}
+
+.evidence-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.evidence-card summary > div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.evidence-card summary span:not(.coverage-chip) {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.evidence-card-body {
+  display: grid;
+  gap: 0.85rem;
+  border-top: 1px solid var(--border);
+  padding: 1rem;
+}
+
+.coverage-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  padding: 0.25rem 0.65rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+
+.coverage-chip.ready {
+  color: var(--accent);
+}
+
+.coverage-chip.warning {
+  color: var(--accent-2);
+}
+
+.coverage-chip.missing {
+  color: var(--danger);
+}
+
 .requirements-readiness {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -826,6 +889,19 @@ textarea.code {
 }
 
 .evidence-fact span {
+  color: var(--muted);
+}
+
+.evidence-next-action {
+  display: grid;
+  gap: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.75rem;
+}
+
+.evidence-next-action span {
   color: var(--muted);
 }
 
