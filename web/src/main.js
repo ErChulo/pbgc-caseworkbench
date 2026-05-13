@@ -1670,9 +1670,9 @@ async function renderEvidenceGuide(container) {
       <h3>Start Here</h3>
       <p class="muted">${firstBlockingRequirement
         ? `Next: ${firstBlockingRequirement.module}. Search IVS ${firstBlockingClass ? `${firstBlockingClass.code} (${firstBlockingClass.title})` : "for the listed document class"}, then load the scraper JSON or enter the fact manually.`
-        : "All evidence requirements are ready or warning-level only. Review warnings, then proceed through Case Guide."}</p>
+        : "All evidence requirements are ready or warning-level only. Review warnings, then proceed through Case Workflow."}</p>
       <div class="button-row">
-        <button class="primary" data-evidence-route="${escapeHtml(firstBlockingRequirement?.route ?? "#/guide")}">${firstBlockingRequirement ? `Open ${escapeHtml(firstBlockingRequirement.module)}` : "Open Case Guide"}</button>
+        <button class="primary" data-evidence-route="${escapeHtml(firstBlockingRequirement?.route ?? "#/guide")}">${firstBlockingRequirement ? `Open ${escapeHtml(firstBlockingRequirement.module)}` : "Open Case Workflow"}</button>
         <button class="ghost" id="evidence_open_inputs_top">Input Contracts</button>
       </div>
     </div>
@@ -1949,18 +1949,6 @@ const caseGuideSteps = [
     warnings: ["Without metadata, other modules cannot create reliable manifests."]
   },
   {
-    id: "inputs",
-    title: "Inputs Matrix",
-    phase: "Planning",
-    route: "#/inputs",
-    readinessKeys: ["metadata"],
-    prompt: "Review the pure input contract for plan-metadata.json, ########R5.docx, ########DEL.pdf, ########PF.xlsx, the analysis DOCX files, ########V1.xlsx, and ########S1.cfg.",
-    uploadAction: "No upload required",
-    manualAction: "Review missing/unknown input families",
-    programmedAction: "Download case-input-requirements.json",
-    warnings: ["Continue with unknown/na when source material is not yet available."]
-  },
-  {
     id: "r5",
     title: "R5 / Plan Summary",
     phase: "Upfront Work",
@@ -2078,13 +2066,18 @@ function renderGuideStepButton(step, index) {
   const status = guideStepStatus(step);
   const stateClass = status.complete ? "ready" : status.started ? "warning" : "missing";
   const active = step.id === activeGuideStepId ? "active" : "";
+  const disabled = status.complete && !active ? "disabled" : "";
   return `
-    <button class="guide-step ${stateClass} ${active}" data-guide-step="${escapeHtml(step.id)}">
+    <button class="guide-step ${stateClass} ${active}" data-guide-step="${escapeHtml(step.id)}" ${disabled}>
       <span>${index + 1}</span>
       <b>${escapeHtml(step.title)}</b>
-      <small>${status.ready}/${status.total} ready</small>
+      <small>${status.complete ? "done" : status.started ? "in progress" : "next evidence"}</small>
     </button>
   `;
+}
+
+function firstIncompleteGuideStep() {
+  return caseGuideSteps.find((step) => !guideStepStatus(step).complete) ?? caseGuideSteps[caseGuideSteps.length - 1];
 }
 
 function normalizeValueEntry(entry) {
@@ -2710,8 +2703,9 @@ function renderMetadata(container) {
         };
         saveState();
         validationOutput.textContent = "Valid PlanMetadata JSON.";
-        saveStatusFocus.textContent = "Loaded and saved. Other modules unlocked.";
-        setRoute("#/dashboard");
+        saveStatusFocus.textContent = "Loaded and saved. Moving to the next case step.";
+        activeGuideStepId = "r5";
+        setRoute("#/guide");
       }
     } catch (err) {
       metadataStatus.textContent = `Invalid JSON: ${err.message}`;
@@ -2790,8 +2784,9 @@ function renderMetadata(container) {
       };
       saveState();
       validationOutput.textContent = "Saved to workspace.";
-      saveStatusFocus.textContent = "Saved. Other modules unlocked.";
-      setRoute("#/dashboard");
+      saveStatusFocus.textContent = "Saved. Moving to the next case step.";
+      activeGuideStepId = "r5";
+      setRoute("#/guide");
     } catch (err) {
       validationOutput.textContent = `Invalid JSON: ${err.message}`;
       saveStatusFocus.textContent = "Fix errors before saving.";
@@ -2908,7 +2903,11 @@ function renderDashboard(container) {
 }
 
 function renderCaseGuide(container) {
-  const activeStep = caseGuideSteps.find((step) => step.id === activeGuideStepId) ?? caseGuideSteps[0];
+  let activeStep = caseGuideSteps.find((step) => step.id === activeGuideStepId) ?? firstIncompleteGuideStep();
+  if (guideStepStatus(activeStep).complete) {
+    activeStep = firstIncompleteGuideStep();
+    activeGuideStepId = activeStep.id;
+  }
   const activeStatus = guideStepStatus(activeStep);
   const activeIndex = caseGuideSteps.findIndex((step) => step.id === activeStep.id);
   const canPrev = activeIndex > 0;
@@ -2918,7 +2917,7 @@ function renderCaseGuide(container) {
     <section class="page-hero">
       <div class="page-title">
         <h2>Case Workflow</h2>
-        <p>Use one guided workspace for the case lifecycle. Each step shows what to do, what evidence is needed, and where to go next.</p>
+        <p>Work one current step at a time. Completed steps are shown as done; the panel focuses on the next incomplete case task.</p>
       </div>
     </section>
 
@@ -2938,7 +2937,7 @@ function renderCaseGuide(container) {
             <span>${escapeHtml(activeStep.phase)}</span>
             <h3>${escapeHtml(activeStep.title)}</h3>
           </div>
-          <b class="${activeStatus.complete ? "ready" : "warning"}">${activeStatus.ready}/${activeStatus.total} ready</b>
+          <b class="${activeStatus.complete ? "ready" : "warning"}">${activeStatus.complete ? "done" : "current step"}</b>
         </div>
         <p>${escapeHtml(activeStep.prompt)}</p>
         <div class="guide-readiness">
@@ -2975,7 +2974,7 @@ function renderCaseGuide(container) {
           <button class="ghost" id="guide_prev" ${canPrev ? "" : "disabled"}>Previous</button>
           <button class="primary" data-guide-route="${escapeHtml(activeStep.route)}">Open ${escapeHtml(activeStep.title)}</button>
           ${activeStep.alternateRoute ? `<button class="ghost" data-guide-route="${escapeHtml(activeStep.alternateRoute)}">Alternate workflow</button>` : ""}
-          <button class="ghost" id="guide_next" ${canNext ? "" : "disabled"}>Continue with warnings</button>
+          <button class="ghost" id="guide_next" ${canNext ? "" : "disabled"}>Next step</button>
         </div>
       </section>
     </div>
@@ -2985,6 +2984,7 @@ function renderCaseGuide(container) {
 
   container.querySelectorAll("[data-guide-step]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (btn.disabled) return;
       activeGuideStepId = btn.dataset.guideStep;
       renderCaseGuide(container);
     });
