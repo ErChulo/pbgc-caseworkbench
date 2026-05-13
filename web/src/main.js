@@ -100,25 +100,25 @@ function clearState() {
 }
 
 const routes = [
-  { path: "#/metadata", title: "Metadata", render: renderMetadata },
-  { path: "#/dashboard", title: "Dashboard", render: renderDashboard },
-  { path: "#/guide", title: "Case Guide", render: renderCaseGuide },
-  { path: "#/evidence-guide", title: "Evidence Guide", render: renderEvidenceGuide },
-  { path: "#/inputs", title: "Inputs Matrix", render: renderInputsMatrix },
-  { path: "#/rules", title: "Rules Registry", render: renderRulesRegistry },
-  { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
-  { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer },
-  { path: "#/v1-audit", title: "V1 Audit", render: renderV1Audit },
-  { path: "#/del", title: "DEL", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.del) },
-  { path: "#/synthetic-population", title: "Synthetic Population", render: renderSyntheticPopulation },
-  { path: "#/factors", title: "Plan Factors", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.factors) },
-  { path: "#/436", title: "436", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.section436) },
-  { path: "#/estimated-adjustments", title: "Est. Adjustments", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdjustments) },
-  { path: "#/estimated-administration", title: "Est. Administration", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdministration) },
+  { path: "#/metadata", title: "Case Intake", render: renderMetadata },
+  { path: "#/dashboard", title: "Dashboard", render: renderDashboard, hidden: true },
+  { path: "#/guide", title: "Case Workflow", render: renderCaseGuide },
+  { path: "#/evidence-guide", title: "Next Evidence", render: renderEvidenceGuide, hidden: true },
+  { path: "#/inputs", title: "Input Contracts", render: renderInputsMatrix, hidden: true },
+  { path: "#/rules", title: "Rules Registry", render: renderRulesRegistry, hidden: true },
+  { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary, hidden: true },
+  { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer, hidden: true },
+  { path: "#/v1-audit", title: "V1 Audit", render: renderV1Audit, hidden: true },
+  { path: "#/del", title: "DEL", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.del), hidden: true },
+  { path: "#/synthetic-population", title: "Synthetic Population", render: renderSyntheticPopulation, hidden: true },
+  { path: "#/factors", title: "Plan Factors", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.factors), hidden: true },
+  { path: "#/436", title: "436", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.section436), hidden: true },
+  { path: "#/estimated-adjustments", title: "Est. Adjustments", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdjustments), hidden: true },
+  { path: "#/estimated-administration", title: "Est. Administration", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdministration), hidden: true },
   { path: "#/v1-builder", title: "V1 Builder", render: renderV1BuilderAlias, hidden: true },
   { path: "#/dag-viewer", title: "DAG Viewer", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.dagViewer) },
   { path: "#/formula-tree", title: "Formula Tree", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.formulaTree) },
-  { path: "#/letters-bcv", title: "Letters/BCV", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.lettersBcv) },
+  { path: "#/letters-bcv", title: "Letters/BCV", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.lettersBcv), hidden: true },
   { path: "#/audit", title: "Audit", render: renderAudit }
 ];
 
@@ -361,7 +361,7 @@ function setRoute(path) {
 }
 
 function currentRoute() {
-  const h = location.hash || "#/metadata";
+  const h = location.hash || (isMetadataReady() ? "#/guide" : "#/metadata");
   return routes.find((r) => r.path === h) ?? routes[0];
 }
 
@@ -438,11 +438,18 @@ function renderShell() {
           <button class="icon-button" id="close_resources" aria-label="Close resources">x</button>
         </div>
         <div class="drawer-body">
-          <p class="muted">Quick access to built-in assets for the Metadata module.</p>
-          <div class="button-row">
-            <button id="resources_prompt_download">Download Scraper Prompt</button>
+          <p class="muted">Built-in prompts, dictionaries, and reference exports bundled into the offline workbench.</p>
+          <div class="resource-list">
+            <button id="resources_metadata_prompt">Metadata scraper prompt</button>
+            <button id="resources_r5_prompt">R5 scraper prompt</button>
+            <button id="resources_dd_csv">DD.csv field dictionary</button>
+            <button id="resources_evidence_guide">Evidence guide JSON</button>
+            <button id="resources_evidence_coverage">Evidence coverage JSON</button>
           </div>
-          <div class="meta-line">File: metadata-scraper-prompt.txt</div>
+          <div class="resource-note">
+            <b>Reference file</b>
+            <span>Plan File Types.pdf is the governing IVS/IPS classification dictionary in the repository reference folder.</span>
+          </div>
         </div>
       </aside>
       <main id="page" class="page-content"></main>
@@ -472,7 +479,11 @@ function renderShell() {
   const resourcesDrawer = app.querySelector("#resources_drawer");
   const resourcesBackdrop = app.querySelector("#resources_backdrop");
   const resourcesClose = app.querySelector("#close_resources");
-  const resourcesPromptDownload = app.querySelector("#resources_prompt_download");
+  const resourcesMetadataPrompt = app.querySelector("#resources_metadata_prompt");
+  const resourcesR5Prompt = app.querySelector("#resources_r5_prompt");
+  const resourcesDdCsv = app.querySelector("#resources_dd_csv");
+  const resourcesEvidenceGuide = app.querySelector("#resources_evidence_guide");
+  const resourcesEvidenceCoverage = app.querySelector("#resources_evidence_coverage");
 
   function closeResources() {
     resourcesDrawer.classList.remove("open");
@@ -487,9 +498,27 @@ function renderShell() {
   resourcesClose.addEventListener("click", closeResources);
   resourcesBackdrop.addEventListener("click", closeResources);
 
-  resourcesPromptDownload.addEventListener("click", () => {
+  resourcesMetadataPrompt.addEventListener("click", () => {
     const blob = new Blob([metadataScraperPrompt], { type: "text/plain" });
     downloadBlob(blob, "metadata-scraper-prompt.txt");
+  });
+  resourcesR5Prompt.addEventListener("click", () => {
+    downloadBlob(new Blob([r5ScraperPrompt], { type: "text/markdown" }), "r5-scraper-prompt.v3.md");
+  });
+  resourcesDdCsv.addEventListener("click", () => {
+    downloadBlob(new Blob([defaultDdCsvText], { type: "text/csv" }), "DD.csv");
+  });
+  resourcesEvidenceGuide.addEventListener("click", async () => {
+    const payload = await buildEvidenceGuideExport();
+    state.lastManifest = payload.meta;
+    saveState();
+    downloadBlob(new Blob([stringifyStable(payload)], { type: "application/json" }), "case-evidence-guide.json");
+  });
+  resourcesEvidenceCoverage.addEventListener("click", async () => {
+    const payload = await buildEvidenceCoverageReport();
+    state.lastManifest = payload.meta;
+    saveState();
+    downloadBlob(new Blob([stringifyStable(payload)], { type: "application/json" }), "case-evidence-coverage.json");
   });
 }
 
@@ -498,7 +527,7 @@ function renderRoute() {
   if (!page) return;
   let route = currentRoute();
   const ready = isMetadataReady();
-  const preMetadataRoutes = new Set(["#/metadata", "#/guide", "#/evidence-guide"]);
+  const preMetadataRoutes = new Set(["#/metadata", "#/guide", "#/evidence-guide", "#/audit"]);
   if (!ready && !preMetadataRoutes.has(route.path)) {
     route = routes.find((r) => r.path === "#/guide") ?? routes[0];
     setRoute(route.path);
@@ -1129,6 +1158,12 @@ const ivsDocumentClassRegistry = [
     searchUse: "BSRS/benefit statement recalculation instructions."
   },
   {
+    code: "12I",
+    title: "Samples of ARIEL Benefit and Retirement Statements",
+    index: "INDEX 12: Actuarial Case Reports",
+    searchUse: "Sample benefit and retirement statements."
+  },
+  {
     code: "12J",
     title: "Samples of Detailed Calculations",
     index: "INDEX 12: Actuarial Case Reports",
@@ -1271,10 +1306,177 @@ function evidenceStatusForRequirement(req) {
   return { ready: false, label: "Evidence missing", detail: "No status rule configured." };
 }
 
+function normalizeEvidenceText(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function metadataDocumentRegistryEntries() {
+  return (state.planMetadata?.documents ?? []).map((doc) => {
+    const readEntry = (entry) => (entry && typeof entry === "object" && "value" in entry ? entry.value : entry);
+    return {
+      doc_id: readEntry(doc.doc_id) ?? "",
+      name: readEntry(doc.name) ?? "",
+      type: readEntry(doc.type) ?? "",
+      notes: readEntry(doc.notes) ?? "",
+      raw: doc
+    };
+  });
+}
+
+function documentMatchesIvsClass(doc, ivsClass) {
+  const haystack = normalizeEvidenceText([doc.doc_id, doc.name, doc.type, doc.notes].join(" "));
+  const code = normalizeEvidenceText(ivsClass.code);
+  const title = normalizeEvidenceText(ivsClass.title);
+  const index = normalizeEvidenceText(ivsClass.index);
+  if (!haystack) return false;
+  if (code && new RegExp(`(^| )${code.replace(/\s+/g, "\\s*")}( |$)`).test(haystack)) return true;
+  if (title && haystack.includes(title)) return true;
+  return index
+    .split(" ")
+    .filter((part) => part.length > 4)
+    .some((part) => haystack.includes(part)) &&
+    title
+      .split(" ")
+      .filter((part) => part.length > 4)
+      .some((part) => haystack.includes(part));
+}
+
+function coverageCitationHealth(req) {
+  if (req.id === "EV-META-001") {
+    const metadata = state.planMetadata;
+    if (!metadata) {
+      return { status: "missing", detail: "PlanMetadata is not loaded.", known_without_citations: [] };
+    }
+    const missing = [];
+    REQUIRED_METADATA_FIELDS.forEach((field) => {
+      let cur = metadata;
+      field.path.forEach((part) => {
+        cur = cur?.[part];
+      });
+      const value = String(cur?.value ?? "").trim().toLowerCase();
+      const hasKnownValue = value && value !== "unknown" && value !== "na" && value !== "n/a";
+      if (hasKnownValue && !(cur?.citations ?? []).length) missing.push(field.label);
+    });
+    return {
+      status: missing.length ? "warning" : "ready",
+      detail: missing.length ? `${missing.length} known metadata field(s) lack citations.` : "Known metadata fields have citation arrays or no known value.",
+      known_without_citations: missing
+    };
+  }
+  if (req.id === "EV-R5-001") {
+    const validations = state.caseWorkflow.r5Summary?.validations ?? [];
+    if (!validations.length) {
+      return { status: "missing", detail: "No R5Summary validation is loaded.", known_without_citations: [] };
+    }
+    const missingCount = validations.reduce((sum, item) => sum + (item.known_without_citation_count ?? 0), 0);
+    const missingItems = validations.flatMap((item) => item.known_without_citations ?? []).slice(0, 25);
+    return {
+      status: missingCount ? "warning" : "ready",
+      detail: missingCount ? `${missingCount} known R5 answer(s) lack citations.` : "Loaded R5 validation has no known answer citation gaps.",
+      known_without_citations: missingItems
+    };
+  }
+  const runKeyByRequirement = {
+    "EV-DEL-001": "data-elements",
+    "EV-PF-001": "plan-factors",
+    "EV-436-001": "section-436",
+    "EV-EST-001": "estimated-benefit-adjustments",
+    "EV-V1-001": "v1-tab-blueprint",
+    "EV-BSRS-001": "letters-bcv-config"
+  };
+  const runKey = runKeyByRequirement[req.id];
+  const hasRun = !!state.caseWorkflow.moduleRuns?.[runKey];
+  return {
+    status: hasRun ? "warning" : "missing",
+    detail: hasRun
+      ? "A module package exists; detailed citation validation is not implemented for this package yet."
+      : "No module package is available yet for citation validation.",
+    known_without_citations: []
+  };
+}
+
+function evaluateEvidenceCoverage(req) {
+  const readiness = evidenceStatusForRequirement(req);
+  const docs = metadataDocumentRegistryEntries();
+  const expectedClasses = req.documentClassCodes.map(ivsClassByCode).filter(Boolean);
+  const matchedClasses = expectedClasses
+    .map((ivsClass) => ({
+      ...ivsClass,
+      matched_documents: docs
+        .filter((doc) => documentMatchesIvsClass(doc, ivsClass))
+        .map((doc) => ({
+          doc_id: doc.doc_id || "unknown",
+          name: doc.name || "unknown",
+          type: doc.type || "unknown"
+        }))
+    }))
+    .filter((entry) => entry.matched_documents.length);
+  const citation = coverageCitationHealth(req);
+  const warnings = [];
+  if (!readiness.ready) warnings.push(readiness.detail);
+  if (!matchedClasses.length) warnings.push("No PlanMetadata document registry entry matched the expected IVS classes.");
+  if (citation.status !== "ready") warnings.push(citation.detail);
+  const hasAnyEvidence = readiness.ready || matchedClasses.length || citation.status !== "missing";
+  const status = warnings.length === 0 ? "ready" : hasAnyEvidence ? "warning" : "missing";
+  return {
+    requirement_id: req.id,
+    module: req.module,
+    status,
+    readiness,
+    expected_ivs_classes: expectedClasses.map((item) => ({ code: item.code, title: item.title })),
+    matched_ivs_classes: matchedClasses,
+    citation_health: citation,
+    downstream_impact: req.downstreamImpact,
+    warnings
+  };
+}
+
+async function buildEvidenceCoverageReport() {
+  const planMetadataHash = state.planMetadata
+    ? await sha256HexString(stringifyStable(state.planMetadata))
+    : "unknown";
+  const coverage = evidenceRequirements.map(evaluateEvidenceCoverage);
+  const counts = coverage.reduce(
+    (acc, item) => {
+      acc[item.status] = (acc[item.status] ?? 0) + 1;
+      return acc;
+    },
+    { ready: 0, warning: 0, missing: 0 }
+  );
+  return {
+    meta: {
+      app_version: APP_VERSION,
+      schema_version: SCHEMA_VERSION,
+      module_id: "evidence-requirement-coverage-validator",
+      module_version: "0.7.0",
+      generated_at_utc: new Date().toISOString(),
+      case_number: state.planMetadata?.meta?.case_number?.value ?? "unknown",
+      plan_metadata_hash: planMetadataHash
+    },
+    summary: {
+      requirement_count: coverage.length,
+      ready_count: counts.ready ?? 0,
+      warning_count: counts.warning ?? 0,
+      missing_count: counts.missing ?? 0,
+      document_registry_count: metadataDocumentRegistryEntries().length
+    },
+    assumptions: [
+      "Coverage is a deterministic readiness validator, not actuarial approval.",
+      "IVS class matches use the PlanMetadata document registry text and may require manual refinement.",
+      "Module package citation validation is shallow until each module has a final artifact schema."
+    ],
+    coverage
+  };
+}
+
 async function buildEvidenceGuideExport() {
   const planMetadataHash = state.planMetadata
     ? await sha256HexString(stringifyStable(state.planMetadata))
     : "unknown";
+  const coverageReport = await buildEvidenceCoverageReport();
   return {
     meta: {
       app_version: APP_VERSION,
@@ -1295,58 +1497,157 @@ async function buildEvidenceGuideExport() {
       ...req,
       documentClasses: req.documentClassCodes.map(ivsClassByCode).filter(Boolean),
       readiness: evidenceStatusForRequirement(req)
-    }))
+    })),
+    coverage_summary: coverageReport.summary
   };
 }
 
 function renderEvidenceRequirementCard(req) {
   const status = evidenceStatusForRequirement(req);
+  const coverage = evaluateEvidenceCoverage(req);
   const classes = req.documentClassCodes.map(ivsClassByCode).filter(Boolean);
+  const primaryClass = classes[0];
   return `
-    <article class="requirements-card">
-      <div class="workflow-card-head">
-        <h3>${escapeHtml(req.id)}: ${escapeHtml(req.module)}</h3>
-        <span>${status.ready ? "ready" : "needs evidence"}</span>
-      </div>
-      <div class="requirements-readiness">
-        <div class="${status.ready ? "ready" : "missing"}">
-          <b>${status.ready ? "Ready" : "Needed"}</b>
-          <span>${escapeHtml(status.label)}</span>
-          <small>${escapeHtml(status.detail)}</small>
-        </div>
-      </div>
-      <div class="evidence-fact">
-        <b>Fact needed</b>
-        <span>${escapeHtml(req.requiredFact)}</span>
-      </div>
-      <div class="requirements-columns">
+    <details class="requirements-card evidence-card coverage-${escapeHtml(coverage.status)}" ${coverage.status === "missing" ? "open" : ""}>
+      <summary>
         <div>
-          <b>Search IVS classes</b>
-          <ul>${classes.map((cls) => `<li><b>${escapeHtml(cls.code)}</b> ${escapeHtml(cls.title)}<br/><small>${escapeHtml(cls.searchUse)}</small></li>`).join("")}</ul>
+          <b>${escapeHtml(req.module)}</b>
+          <span>${escapeHtml(req.requiredFact)}</span>
         </div>
-        <div>
-          <b>Scrape / enter</b>
-          <ul>
-            <li>Contract: ${escapeHtml(req.scraperContract)}</li>
-            <li>Input: ${escapeHtml(req.acceptedInput)}</li>
-            <li>Fallback: ${escapeHtml(req.manualFallback)}</li>
-          </ul>
+        <span class="coverage-chip ${escapeHtml(coverage.status)}">${escapeHtml(coverage.status)}</span>
+      </summary>
+      <div class="evidence-card-body">
+        <div class="evidence-next-action">
+          <b>Next action</b>
+          <span>${coverage.status === "ready" ? "Review and proceed to the workflow." : `Search IVS ${primaryClass ? `${primaryClass.code} - ${primaryClass.title}` : "for the listed document class"}, then load scraper JSON or enter the fact manually.`}</span>
         </div>
-        <div>
-          <b>Why it matters</b>
-          <ul>
-            <li>Citation: ${escapeHtml(req.citationRule)}</li>
-            ${req.downstreamImpact.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-          </ul>
+        <div class="requirements-readiness">
+          <div class="${status.ready ? "ready" : "missing"}">
+            <b>${status.ready ? "Structured input ready" : "Structured input needed"}</b>
+            <span>${escapeHtml(status.label)}</span>
+            <small>${escapeHtml(status.detail)}</small>
+          </div>
+          <div class="${coverage.matched_ivs_classes.length ? "ready" : "missing"}">
+            <b>${coverage.matched_ivs_classes.length ? "IVS class matched" : "IVS class needed"}</b>
+            <span>${escapeHtml(coverage.matched_ivs_classes.length ? `${coverage.matched_ivs_classes.length} class(es) matched in document registry` : "No matching registry document")}</span>
+            <small>${escapeHtml(coverage.expected_ivs_classes.map((cls) => cls.code).join(", "))}</small>
+          </div>
+          <div class="${coverage.citation_health.status === "ready" ? "ready" : "missing"}">
+            <b>${coverage.citation_health.status === "ready" ? "Citation check" : "Citation warning"}</b>
+            <span>${escapeHtml(coverage.citation_health.status)}</span>
+            <small>${escapeHtml(coverage.citation_health.detail)}</small>
+          </div>
         </div>
+        <div class="requirements-columns">
+          <div>
+            <b>Search IVS classes</b>
+            <ul>${classes.map((cls) => `<li><b>${escapeHtml(cls.code)}</b> ${escapeHtml(cls.title)}<br/><small>${escapeHtml(cls.searchUse)}</small></li>`).join("")}</ul>
+          </div>
+          <div>
+            <b>Scrape / enter</b>
+            <ul>
+              <li>Contract: ${escapeHtml(req.scraperContract)}</li>
+              <li>Input: ${escapeHtml(req.acceptedInput)}</li>
+              <li>Fallback: ${escapeHtml(req.manualFallback)}</li>
+            </ul>
+          </div>
+          <div>
+            <b>Why it matters</b>
+            <ul>
+              <li>Citation: ${escapeHtml(req.citationRule)}</li>
+              ${req.downstreamImpact.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+            </ul>
+          </div>
+        </div>
+        ${coverage.warnings.length ? `<div class="coverage-warning-list"><b>Coverage warnings</b><ul>${coverage.warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
+        <button class="ghost" data-evidence-route="${escapeHtml(req.route)}">Open workflow</button>
       </div>
-      <button class="ghost" data-evidence-route="${escapeHtml(req.route)}">Open workflow</button>
-    </article>
+    </details>
   `;
 }
 
-function renderEvidenceGuide(container) {
+function renderEvidenceCoverageSummary(report) {
+  return `
+    <div class="rules-summary-grid">
+      <div><span>Ready</span><b>${report.summary.ready_count}</b><small>requirements</small></div>
+      <div><span>Warnings</span><b>${report.summary.warning_count}</b><small>requirements</small></div>
+      <div><span>Missing</span><b>${report.summary.missing_count}</b><small>requirements</small></div>
+    </div>
+  `;
+}
+
+function evidenceRequirementForGuideStep(step) {
+  const stepId = step?.id ?? "";
+  if (stepId === "metadata") return evidenceRequirements.find((req) => req.id === "EV-META-001");
+  if (stepId === "r5") return evidenceRequirements.find((req) => req.id === "EV-R5-001");
+  if (stepId === "data-elements" || stepId === "synthetic-population") return evidenceRequirements.find((req) => req.id === "EV-DEL-001");
+  if (stepId === "plan-factors") return evidenceRequirements.find((req) => req.id === "EV-PF-001");
+  if (stepId === "section-436") return evidenceRequirements.find((req) => req.id === "EV-436-001");
+  if (stepId === "estimated-analyses") return evidenceRequirements.find((req) => req.id === "EV-EST-001");
+  if (stepId === "v1") return evidenceRequirements.find((req) => req.id === "EV-V1-001");
+  if (stepId === "bsrs-bcv") return evidenceRequirements.find((req) => req.id === "EV-BSRS-001");
+  return null;
+}
+
+function renderEmbeddedEvidencePanel(step) {
+  const req = evidenceRequirementForGuideStep(step);
+  if (!req) {
+    return `
+      <div class="embedded-evidence-panel">
+        <div class="workflow-card-head">
+          <h3>Evidence for this step</h3>
+          <span>reference</span>
+        </div>
+        <p class="muted">This step is a planning checkpoint. Use the next workflow step to gather source evidence.</p>
+      </div>
+    `;
+  }
+  const coverage = evaluateEvidenceCoverage(req);
+  const classes = req.documentClassCodes.map(ivsClassByCode).filter(Boolean);
+  const primaryClass = classes[0];
+  return `
+    <div class="embedded-evidence-panel coverage-${escapeHtml(coverage.status)}">
+      <div class="workflow-card-head">
+        <h3>Evidence for this step</h3>
+        <span>${escapeHtml(coverage.status)}</span>
+      </div>
+      <div class="evidence-next-action">
+        <b>Next evidence action</b>
+        <span>${coverage.status === "ready" ? "Evidence looks ready. Review warnings, then proceed." : `Search IVS ${primaryClass ? `${primaryClass.code} - ${primaryClass.title}` : "for the listed document class"}, scrape to JSON or enter manually, then save in this workflow.`}</span>
+      </div>
+      <div class="requirements-columns">
+        <div>
+          <b>Search in IVS</b>
+          <ul>${classes.slice(0, 4).map((cls) => `<li><b>${escapeHtml(cls.code)}</b> ${escapeHtml(cls.title)}</li>`).join("")}</ul>
+        </div>
+        <div>
+          <b>Load or enter</b>
+          <ul>
+            <li>${escapeHtml(req.acceptedInput)}</li>
+            <li>${escapeHtml(req.manualFallback)}</li>
+          </ul>
+        </div>
+        <div>
+          <b>Watch</b>
+          <ul>
+            <li>${escapeHtml(req.citationRule)}</li>
+            ${coverage.warnings.slice(0, 2).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("") || "<li>No coverage warnings.</li>"}
+          </ul>
+        </div>
+      </div>
+      <button class="ghost" data-guide-route="#/evidence-guide">Open full evidence reference</button>
+    </div>
+  `;
+}
+
+async function renderEvidenceGuide(container) {
   const readyCount = evidenceRequirements.filter((req) => evidenceStatusForRequirement(req).ready).length;
+  const coverageReport = await buildEvidenceCoverageReport();
+  const firstBlocking = coverageReport.coverage.find((item) => item.status !== "ready");
+  const firstBlockingRequirement = firstBlocking
+    ? evidenceRequirements.find((req) => req.id === firstBlocking.requirement_id)
+    : null;
+  const firstBlockingClass = firstBlocking?.expected_ivs_classes?.[0] ?? null;
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
@@ -1355,7 +1656,9 @@ function renderEvidenceGuide(container) {
       </div>
       <div class="page-actions">
         <button class="primary" id="download_evidence_guide">Download evidence guide JSON</button>
-        <button class="ghost" id="evidence_open_inputs">Inputs Matrix</button>
+        <button class="ghost" id="download_evidence_coverage">Download coverage JSON</button>
+        <button class="ghost" id="evidence_open_inputs">Input Contracts</button>
+        <button class="ghost" id="evidence_open_rules">Technical Rules</button>
       </div>
     </section>
 
@@ -1363,8 +1666,19 @@ function renderEvidenceGuide(container) {
 
     ${renderWorkflowStatePanel({ title: "Shared Case Inputs", keys: ["metadata", "r5", "v1", "synthetic"] })}
 
+    <div class="workflow-band">
+      <h3>Start Here</h3>
+      <p class="muted">${firstBlockingRequirement
+        ? `Next: ${firstBlockingRequirement.module}. Search IVS ${firstBlockingClass ? `${firstBlockingClass.code} (${firstBlockingClass.title})` : "for the listed document class"}, then load the scraper JSON or enter the fact manually.`
+        : "All evidence requirements are ready or warning-level only. Review warnings, then proceed through Case Workflow."}</p>
+      <div class="button-row">
+        <button class="primary" data-evidence-route="${escapeHtml(firstBlockingRequirement?.route ?? "#/guide")}">${firstBlockingRequirement ? `Open ${escapeHtml(firstBlockingRequirement.module)}` : "Open Case Workflow"}</button>
+        <button class="ghost" id="evidence_open_inputs_top">Input Contracts</button>
+      </div>
+    </div>
+
     <div class="banner subtle">
-      Use this page when the app needs a fact but the exact source document is not known. Search the listed IVS class, scrape to JSON with the listed contract, then load or enter the result in the target workflow.
+      This is the user-facing evidence flow. Input Contracts and Technical Rules are reference pages for deeper design checks, not separate steps you need to work through every time.
     </div>
 
     <div class="rules-summary-grid">
@@ -1373,7 +1687,10 @@ function renderEvidenceGuide(container) {
       <div><span>IVS classes</span><b>${ivsDocumentClassRegistry.length}</b><small>seeded from Plan File Types</small></div>
     </div>
 
-    <div class="requirements-list">
+    <h3>Evidence Coverage</h3>
+    ${renderEvidenceCoverageSummary(coverageReport)}
+
+    <div class="requirements-list evidence-list">
       ${evidenceRequirements.map(renderEvidenceRequirementCard).join("")}
     </div>
 
@@ -1385,6 +1702,8 @@ function renderEvidenceGuide(container) {
     btn.addEventListener("click", () => setRoute(btn.dataset.evidenceRoute));
   });
   container.querySelector("#evidence_open_inputs").addEventListener("click", () => setRoute("#/inputs"));
+  container.querySelector("#evidence_open_inputs_top").addEventListener("click", () => setRoute("#/inputs"));
+  container.querySelector("#evidence_open_rules").addEventListener("click", () => setRoute("#/rules"));
   const statusEl = container.querySelector("#evidence_guide_status");
   container.querySelector("#download_evidence_guide").addEventListener("click", async () => {
     try {
@@ -1396,6 +1715,20 @@ function renderEvidenceGuide(container) {
         "case-evidence-guide.json"
       );
       statusEl.textContent = `Downloaded case-evidence-guide.json\n\n${JSON.stringify(payload.meta, null, 2)}`;
+    } catch (err) {
+      statusEl.textContent = `ERROR: ${err.message}`;
+    }
+  });
+  container.querySelector("#download_evidence_coverage").addEventListener("click", async () => {
+    try {
+      const payload = await buildEvidenceCoverageReport();
+      state.lastManifest = payload.meta;
+      saveState();
+      downloadBlob(
+        new Blob([stringifyStable(payload)], { type: "application/json" }),
+        "case-evidence-coverage.json"
+      );
+      statusEl.textContent = `Downloaded case-evidence-coverage.json\n\n${JSON.stringify(payload.meta, null, 2)}`;
     } catch (err) {
       statusEl.textContent = `ERROR: ${err.message}`;
     }
@@ -1616,18 +1949,6 @@ const caseGuideSteps = [
     warnings: ["Without metadata, other modules cannot create reliable manifests."]
   },
   {
-    id: "inputs",
-    title: "Inputs Matrix",
-    phase: "Planning",
-    route: "#/inputs",
-    readinessKeys: ["metadata"],
-    prompt: "Review the pure input contract for plan-metadata.json, ########R5.docx, ########DEL.pdf, ########PF.xlsx, the analysis DOCX files, ########V1.xlsx, and ########S1.cfg.",
-    uploadAction: "No upload required",
-    manualAction: "Review missing/unknown input families",
-    programmedAction: "Download case-input-requirements.json",
-    warnings: ["Continue with unknown/na when source material is not yet available."]
-  },
-  {
     id: "r5",
     title: "R5 / Plan Summary",
     phase: "Upfront Work",
@@ -1745,13 +2066,18 @@ function renderGuideStepButton(step, index) {
   const status = guideStepStatus(step);
   const stateClass = status.complete ? "ready" : status.started ? "warning" : "missing";
   const active = step.id === activeGuideStepId ? "active" : "";
+  const label = active ? "current" : status.complete ? "done" : "later";
   return `
-    <button class="guide-step ${stateClass} ${active}" data-guide-step="${escapeHtml(step.id)}">
+    <div class="guide-step ${stateClass} ${active}" aria-current="${active ? "step" : "false"}">
       <span>${index + 1}</span>
       <b>${escapeHtml(step.title)}</b>
-      <small>${status.ready}/${status.total} ready</small>
-    </button>
+      <small>${label}</small>
+    </div>
   `;
+}
+
+function firstIncompleteGuideStep() {
+  return caseGuideSteps.find((step) => !guideStepStatus(step).complete) ?? caseGuideSteps[caseGuideSteps.length - 1];
 }
 
 function normalizeValueEntry(entry) {
@@ -2377,8 +2703,9 @@ function renderMetadata(container) {
         };
         saveState();
         validationOutput.textContent = "Valid PlanMetadata JSON.";
-        saveStatusFocus.textContent = "Loaded and saved. Other modules unlocked.";
-        setRoute("#/dashboard");
+        saveStatusFocus.textContent = "Loaded and saved. Moving to the next case step.";
+        activeGuideStepId = "r5";
+        setRoute("#/guide");
       }
     } catch (err) {
       metadataStatus.textContent = `Invalid JSON: ${err.message}`;
@@ -2457,8 +2784,9 @@ function renderMetadata(container) {
       };
       saveState();
       validationOutput.textContent = "Saved to workspace.";
-      saveStatusFocus.textContent = "Saved. Other modules unlocked.";
-      setRoute("#/dashboard");
+      saveStatusFocus.textContent = "Saved. Moving to the next case step.";
+      activeGuideStepId = "r5";
+      setRoute("#/guide");
     } catch (err) {
       validationOutput.textContent = `Invalid JSON: ${err.message}`;
       saveStatusFocus.textContent = "Fix errors before saving.";
@@ -2508,7 +2836,8 @@ function renderMetadata(container) {
 }
 
 function renderDashboard(container) {
-  const cards = deliverableCards();
+  const startRoute = isMetadataReady() ? "#/guide" : "#/metadata";
+  const startLabel = isMetadataReady() ? "Open Case Workflow" : "Start Metadata";
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
@@ -2523,48 +2852,11 @@ function renderDashboard(container) {
 
     <div class="workflow-band">
       <h3>Recommended Next Action</h3>
-      <p class="muted">Use Case Guide as the primary workflow. It walks through Metadata, Inputs Matrix, R5, DEL, PF, 436, Estimated Analyses, V1, and BSRS/BCV with warnings instead of hard blocks.</p>
+      <p class="muted">The final goal is the Actuarial Case Memo. Start with Metadata, then use Case Workflow to move through the case and gather the next missing evidence inside each step.</p>
       <div class="button-row">
-        <button class="primary" data-dashboard-route="#/guide">Open Case Guide</button>
-        <button class="ghost" data-dashboard-route="#/evidence-guide">Evidence Guide</button>
-        <button class="ghost" data-dashboard-route="#/v1-engine-explorer">Open V1 Explorer</button>
-        <button class="ghost" data-dashboard-route="#/v1-audit">Audit V1 Match</button>
-        <button class="ghost" data-dashboard-route="#/inputs">Review Inputs Matrix</button>
-        <button class="ghost" data-dashboard-route="#/rules">Rules Registry</button>
-        <button class="ghost" data-dashboard-route="#/metadata">Edit Metadata</button>
+        <button class="primary" data-dashboard-route="${startRoute}">${startLabel}</button>
         <button class="ghost" data-dashboard-route="#/audit">Audit / Manifest</button>
       </div>
-    </div>
-
-    <div class="workflow-grid">
-      ${cards
-        .map((card) => {
-          const readiness = upstreamReadiness(card.upstreamInputs);
-          return `
-            <article class="workflow-card ${card.status.toLowerCase().includes("scaffold") ? "scaffold" : ""}">
-              <div class="workflow-card-head">
-                <h3>${escapeHtml(card.title)}</h3>
-                <span>${escapeHtml(card.status)}</span>
-              </div>
-              <p>${escapeHtml(card.description)}</p>
-              <div class="workflow-output">
-                <b>Output</b>
-                <span>${escapeHtml(card.outputName ?? "unknown/na")}</span>
-              </div>
-              <div class="workflow-readiness ${readiness.complete ? "ready" : "missing"}">
-                Shared inputs: ${readiness.ready}/${readiness.total} ready
-              </div>
-              <div class="workflow-inputs">
-                <b>Inputs</b>
-                <ul>
-                  ${card.inputs.map((input) => `<li>${escapeHtml(input)}</li>`).join("")}
-                </ul>
-              </div>
-              <button data-dashboard-route="${card.route}">${escapeHtml(card.action)}</button>
-            </article>
-          `;
-        })
-        .join("")}
     </div>
   `;
 
@@ -2575,22 +2867,18 @@ function renderDashboard(container) {
 }
 
 function renderCaseGuide(container) {
-  const activeStep = caseGuideSteps.find((step) => step.id === activeGuideStepId) ?? caseGuideSteps[0];
+  let activeStep = caseGuideSteps.find((step) => step.id === activeGuideStepId) ?? firstIncompleteGuideStep();
+  if (guideStepStatus(activeStep).complete) {
+    activeStep = firstIncompleteGuideStep();
+    activeGuideStepId = activeStep.id;
+  }
   const activeStatus = guideStepStatus(activeStep);
-  const activeIndex = caseGuideSteps.findIndex((step) => step.id === activeStep.id);
-  const canPrev = activeIndex > 0;
-  const canNext = activeIndex < caseGuideSteps.length - 1;
 
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
-        <h2>Case Guide</h2>
-        <p>Follow the caseworkbench flow. Missing inputs are allowed, but they stay visible as warnings and unknown/na placeholders.</p>
-      </div>
-      <div class="page-actions">
-        <button class="ghost" data-guide-route="#/evidence-guide">Evidence Guide</button>
-        <button class="ghost" data-guide-route="#/inputs">Inputs Matrix</button>
-        <button class="ghost" data-guide-route="#/rules">Rules Registry</button>
+        <h2>Case Workflow</h2>
+        <p>Work one current step at a time. Completed steps are shown as done; the panel focuses on the next incomplete case task.</p>
       </div>
     </section>
 
@@ -2598,19 +2886,17 @@ function renderCaseGuide(container) {
 
     ${renderWorkflowStatePanel({ title: "Shared Case Inputs" })}
 
-    ${renderCanonicalDeliverablesPanel()}
+    <div class="case-progress-strip" aria-label="Case workflow progress">
+      ${caseGuideSteps.map(renderGuideStepButton).join("")}
+    </div>
 
-    <div class="guide-shell">
-      <nav class="guide-steps" aria-label="Case guide steps">
-        ${caseGuideSteps.map(renderGuideStepButton).join("")}
-      </nav>
-      <section class="guide-dialog">
+    <section class="guide-dialog">
         <div class="guide-dialog-head">
           <div>
             <span>${escapeHtml(activeStep.phase)}</span>
             <h3>${escapeHtml(activeStep.title)}</h3>
           </div>
-          <b class="${activeStatus.complete ? "ready" : "warning"}">${activeStatus.ready}/${activeStatus.total} ready</b>
+          <b class="${activeStatus.complete ? "ready" : "warning"}">${activeStatus.complete ? "done" : "current step"}</b>
         </div>
         <p>${escapeHtml(activeStep.prompt)}</p>
         <div class="guide-readiness">
@@ -2642,38 +2928,17 @@ function renderCaseGuide(container) {
         <div class="banner subtle">
           ${activeStep.warnings.map((warning) => escapeHtml(warning)).join(" ")}
         </div>
+        ${renderEmbeddedEvidencePanel(activeStep)}
         <div class="button-row">
-          <button class="ghost" id="guide_prev" ${canPrev ? "" : "disabled"}>Previous</button>
           <button class="primary" data-guide-route="${escapeHtml(activeStep.route)}">Open ${escapeHtml(activeStep.title)}</button>
           ${activeStep.alternateRoute ? `<button class="ghost" data-guide-route="${escapeHtml(activeStep.alternateRoute)}">Alternate workflow</button>` : ""}
-          <button class="ghost" id="guide_next" ${canNext ? "" : "disabled"}>Continue with warnings</button>
         </div>
-      </section>
-    </div>
+    </section>
   `;
 
   hydratePlanContext(container);
-
-  container.querySelectorAll("[data-guide-step]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      activeGuideStepId = btn.dataset.guideStep;
-      renderCaseGuide(container);
-    });
-  });
   container.querySelectorAll("[data-guide-route]").forEach((btn) => {
     btn.addEventListener("click", () => setRoute(btn.dataset.guideRoute));
-  });
-  const prevBtn = container.querySelector("#guide_prev");
-  const nextBtn = container.querySelector("#guide_next");
-  prevBtn?.addEventListener("click", () => {
-    if (!canPrev) return;
-    activeGuideStepId = caseGuideSteps[activeIndex - 1].id;
-    renderCaseGuide(container);
-  });
-  nextBtn?.addEventListener("click", () => {
-    if (!canNext) return;
-    activeGuideStepId = caseGuideSteps[activeIndex + 1].id;
-    renderCaseGuide(container);
   });
 }
 
@@ -2756,11 +3021,12 @@ function renderRulesRegistry(container) {
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
-        <h2>Rules Registry</h2>
-        <p>Reference-derived control map for what the workbench can program, what needs LLM extraction, and what requires human review.</p>
+        <h2>Technical Rules Registry</h2>
+        <p>Developer/control reference for what can become deterministic code, what needs LLM extraction, and what requires human review.</p>
       </div>
       <div class="page-actions">
         <button class="primary" id="download_rules_registry">Download rules-registry.json</button>
+        <button class="ghost" data-rules-route="#/guide">Back to Case Workflow</button>
       </div>
     </section>
 
@@ -2773,7 +3039,7 @@ function renderRulesRegistry(container) {
     </div>
 
     <div class="banner subtle">
-      This registry is the implementation roadmap. Mechanical rules should become code and tests. LLM-assisted rules should become scraper prompts and schemas. Human-review rules should become explicit approval gates.
+      This is not a workflow step for everyday use. It is the implementation roadmap behind Case Workflow evidence panels.
     </div>
 
     <div class="rules-registry-list">
@@ -2784,6 +3050,9 @@ function renderRulesRegistry(container) {
   `;
 
   hydratePlanContext(container);
+  container.querySelectorAll("[data-rules-route]").forEach((btn) => {
+    btn.addEventListener("click", () => setRoute(btn.dataset.rulesRoute));
+  });
 
   const downloadBtn = container.querySelector("#download_rules_registry");
   const statusEl = container.querySelector("#rules_registry_status");
@@ -2829,12 +3098,13 @@ function renderInputsMatrix(container) {
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
-        <h2>Inputs Matrix</h2>
-        <p>Pure inputs, derived upstream outputs, and governing references for the minimum PBGC deliverables.</p>
+        <h2>Input Contracts</h2>
+        <p>Technical reference showing raw inputs, upstream outputs, and governing references for each deliverable.</p>
       </div>
       <div class="page-actions">
         <button class="primary" id="download_inputs_matrix">Download requirements JSON</button>
-        <button class="ghost" id="open_rules_registry">Open Rules Registry</button>
+        <button class="ghost" data-inputs-route="#/guide">Back to Case Workflow</button>
+        <button class="ghost" id="open_rules_registry">Technical Rules</button>
       </div>
     </section>
 
@@ -2843,7 +3113,7 @@ function renderInputsMatrix(container) {
     ${renderWorkflowStatePanel({ title: "Shared Case Inputs" })}
 
     <div class="banner subtle">
-      Pure inputs are raw case facts or files you must provide or enter manually. Upstream outputs are workbench artifacts that can be derived after earlier modules run.
+      This page is a reference table. For day-to-day workflow, use Case Workflow.
     </div>
 
     <div class="input-family-grid">
@@ -2910,6 +3180,9 @@ function renderInputsMatrix(container) {
   `;
 
   hydratePlanContext(container);
+  container.querySelectorAll("[data-inputs-route]").forEach((btn) => {
+    btn.addEventListener("click", () => setRoute(btn.dataset.inputsRoute));
+  });
 
   container.querySelectorAll("[data-requirement-route]").forEach((btn) => {
     btn.addEventListener("click", () => setRoute(btn.dataset.requirementRoute));

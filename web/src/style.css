@@ -97,12 +97,12 @@ body {
 }
 
 .nav-button {
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: transparent;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
   padding: 0.35rem 0.9rem;
   font-size: 0.9rem;
-  color: var(--muted);
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -114,14 +114,13 @@ body {
 
 .nav-button:hover {
   color: var(--text);
-  border-color: var(--border);
   background: var(--surface-strong);
 }
 
 .nav-button.active {
   color: var(--text);
   border-color: var(--accent);
-  background: rgba(27, 95, 95, 0.08);
+  background: var(--surface-strong);
 }
 
 .resources-btn {
@@ -139,7 +138,7 @@ body {
 .theme-toggle {
   display: inline-flex;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 6px;
   overflow: hidden;
 }
 
@@ -298,6 +297,28 @@ body {
 .drawer-body {
   padding: 1rem 1.2rem;
   overflow-y: auto;
+}
+
+.resource-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.resource-list button {
+  justify-content: flex-start;
+}
+
+.resource-note {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.75rem;
+}
+
+.resource-note span {
+  color: var(--muted);
 }
 
 .instructions.hidden {
@@ -461,9 +482,11 @@ textarea.code {
 
 .case-context span,
 .workflow-card-head span {
-  color: var(--muted);
-  font-size: 0.78rem;
+  color: var(--accent);
+  font-size: 0.74rem;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .workflow-band {
@@ -757,6 +780,79 @@ textarea.code {
   border-color: var(--accent);
 }
 
+.requirements-card.coverage-ready {
+  border-color: var(--accent);
+}
+
+.requirements-card.coverage-warning {
+  border-color: var(--accent-2);
+}
+
+.requirements-card.coverage-missing {
+  border-color: var(--danger);
+}
+
+.evidence-list {
+  gap: 0.65rem;
+}
+
+.evidence-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.evidence-card summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+  padding: 0.9rem 1rem;
+}
+
+.evidence-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.evidence-card summary > div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.evidence-card summary span:not(.coverage-chip) {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.evidence-card-body {
+  display: grid;
+  gap: 0.85rem;
+  border-top: 1px solid var(--border);
+  padding: 1rem;
+}
+
+.coverage-chip {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.coverage-chip.ready {
+  color: var(--accent);
+}
+
+.coverage-chip.warning {
+  color: var(--accent-2);
+}
+
+.coverage-chip.missing {
+  color: var(--danger);
+}
+
 .requirements-readiness {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -815,6 +911,53 @@ textarea.code {
 
 .evidence-fact span {
   color: var(--muted);
+}
+
+.evidence-next-action {
+  display: grid;
+  gap: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.75rem;
+}
+
+.evidence-next-action span {
+  color: var(--muted);
+}
+
+.coverage-warning-list {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.75rem;
+}
+
+.coverage-warning-list ul {
+  margin: 0.45rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+
+.embedded-evidence-panel {
+  display: grid;
+  gap: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 1rem;
+}
+
+.embedded-evidence-panel.coverage-ready {
+  border-color: var(--accent);
+}
+
+.embedded-evidence-panel.coverage-warning {
+  border-color: var(--accent-2);
+}
+
+.embedded-evidence-panel.coverage-missing {
+  border-color: var(--danger);
 }
 
 .v1-audit-grid {
@@ -918,40 +1061,28 @@ textarea.code {
 .rule-status {
   display: inline-flex;
   width: fit-content;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-strong);
-  padding: 0.25rem 0.65rem;
-  color: var(--muted);
-  font-size: 0.85rem;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.guide-shell {
+.case-progress-strip {
   display: grid;
-  grid-template-columns: minmax(220px, 300px) 1fr;
-  gap: 1rem;
-  align-items: start;
-}
-
-.guide-steps {
-  display: grid;
-  gap: 0.5rem;
-  position: sticky;
-  top: 7.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 0.45rem;
+  margin: 1rem 0;
 }
 
 .guide-step {
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
+  gap: 0.3rem;
+  border-top: 3px solid var(--border);
+  background: transparent;
   color: var(--text);
-  padding: 0.7rem;
-  text-align: left;
-  cursor: pointer;
+  padding: 0.55rem 0.3rem;
+  text-align: center;
 }
 
 .guide-step span {
@@ -960,8 +1091,16 @@ textarea.code {
   width: 28px;
   height: 28px;
   border-radius: 999px;
-  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  background: transparent;
   color: var(--muted);
+  margin: 0 auto;
+}
+
+.guide-step b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .guide-step small {
@@ -970,21 +1109,26 @@ textarea.code {
 }
 
 .guide-step.ready {
-  border-color: var(--accent);
+  border-top-color: var(--accent);
 }
 
 .guide-step.warning,
 .guide-dialog-head .warning {
-  border-color: var(--accent-2);
+  border-top-color: var(--accent-2);
 }
 
 .guide-step.missing {
-  border-color: var(--border);
+  border-top-color: var(--border);
 }
 
 .guide-step.active {
-  background: var(--surface-strong);
-  outline: 2px solid var(--accent);
+  border-top-color: var(--accent);
+  background: transparent;
+}
+
+.guide-step.active span {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .guide-dialog {
@@ -1054,10 +1198,11 @@ textarea.code {
 }
 
 .guide-dialog-head > b {
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.25rem 0.65rem;
   white-space: nowrap;
+  color: var(--accent-2);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .guide-dialog-head > b.ready {
@@ -1346,11 +1491,7 @@ textarea.code {
     grid-template-columns: 1fr;
   }
 
-  .guide-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .guide-steps {
-    position: static;
+  .case-progress-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
