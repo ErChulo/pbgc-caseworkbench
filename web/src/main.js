@@ -100,25 +100,25 @@ function clearState() {
 }
 
 const routes = [
-  { path: "#/metadata", title: "Metadata", render: renderMetadata },
-  { path: "#/dashboard", title: "Dashboard", render: renderDashboard },
+  { path: "#/metadata", title: "Case Intake", render: renderMetadata },
+  { path: "#/dashboard", title: "Dashboard", render: renderDashboard, hidden: true },
   { path: "#/guide", title: "Case Workflow", render: renderCaseGuide },
   { path: "#/evidence-guide", title: "Next Evidence", render: renderEvidenceGuide, hidden: true },
   { path: "#/inputs", title: "Input Contracts", render: renderInputsMatrix, hidden: true },
   { path: "#/rules", title: "Rules Registry", render: renderRulesRegistry, hidden: true },
-  { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
-  { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer },
-  { path: "#/v1-audit", title: "V1 Audit", render: renderV1Audit },
-  { path: "#/del", title: "DEL", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.del) },
-  { path: "#/synthetic-population", title: "Synthetic Population", render: renderSyntheticPopulation },
-  { path: "#/factors", title: "Plan Factors", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.factors) },
-  { path: "#/436", title: "436", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.section436) },
-  { path: "#/estimated-adjustments", title: "Est. Adjustments", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdjustments) },
-  { path: "#/estimated-administration", title: "Est. Administration", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdministration) },
+  { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary, hidden: true },
+  { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer, hidden: true },
+  { path: "#/v1-audit", title: "V1 Audit", render: renderV1Audit, hidden: true },
+  { path: "#/del", title: "DEL", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.del), hidden: true },
+  { path: "#/synthetic-population", title: "Synthetic Population", render: renderSyntheticPopulation, hidden: true },
+  { path: "#/factors", title: "Plan Factors", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.factors), hidden: true },
+  { path: "#/436", title: "436", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.section436), hidden: true },
+  { path: "#/estimated-adjustments", title: "Est. Adjustments", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdjustments), hidden: true },
+  { path: "#/estimated-administration", title: "Est. Administration", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.estimatedAdministration), hidden: true },
   { path: "#/v1-builder", title: "V1 Builder", render: renderV1BuilderAlias, hidden: true },
   { path: "#/dag-viewer", title: "DAG Viewer", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.dagViewer) },
   { path: "#/formula-tree", title: "Formula Tree", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.formulaTree) },
-  { path: "#/letters-bcv", title: "Letters/BCV", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.lettersBcv) },
+  { path: "#/letters-bcv", title: "Letters/BCV", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.lettersBcv), hidden: true },
   { path: "#/audit", title: "Audit", render: renderAudit }
 ];
 
@@ -361,7 +361,7 @@ function setRoute(path) {
 }
 
 function currentRoute() {
-  const h = location.hash || "#/metadata";
+  const h = location.hash || (isMetadataReady() ? "#/guide" : "#/metadata");
   return routes.find((r) => r.path === h) ?? routes[0];
 }
 
@@ -2066,7 +2066,7 @@ function renderGuideStepButton(step, index) {
   const status = guideStepStatus(step);
   const stateClass = status.complete ? "ready" : status.started ? "warning" : "missing";
   const active = step.id === activeGuideStepId ? "active" : "";
-  const disabled = status.complete && !active ? "disabled" : "";
+  const disabled = step.id !== activeGuideStepId ? "disabled" : "";
   return `
     <button class="guide-step ${stateClass} ${active}" data-guide-step="${escapeHtml(step.id)}" ${disabled}>
       <span>${index + 1}</span>
@@ -2836,7 +2836,6 @@ function renderMetadata(container) {
 }
 
 function renderDashboard(container) {
-  const cards = deliverableCards();
   const startRoute = isMetadataReady() ? "#/guide" : "#/metadata";
   const startLabel = isMetadataReady() ? "Open Case Workflow" : "Start Metadata";
   container.innerHTML = `
@@ -2856,43 +2855,8 @@ function renderDashboard(container) {
       <p class="muted">The final goal is the Actuarial Case Memo. Start with Metadata, then use Case Workflow to move through the case and gather the next missing evidence inside each step.</p>
       <div class="button-row">
         <button class="primary" data-dashboard-route="${startRoute}">${startLabel}</button>
-        <button class="ghost" data-dashboard-route="#/guide">Case Workflow</button>
-        <button class="ghost" data-dashboard-route="#/v1-engine-explorer">Open V1 Explorer</button>
-        <button class="ghost" data-dashboard-route="#/v1-audit">Audit V1 Match</button>
-        <button class="ghost" data-dashboard-route="#/metadata">Edit Metadata</button>
         <button class="ghost" data-dashboard-route="#/audit">Audit / Manifest</button>
       </div>
-    </div>
-
-    <div class="workflow-grid">
-      ${cards
-        .map((card) => {
-          const readiness = upstreamReadiness(card.upstreamInputs);
-          return `
-            <article class="workflow-card ${card.status.toLowerCase().includes("scaffold") ? "scaffold" : ""}">
-              <div class="workflow-card-head">
-                <h3>${escapeHtml(card.title)}</h3>
-                <span>${escapeHtml(card.status)}</span>
-              </div>
-              <p>${escapeHtml(card.description)}</p>
-              <div class="workflow-output">
-                <b>Output</b>
-                <span>${escapeHtml(card.outputName ?? "unknown/na")}</span>
-              </div>
-              <div class="workflow-readiness ${readiness.complete ? "ready" : "missing"}">
-                Shared inputs: ${readiness.ready}/${readiness.total} ready
-              </div>
-              <div class="workflow-inputs">
-                <b>Inputs</b>
-                <ul>
-                  ${card.inputs.map((input) => `<li>${escapeHtml(input)}</li>`).join("")}
-                </ul>
-              </div>
-              <button data-dashboard-route="${card.route}">${escapeHtml(card.action)}</button>
-            </article>
-          `;
-        })
-        .join("")}
     </div>
   `;
 
@@ -2909,9 +2873,6 @@ function renderCaseGuide(container) {
     activeGuideStepId = activeStep.id;
   }
   const activeStatus = guideStepStatus(activeStep);
-  const activeIndex = caseGuideSteps.findIndex((step) => step.id === activeStep.id);
-  const canPrev = activeIndex > 0;
-  const canNext = activeIndex < caseGuideSteps.length - 1;
 
   container.innerHTML = `
     <section class="page-hero">
@@ -2924,8 +2885,6 @@ function renderCaseGuide(container) {
     ${planContextHtml()}
 
     ${renderWorkflowStatePanel({ title: "Shared Case Inputs" })}
-
-    ${renderCanonicalDeliverablesPanel()}
 
     <div class="guide-shell">
       <nav class="guide-steps" aria-label="Case guide steps">
@@ -2971,10 +2930,8 @@ function renderCaseGuide(container) {
         </div>
         ${renderEmbeddedEvidencePanel(activeStep)}
         <div class="button-row">
-          <button class="ghost" id="guide_prev" ${canPrev ? "" : "disabled"}>Previous</button>
           <button class="primary" data-guide-route="${escapeHtml(activeStep.route)}">Open ${escapeHtml(activeStep.title)}</button>
           ${activeStep.alternateRoute ? `<button class="ghost" data-guide-route="${escapeHtml(activeStep.alternateRoute)}">Alternate workflow</button>` : ""}
-          <button class="ghost" id="guide_next" ${canNext ? "" : "disabled"}>Next step</button>
         </div>
       </section>
     </div>
@@ -2991,18 +2948,6 @@ function renderCaseGuide(container) {
   });
   container.querySelectorAll("[data-guide-route]").forEach((btn) => {
     btn.addEventListener("click", () => setRoute(btn.dataset.guideRoute));
-  });
-  const prevBtn = container.querySelector("#guide_prev");
-  const nextBtn = container.querySelector("#guide_next");
-  prevBtn?.addEventListener("click", () => {
-    if (!canPrev) return;
-    activeGuideStepId = caseGuideSteps[activeIndex - 1].id;
-    renderCaseGuide(container);
-  });
-  nextBtn?.addEventListener("click", () => {
-    if (!canNext) return;
-    activeGuideStepId = caseGuideSteps[activeIndex + 1].id;
-    renderCaseGuide(container);
   });
 }
 

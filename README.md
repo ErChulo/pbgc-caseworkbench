@@ -27,7 +27,7 @@ Some deliverables are still in scaffold or support-artifact form. The app marks 
 Use the modules in this order:
 
 1. **Metadata**: create or upload `PlanMetadata`. This is foundational and shared by every module.
-2. **Case Workflow**: move through the case lifecycle and use the embedded evidence panel for the active step.
+2. **Case Workflow**: work one current lifecycle step at a time. Completed and future steps are shown for orientation, not as competing actions.
 3. **Input Contracts**: technical reference for raw inputs, upstream outputs, and governing references when deeper inspection is needed.
 4. **R5 / Plan Summary**: load or validate `R5Summary.json`, then generate the R5 plan-summary artifact path.
 5. **DEL**: use `PlanMetadata`, `R5Summary.json`, and `DD.csv` to define required data elements.
@@ -60,7 +60,7 @@ This separation is important:
 
 When a required fact cannot be tied to a known named document, modules should identify the relevant IVS/IPS document class instead. The governing document-type reference is `reference/Plan File Types.pdf`, the Plan File Indexing Specification Guide. It defines plan-file indices such as plan documents, participant data, correspondence, audit documents, actuarial closeout reports, standard termination files, reconsiderations, and missing participant files. This document-class layer should be used in prompts, input requirements, and citations so the actuary knows where to search in IVS.
 
-The app includes evidence guidance inside **Case Workflow** for this purpose. It maps core module facts to IVS document classes, scraper contracts, manual fallbacks, citation expectations, and downstream deliverables. The full evidence reference can be downloaded as `case-evidence-guide.json`.
+The app includes evidence guidance inside **Case Workflow** for this purpose. It maps core module facts to IVS document classes, scraper contracts, manual fallbacks, citation expectations, and downstream deliverables. Normal use should follow the single primary action shown for the current workflow step. The full evidence reference can be downloaded as `case-evidence-guide.json`.
 
 Evidence guidance also includes an **Evidence Coverage** check. It marks each requirement as ready, warning, or missing based on current structured inputs, PlanMetadata document-registry matches to expected IVS classes, and available citation validators. The full coverage report can be downloaded as `case-evidence-coverage.json`.
 

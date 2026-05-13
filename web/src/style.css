@@ -300,6 +300,28 @@ body {
   overflow-y: auto;
 }
 
+.resource-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.resource-list button {
+  justify-content: flex-start;
+}
+
+.resource-note {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.75rem;
+}
+
+.resource-note span {
+  color: var(--muted);
+}
+
 .instructions.hidden {
   display: none;
 }
@@ -1107,6 +1129,15 @@ textarea.code {
 .guide-step.active {
   background: var(--surface-strong);
   outline: 2px solid var(--accent);
+}
+
+.guide-step:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.guide-step:disabled:hover {
+  transform: none;
 }
 
 .guide-dialog {
