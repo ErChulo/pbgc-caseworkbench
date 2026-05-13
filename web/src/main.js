@@ -527,7 +527,7 @@ function renderRoute() {
   if (!page) return;
   let route = currentRoute();
   const ready = isMetadataReady();
-  const preMetadataRoutes = new Set(["#/metadata", "#/guide", "#/evidence-guide"]);
+  const preMetadataRoutes = new Set(["#/metadata", "#/guide", "#/evidence-guide", "#/audit"]);
   if (!ready && !preMetadataRoutes.has(route.path)) {
     route = routes.find((r) => r.path === "#/guide") ?? routes[0];
     setRoute(route.path);
