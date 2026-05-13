@@ -102,8 +102,8 @@ function clearState() {
 const routes = [
   { path: "#/metadata", title: "Metadata", render: renderMetadata },
   { path: "#/dashboard", title: "Dashboard", render: renderDashboard },
-  { path: "#/guide", title: "Case Guide", render: renderCaseGuide },
-  { path: "#/evidence-guide", title: "Next Evidence", render: renderEvidenceGuide },
+  { path: "#/guide", title: "Case Workflow", render: renderCaseGuide },
+  { path: "#/evidence-guide", title: "Next Evidence", render: renderEvidenceGuide, hidden: true },
   { path: "#/inputs", title: "Input Contracts", render: renderInputsMatrix, hidden: true },
   { path: "#/rules", title: "Rules Registry", render: renderRulesRegistry, hidden: true },
   { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
@@ -438,11 +438,18 @@ function renderShell() {
           <button class="icon-button" id="close_resources" aria-label="Close resources">x</button>
         </div>
         <div class="drawer-body">
-          <p class="muted">Quick access to built-in assets for the Metadata module.</p>
-          <div class="button-row">
-            <button id="resources_prompt_download">Download Scraper Prompt</button>
+          <p class="muted">Built-in prompts, dictionaries, and reference exports bundled into the offline workbench.</p>
+          <div class="resource-list">
+            <button id="resources_metadata_prompt">Metadata scraper prompt</button>
+            <button id="resources_r5_prompt">R5 scraper prompt</button>
+            <button id="resources_dd_csv">DD.csv field dictionary</button>
+            <button id="resources_evidence_guide">Evidence guide JSON</button>
+            <button id="resources_evidence_coverage">Evidence coverage JSON</button>
           </div>
-          <div class="meta-line">File: metadata-scraper-prompt.txt</div>
+          <div class="resource-note">
+            <b>Reference file</b>
+            <span>Plan File Types.pdf is the governing IVS/IPS classification dictionary in the repository reference folder.</span>
+          </div>
         </div>
       </aside>
       <main id="page" class="page-content"></main>
@@ -472,7 +479,11 @@ function renderShell() {
   const resourcesDrawer = app.querySelector("#resources_drawer");
   const resourcesBackdrop = app.querySelector("#resources_backdrop");
   const resourcesClose = app.querySelector("#close_resources");
-  const resourcesPromptDownload = app.querySelector("#resources_prompt_download");
+  const resourcesMetadataPrompt = app.querySelector("#resources_metadata_prompt");
+  const resourcesR5Prompt = app.querySelector("#resources_r5_prompt");
+  const resourcesDdCsv = app.querySelector("#resources_dd_csv");
+  const resourcesEvidenceGuide = app.querySelector("#resources_evidence_guide");
+  const resourcesEvidenceCoverage = app.querySelector("#resources_evidence_coverage");
 
   function closeResources() {
     resourcesDrawer.classList.remove("open");
@@ -487,9 +498,27 @@ function renderShell() {
   resourcesClose.addEventListener("click", closeResources);
   resourcesBackdrop.addEventListener("click", closeResources);
 
-  resourcesPromptDownload.addEventListener("click", () => {
+  resourcesMetadataPrompt.addEventListener("click", () => {
     const blob = new Blob([metadataScraperPrompt], { type: "text/plain" });
     downloadBlob(blob, "metadata-scraper-prompt.txt");
+  });
+  resourcesR5Prompt.addEventListener("click", () => {
+    downloadBlob(new Blob([r5ScraperPrompt], { type: "text/markdown" }), "r5-scraper-prompt.v3.md");
+  });
+  resourcesDdCsv.addEventListener("click", () => {
+    downloadBlob(new Blob([defaultDdCsvText], { type: "text/csv" }), "DD.csv");
+  });
+  resourcesEvidenceGuide.addEventListener("click", async () => {
+    const payload = await buildEvidenceGuideExport();
+    state.lastManifest = payload.meta;
+    saveState();
+    downloadBlob(new Blob([stringifyStable(payload)], { type: "application/json" }), "case-evidence-guide.json");
+  });
+  resourcesEvidenceCoverage.addEventListener("click", async () => {
+    const payload = await buildEvidenceCoverageReport();
+    state.lastManifest = payload.meta;
+    saveState();
+    downloadBlob(new Blob([stringifyStable(payload)], { type: "application/json" }), "case-evidence-coverage.json");
   });
 }
 
@@ -1543,6 +1572,70 @@ function renderEvidenceCoverageSummary(report) {
       <div><span>Ready</span><b>${report.summary.ready_count}</b><small>requirements</small></div>
       <div><span>Warnings</span><b>${report.summary.warning_count}</b><small>requirements</small></div>
       <div><span>Missing</span><b>${report.summary.missing_count}</b><small>requirements</small></div>
+    </div>
+  `;
+}
+
+function evidenceRequirementForGuideStep(step) {
+  const stepId = step?.id ?? "";
+  if (stepId === "metadata") return evidenceRequirements.find((req) => req.id === "EV-META-001");
+  if (stepId === "r5") return evidenceRequirements.find((req) => req.id === "EV-R5-001");
+  if (stepId === "data-elements" || stepId === "synthetic-population") return evidenceRequirements.find((req) => req.id === "EV-DEL-001");
+  if (stepId === "plan-factors") return evidenceRequirements.find((req) => req.id === "EV-PF-001");
+  if (stepId === "section-436") return evidenceRequirements.find((req) => req.id === "EV-436-001");
+  if (stepId === "estimated-analyses") return evidenceRequirements.find((req) => req.id === "EV-EST-001");
+  if (stepId === "v1") return evidenceRequirements.find((req) => req.id === "EV-V1-001");
+  if (stepId === "bsrs-bcv") return evidenceRequirements.find((req) => req.id === "EV-BSRS-001");
+  return null;
+}
+
+function renderEmbeddedEvidencePanel(step) {
+  const req = evidenceRequirementForGuideStep(step);
+  if (!req) {
+    return `
+      <div class="embedded-evidence-panel">
+        <div class="workflow-card-head">
+          <h3>Evidence for this step</h3>
+          <span>reference</span>
+        </div>
+        <p class="muted">This step is a planning checkpoint. Use the next workflow step to gather source evidence.</p>
+      </div>
+    `;
+  }
+  const coverage = evaluateEvidenceCoverage(req);
+  const classes = req.documentClassCodes.map(ivsClassByCode).filter(Boolean);
+  const primaryClass = classes[0];
+  return `
+    <div class="embedded-evidence-panel coverage-${escapeHtml(coverage.status)}">
+      <div class="workflow-card-head">
+        <h3>Evidence for this step</h3>
+        <span>${escapeHtml(coverage.status)}</span>
+      </div>
+      <div class="evidence-next-action">
+        <b>Next evidence action</b>
+        <span>${coverage.status === "ready" ? "Evidence looks ready. Review warnings, then proceed." : `Search IVS ${primaryClass ? `${primaryClass.code} - ${primaryClass.title}` : "for the listed document class"}, scrape to JSON or enter manually, then save in this workflow.`}</span>
+      </div>
+      <div class="requirements-columns">
+        <div>
+          <b>Search in IVS</b>
+          <ul>${classes.slice(0, 4).map((cls) => `<li><b>${escapeHtml(cls.code)}</b> ${escapeHtml(cls.title)}</li>`).join("")}</ul>
+        </div>
+        <div>
+          <b>Load or enter</b>
+          <ul>
+            <li>${escapeHtml(req.acceptedInput)}</li>
+            <li>${escapeHtml(req.manualFallback)}</li>
+          </ul>
+        </div>
+        <div>
+          <b>Watch</b>
+          <ul>
+            <li>${escapeHtml(req.citationRule)}</li>
+            ${coverage.warnings.slice(0, 2).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("") || "<li>No coverage warnings.</li>"}
+          </ul>
+        </div>
+      </div>
+      <button class="ghost" data-guide-route="#/evidence-guide">Open full evidence reference</button>
     </div>
   `;
 }
@@ -2750,7 +2843,7 @@ function renderMetadata(container) {
 function renderDashboard(container) {
   const cards = deliverableCards();
   const startRoute = isMetadataReady() ? "#/guide" : "#/metadata";
-  const startLabel = isMetadataReady() ? "Open Case Guide" : "Start Metadata";
+  const startLabel = isMetadataReady() ? "Open Case Workflow" : "Start Metadata";
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
@@ -2765,11 +2858,10 @@ function renderDashboard(container) {
 
     <div class="workflow-band">
       <h3>Recommended Next Action</h3>
-      <p class="muted">The final goal is the Actuarial Case Memo. Start with Metadata, then use Case Guide and Evidence Guide to gather only the next missing evidence needed for downstream deliverables.</p>
+      <p class="muted">The final goal is the Actuarial Case Memo. Start with Metadata, then use Case Workflow to move through the case and gather the next missing evidence inside each step.</p>
       <div class="button-row">
         <button class="primary" data-dashboard-route="${startRoute}">${startLabel}</button>
-        <button class="ghost" data-dashboard-route="#/guide">Case Guide</button>
-        <button class="ghost" data-dashboard-route="#/evidence-guide">Next Evidence</button>
+        <button class="ghost" data-dashboard-route="#/guide">Case Workflow</button>
         <button class="ghost" data-dashboard-route="#/v1-engine-explorer">Open V1 Explorer</button>
         <button class="ghost" data-dashboard-route="#/v1-audit">Audit V1 Match</button>
         <button class="ghost" data-dashboard-route="#/metadata">Edit Metadata</button>
@@ -2825,11 +2917,8 @@ function renderCaseGuide(container) {
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
-        <h2>Case Guide</h2>
-        <p>Follow the caseworkbench flow. Missing inputs are allowed, but they stay visible as warnings and unknown/na placeholders.</p>
-      </div>
-      <div class="page-actions">
-        <button class="ghost" data-guide-route="#/evidence-guide">Next Evidence</button>
+        <h2>Case Workflow</h2>
+        <p>Use one guided workspace for the case lifecycle. Each step shows what to do, what evidence is needed, and where to go next.</p>
       </div>
     </section>
 
@@ -2881,6 +2970,7 @@ function renderCaseGuide(container) {
         <div class="banner subtle">
           ${activeStep.warnings.map((warning) => escapeHtml(warning)).join(" ")}
         </div>
+        ${renderEmbeddedEvidencePanel(activeStep)}
         <div class="button-row">
           <button class="ghost" id="guide_prev" ${canPrev ? "" : "disabled"}>Previous</button>
           <button class="primary" data-guide-route="${escapeHtml(activeStep.route)}">Open ${escapeHtml(activeStep.title)}</button>
@@ -3000,7 +3090,7 @@ function renderRulesRegistry(container) {
       </div>
       <div class="page-actions">
         <button class="primary" id="download_rules_registry">Download rules-registry.json</button>
-        <button class="ghost" data-rules-route="#/evidence-guide">Back to Next Evidence</button>
+        <button class="ghost" data-rules-route="#/guide">Back to Case Workflow</button>
       </div>
     </section>
 
@@ -3013,7 +3103,7 @@ function renderRulesRegistry(container) {
     </div>
 
     <div class="banner subtle">
-      This is not a workflow step for everyday use. It is the implementation roadmap behind the guided evidence flow.
+      This is not a workflow step for everyday use. It is the implementation roadmap behind Case Workflow evidence panels.
     </div>
 
     <div class="rules-registry-list">
@@ -3077,7 +3167,7 @@ function renderInputsMatrix(container) {
       </div>
       <div class="page-actions">
         <button class="primary" id="download_inputs_matrix">Download requirements JSON</button>
-        <button class="ghost" data-inputs-route="#/evidence-guide">Back to Next Evidence</button>
+        <button class="ghost" data-inputs-route="#/guide">Back to Case Workflow</button>
         <button class="ghost" id="open_rules_registry">Technical Rules</button>
       </div>
     </section>
@@ -3087,7 +3177,7 @@ function renderInputsMatrix(container) {
     ${renderWorkflowStatePanel({ title: "Shared Case Inputs" })}
 
     <div class="banner subtle">
-      This page is a reference table. For day-to-day workflow, use Next Evidence and Case Guide.
+      This page is a reference table. For day-to-day workflow, use Case Workflow.
     </div>
 
     <div class="input-family-grid">

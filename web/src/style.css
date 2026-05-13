@@ -918,6 +918,27 @@ textarea.code {
   color: var(--muted);
 }
 
+.embedded-evidence-panel {
+  display: grid;
+  gap: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 1rem;
+}
+
+.embedded-evidence-panel.coverage-ready {
+  border-color: var(--accent);
+}
+
+.embedded-evidence-panel.coverage-warning {
+  border-color: var(--accent-2);
+}
+
+.embedded-evidence-panel.coverage-missing {
+  border-color: var(--danger);
+}
+
 .v1-audit-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
