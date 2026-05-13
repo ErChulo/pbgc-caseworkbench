@@ -97,12 +97,12 @@ body {
 }
 
 .nav-button {
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: transparent;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
   padding: 0.35rem 0.9rem;
   font-size: 0.9rem;
-  color: var(--muted);
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -114,14 +114,13 @@ body {
 
 .nav-button:hover {
   color: var(--text);
-  border-color: var(--border);
   background: var(--surface-strong);
 }
 
 .nav-button.active {
   color: var(--text);
   border-color: var(--accent);
-  background: rgba(27, 95, 95, 0.08);
+  background: var(--surface-strong);
 }
 
 .resources-btn {
@@ -139,7 +138,7 @@ body {
 .theme-toggle {
   display: inline-flex;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 6px;
   overflow: hidden;
 }
 
@@ -483,9 +482,11 @@ textarea.code {
 
 .case-context span,
 .workflow-card-head span {
-  color: var(--muted);
-  font-size: 0.78rem;
+  color: var(--accent);
+  font-size: 0.74rem;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .workflow-band {
@@ -833,13 +834,11 @@ textarea.code {
 }
 
 .coverage-chip {
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-strong);
-  padding: 0.25rem 0.65rem;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .coverage-chip.ready {
@@ -1062,12 +1061,11 @@ textarea.code {
 .rule-status {
   display: inline-flex;
   width: fit-content;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-strong);
-  padding: 0.25rem 0.65rem;
-  color: var(--muted);
-  font-size: 0.85rem;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .case-progress-strip {
@@ -1080,11 +1078,10 @@ textarea.code {
 .guide-step {
   display: grid;
   gap: 0.3rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
+  border-top: 3px solid var(--border);
+  background: transparent;
   color: var(--text);
-  padding: 0.55rem;
+  padding: 0.55rem 0.3rem;
   text-align: center;
 }
 
@@ -1094,7 +1091,8 @@ textarea.code {
   width: 28px;
   height: 28px;
   border-radius: 999px;
-  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  background: transparent;
   color: var(--muted);
   margin: 0 auto;
 }
@@ -1111,21 +1109,26 @@ textarea.code {
 }
 
 .guide-step.ready {
-  border-color: var(--accent);
+  border-top-color: var(--accent);
 }
 
 .guide-step.warning,
 .guide-dialog-head .warning {
-  border-color: var(--accent-2);
+  border-top-color: var(--accent-2);
 }
 
 .guide-step.missing {
-  border-color: var(--border);
+  border-top-color: var(--border);
 }
 
 .guide-step.active {
-  background: var(--surface-strong);
-  outline: 2px solid var(--accent);
+  border-top-color: var(--accent);
+  background: transparent;
+}
+
+.guide-step.active span {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .guide-dialog {
@@ -1195,10 +1198,11 @@ textarea.code {
 }
 
 .guide-dialog-head > b {
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.25rem 0.65rem;
   white-space: nowrap;
+  color: var(--accent-2);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .guide-dialog-head > b.ready {
