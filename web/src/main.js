@@ -103,9 +103,9 @@ const routes = [
   { path: "#/metadata", title: "Metadata", render: renderMetadata },
   { path: "#/dashboard", title: "Dashboard", render: renderDashboard },
   { path: "#/guide", title: "Case Guide", render: renderCaseGuide },
-  { path: "#/evidence-guide", title: "Evidence Guide", render: renderEvidenceGuide },
-  { path: "#/inputs", title: "Inputs Matrix", render: renderInputsMatrix },
-  { path: "#/rules", title: "Rules Registry", render: renderRulesRegistry },
+  { path: "#/evidence-guide", title: "Next Evidence", render: renderEvidenceGuide },
+  { path: "#/inputs", title: "Input Contracts", render: renderInputsMatrix, hidden: true },
+  { path: "#/rules", title: "Rules Registry", render: renderRulesRegistry, hidden: true },
   { path: "#/plan-summary", title: "Plan Summary", render: renderPlanSummary },
   { path: "#/v1-engine-explorer", title: "V1 Explorer", render: renderV1EngineExplorer },
   { path: "#/v1-audit", title: "V1 Audit", render: renderV1Audit },
@@ -1564,7 +1564,8 @@ async function renderEvidenceGuide(container) {
       <div class="page-actions">
         <button class="primary" id="download_evidence_guide">Download evidence guide JSON</button>
         <button class="ghost" id="download_evidence_coverage">Download coverage JSON</button>
-        <button class="ghost" id="evidence_open_inputs">Inputs Matrix</button>
+        <button class="ghost" id="evidence_open_inputs">Input Contracts</button>
+        <button class="ghost" id="evidence_open_rules">Technical Rules</button>
       </div>
     </section>
 
@@ -1579,12 +1580,12 @@ async function renderEvidenceGuide(container) {
         : "All evidence requirements are ready or warning-level only. Review warnings, then proceed through Case Guide."}</p>
       <div class="button-row">
         <button class="primary" data-evidence-route="${escapeHtml(firstBlockingRequirement?.route ?? "#/guide")}">${firstBlockingRequirement ? `Open ${escapeHtml(firstBlockingRequirement.module)}` : "Open Case Guide"}</button>
-        <button class="ghost" id="evidence_open_inputs_top">Inputs Matrix</button>
+        <button class="ghost" id="evidence_open_inputs_top">Input Contracts</button>
       </div>
     </div>
 
     <div class="banner subtle">
-      Evidence Guide is a checklist, not another deliverable. Expand only the module you are working on.
+      This is the user-facing evidence flow. Input Contracts and Technical Rules are reference pages for deeper design checks, not separate steps you need to work through every time.
     </div>
 
     <div class="rules-summary-grid">
@@ -1609,6 +1610,7 @@ async function renderEvidenceGuide(container) {
   });
   container.querySelector("#evidence_open_inputs").addEventListener("click", () => setRoute("#/inputs"));
   container.querySelector("#evidence_open_inputs_top").addEventListener("click", () => setRoute("#/inputs"));
+  container.querySelector("#evidence_open_rules").addEventListener("click", () => setRoute("#/rules"));
   const statusEl = container.querySelector("#evidence_guide_status");
   container.querySelector("#download_evidence_guide").addEventListener("click", async () => {
     try {
@@ -2767,11 +2769,9 @@ function renderDashboard(container) {
       <div class="button-row">
         <button class="primary" data-dashboard-route="${startRoute}">${startLabel}</button>
         <button class="ghost" data-dashboard-route="#/guide">Case Guide</button>
-        <button class="ghost" data-dashboard-route="#/evidence-guide">Evidence Guide</button>
+        <button class="ghost" data-dashboard-route="#/evidence-guide">Next Evidence</button>
         <button class="ghost" data-dashboard-route="#/v1-engine-explorer">Open V1 Explorer</button>
         <button class="ghost" data-dashboard-route="#/v1-audit">Audit V1 Match</button>
-        <button class="ghost" data-dashboard-route="#/inputs">Review Inputs Matrix</button>
-        <button class="ghost" data-dashboard-route="#/rules">Rules Registry</button>
         <button class="ghost" data-dashboard-route="#/metadata">Edit Metadata</button>
         <button class="ghost" data-dashboard-route="#/audit">Audit / Manifest</button>
       </div>
@@ -2829,9 +2829,7 @@ function renderCaseGuide(container) {
         <p>Follow the caseworkbench flow. Missing inputs are allowed, but they stay visible as warnings and unknown/na placeholders.</p>
       </div>
       <div class="page-actions">
-        <button class="ghost" data-guide-route="#/evidence-guide">Evidence Guide</button>
-        <button class="ghost" data-guide-route="#/inputs">Inputs Matrix</button>
-        <button class="ghost" data-guide-route="#/rules">Rules Registry</button>
+        <button class="ghost" data-guide-route="#/evidence-guide">Next Evidence</button>
       </div>
     </section>
 
@@ -2997,11 +2995,12 @@ function renderRulesRegistry(container) {
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
-        <h2>Rules Registry</h2>
-        <p>Reference-derived control map for what the workbench can program, what needs LLM extraction, and what requires human review.</p>
+        <h2>Technical Rules Registry</h2>
+        <p>Developer/control reference for what can become deterministic code, what needs LLM extraction, and what requires human review.</p>
       </div>
       <div class="page-actions">
         <button class="primary" id="download_rules_registry">Download rules-registry.json</button>
+        <button class="ghost" data-rules-route="#/evidence-guide">Back to Next Evidence</button>
       </div>
     </section>
 
@@ -3014,7 +3013,7 @@ function renderRulesRegistry(container) {
     </div>
 
     <div class="banner subtle">
-      This registry is the implementation roadmap. Mechanical rules should become code and tests. LLM-assisted rules should become scraper prompts and schemas. Human-review rules should become explicit approval gates.
+      This is not a workflow step for everyday use. It is the implementation roadmap behind the guided evidence flow.
     </div>
 
     <div class="rules-registry-list">
@@ -3025,6 +3024,9 @@ function renderRulesRegistry(container) {
   `;
 
   hydratePlanContext(container);
+  container.querySelectorAll("[data-rules-route]").forEach((btn) => {
+    btn.addEventListener("click", () => setRoute(btn.dataset.rulesRoute));
+  });
 
   const downloadBtn = container.querySelector("#download_rules_registry");
   const statusEl = container.querySelector("#rules_registry_status");
@@ -3070,12 +3072,13 @@ function renderInputsMatrix(container) {
   container.innerHTML = `
     <section class="page-hero">
       <div class="page-title">
-        <h2>Inputs Matrix</h2>
-        <p>Pure inputs, derived upstream outputs, and governing references for the minimum PBGC deliverables.</p>
+        <h2>Input Contracts</h2>
+        <p>Technical reference showing raw inputs, upstream outputs, and governing references for each deliverable.</p>
       </div>
       <div class="page-actions">
         <button class="primary" id="download_inputs_matrix">Download requirements JSON</button>
-        <button class="ghost" id="open_rules_registry">Open Rules Registry</button>
+        <button class="ghost" data-inputs-route="#/evidence-guide">Back to Next Evidence</button>
+        <button class="ghost" id="open_rules_registry">Technical Rules</button>
       </div>
     </section>
 
@@ -3084,7 +3087,7 @@ function renderInputsMatrix(container) {
     ${renderWorkflowStatePanel({ title: "Shared Case Inputs" })}
 
     <div class="banner subtle">
-      Pure inputs are raw case facts or files you must provide or enter manually. Upstream outputs are workbench artifacts that can be derived after earlier modules run.
+      This page is a reference table. For day-to-day workflow, use Next Evidence and Case Guide.
     </div>
 
     <div class="input-family-grid">
@@ -3151,6 +3154,9 @@ function renderInputsMatrix(container) {
   `;
 
   hydratePlanContext(container);
+  container.querySelectorAll("[data-inputs-route]").forEach((btn) => {
+    btn.addEventListener("click", () => setRoute(btn.dataset.inputsRoute));
+  });
 
   container.querySelectorAll("[data-requirement-route]").forEach((btn) => {
     btn.addEventListener("click", () => setRoute(btn.dataset.requirementRoute));
