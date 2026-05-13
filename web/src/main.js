@@ -1634,6 +1634,81 @@ function workflowTaskForStep(step) {
   };
 }
 
+function summarizeR5Validations(validations = []) {
+  return validations.reduce(
+    (acc, validation) => {
+      acc.file_count += 1;
+      acc.schema_valid_count += validation.schema_valid ? 1 : 0;
+      acc.required_item_count += validation.required_item_count ?? 0;
+      acc.covered_required_count += validation.covered_required_count ?? 0;
+      acc.missing_required_count += validation.missing_required_count ?? 0;
+      acc.unknown_or_na_count += validation.unknown_or_na_count ?? 0;
+      acc.known_without_citation_count += validation.known_without_citation_count ?? 0;
+      acc.duplicate_item_count += validation.duplicate_item_ids?.length ?? 0;
+      (validation.recognized_domains ?? []).forEach((domain) => acc.recognized_domains.add(domain));
+      acc.warnings.push(...(validation.warnings ?? []).map((warning) => `${validation.source_file}: ${warning}`));
+      return acc;
+    },
+    {
+      file_count: 0,
+      schema_valid_count: 0,
+      required_item_count: 0,
+      covered_required_count: 0,
+      missing_required_count: 0,
+      unknown_or_na_count: 0,
+      known_without_citation_count: 0,
+      duplicate_item_count: 0,
+      recognized_domains: new Set(),
+      warnings: []
+    }
+  );
+}
+
+function renderR5TaskIntake() {
+  const r5Summary = getR5WorkflowSummary();
+  const validations = r5Summary?.validations ?? [];
+  const summary = summarizeR5Validations(validations);
+  const domainList = [...summary.recognized_domains].sort();
+  return `
+    <div class="task-intake-panel r5-intake-panel">
+      <div class="task-intake-head">
+        <div>
+          <b>R5Summary.json intake</b>
+          <span>Load the LLM scraper output here; the workbench saves it as shared case state for DEL, PF, 436, estimated analyses, V1, and BSRS/BCV.</span>
+        </div>
+        <button class="ghost" id="r5_task_prompt">Download R5 scraper prompt</button>
+      </div>
+      <div class="button-row">
+        <label class="file-pill">
+          <input id="r5_task_files" type="file" accept="application/json,.json" multiple />
+          Upload R5Summary JSON
+        </label>
+        ${r5Summary ? `<button class="ghost danger-soft" id="r5_task_clear">Clear loaded R5</button>` : ""}
+      </div>
+      <div id="r5_task_status" class="meta-line">${r5Summary ? `Loaded ${escapeHtml((r5Summary.source_files ?? []).join(", "))}` : "No R5Summary JSON loaded yet."}</div>
+      ${
+        r5Summary
+          ? `
+            <div class="task-validation-grid">
+              <div><span>Files</span><b>${summary.file_count}</b><small>${summary.schema_valid_count}/${summary.file_count} schema-valid</small></div>
+              <div><span>Required coverage</span><b>${summary.covered_required_count}/${summary.required_item_count}</b><small>${summary.missing_required_count} missing</small></div>
+              <div><span>Unknown/NA</span><b>${summary.unknown_or_na_count}</b><small>allowed but review-required</small></div>
+              <div><span>Citation gaps</span><b>${summary.known_without_citation_count}</b><small>known answers lacking locator citations</small></div>
+              <div><span>Domains</span><b>${domainList.length}</b><small>${escapeHtml(domainList.join(", ") || "none detected")}</small></div>
+              <div><span>Duplicate IDs</span><b>${summary.duplicate_item_count}</b><small>should be resolved before production use</small></div>
+            </div>
+            ${
+              summary.warnings.length
+                ? `<div class="coverage-warning-list"><b>R5 validation warnings</b><ul>${summary.warnings.slice(0, 8).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul></div>`
+                : `<div class="banner subtle">R5 validation has no tracked warnings. Review extracted provisions before production use.</div>`
+            }
+          `
+          : ""
+      }
+    </div>
+  `;
+}
+
 function renderTaskEngineSurface(step) {
   const task = workflowTaskForStep(step);
   const primaryClass = task.sourceGuidance.ivsClasses[0];
@@ -1702,6 +1777,7 @@ function renderTaskEngineSurface(step) {
         </div>
       </div>
       ${task.review.warnings.length ? `<div class="coverage-warning-list"><b>Task warnings</b><ul>${task.review.warnings.slice(0, 4).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul></div>` : ""}
+      ${task.id === "r5" ? renderR5TaskIntake() : ""}
       <div class="task-downstream">
         <b>Feeds downstream</b>
         <span>${escapeHtml(task.downstream.join(", ") || "Next case task")}</span>
@@ -1709,6 +1785,7 @@ function renderTaskEngineSurface(step) {
       <div class="button-row">
         <button class="primary" data-guide-route="${escapeHtml(task.route)}">Open task workspace</button>
         ${task.alternateRoute ? `<button class="ghost" data-guide-route="${escapeHtml(task.alternateRoute)}">Open alternate workspace</button>` : ""}
+        ${ready && firstIncompleteGuideStep().id !== task.id ? `<button class="ghost" data-guide-next-task>Continue to next task</button>` : ""}
       </div>
     </section>
   `;
@@ -2993,11 +3070,10 @@ function renderDashboard(container) {
 
 function renderCaseGuide(container) {
   let activeStep = caseGuideSteps.find((step) => step.id === activeGuideStepId) ?? firstIncompleteGuideStep();
-  if (guideStepStatus(activeStep).complete) {
+  if (activeStep.id === "metadata" && guideStepStatus(activeStep).complete) {
     activeStep = firstIncompleteGuideStep();
     activeGuideStepId = activeStep.id;
   }
-  const activeStatus = guideStepStatus(activeStep);
 
   container.innerHTML = `
     <section class="page-hero">
@@ -3023,6 +3099,43 @@ function renderCaseGuide(container) {
   hydratePlanContext(container);
   container.querySelectorAll("[data-guide-route]").forEach((btn) => {
     btn.addEventListener("click", () => setRoute(btn.dataset.guideRoute));
+  });
+  container.querySelectorAll("[data-guide-next-task]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      activeGuideStepId = firstIncompleteGuideStep().id;
+      renderCaseGuide(container);
+    });
+  });
+  const r5PromptBtn = container.querySelector("#r5_task_prompt");
+  r5PromptBtn?.addEventListener("click", () => {
+    downloadBlob(new Blob([r5ScraperPrompt], { type: "text/markdown" }), "r5-scraper-prompt.v3.md");
+  });
+  const r5FileInput = container.querySelector("#r5_task_files");
+  r5FileInput?.addEventListener("change", async (event) => {
+    const statusEl = container.querySelector("#r5_task_status");
+    const files = [...(event.target.files ?? [])];
+    if (!files.length) return;
+    statusEl.textContent = "Loading and validating R5Summary JSON...";
+    try {
+      const result = await importR5Files(files);
+      if (!result.inputs.length) {
+        statusEl.textContent = `No valid R5 JSON loaded. ${result.diagnostics.join(" ")}`;
+        return;
+      }
+      activeGuideStepId = "r5";
+      renderCaseGuide(container);
+    } catch (err) {
+      statusEl.textContent = `R5 intake error: ${err.message}`;
+    }
+  });
+  const r5ClearBtn = container.querySelector("#r5_task_clear");
+  r5ClearBtn?.addEventListener("click", () => {
+    state.caseWorkflow.r5Summary = null;
+    state.v1Warehouse.r5Files = [];
+    state.v1Warehouse.r5Profile = null;
+    saveState();
+    activeGuideStepId = "r5";
+    renderCaseGuide(container);
   });
 }
 
@@ -5979,6 +6092,9 @@ async function importR5Files(files) {
       diagnostics.push(`${file.name}: skipped (${err.message})`);
     }
   }
+  if (!inputs.length) {
+    return { inputs, diagnostics, profile: state.v1Warehouse.r5Profile };
+  }
   state.v1Warehouse.r5Files = inputs;
   state.v1Warehouse.r5Profile = createR5CaseProfile(inputs);
   state.caseWorkflow.r5Summary = {
@@ -5986,6 +6102,7 @@ async function importR5Files(files) {
     source_files: state.v1Warehouse.r5Profile.source_files,
     input_hashes: state.v1Warehouse.r5Profile.input_hashes,
     validations: inputs.map((input) => input.validation),
+    diagnostics,
     loaded_at_utc: new Date().toISOString()
   };
   saveState();
