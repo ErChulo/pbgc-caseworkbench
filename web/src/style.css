@@ -1070,32 +1070,22 @@ textarea.code {
   font-size: 0.85rem;
 }
 
-.guide-shell {
+.case-progress-strip {
   display: grid;
-  grid-template-columns: minmax(220px, 300px) 1fr;
-  gap: 1rem;
-  align-items: start;
-}
-
-.guide-steps {
-  display: grid;
-  gap: 0.5rem;
-  position: sticky;
-  top: 7.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 0.45rem;
+  margin: 1rem 0;
 }
 
 .guide-step {
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 0.55rem;
+  gap: 0.3rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
   color: var(--text);
-  padding: 0.7rem;
-  text-align: left;
-  cursor: pointer;
+  padding: 0.55rem;
+  text-align: center;
 }
 
 .guide-step span {
@@ -1106,6 +1096,13 @@ textarea.code {
   border-radius: 999px;
   background: var(--surface-strong);
   color: var(--muted);
+  margin: 0 auto;
+}
+
+.guide-step b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .guide-step small {
@@ -1129,15 +1126,6 @@ textarea.code {
 .guide-step.active {
   background: var(--surface-strong);
   outline: 2px solid var(--accent);
-}
-
-.guide-step:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
-.guide-step:disabled:hover {
-  transform: none;
 }
 
 .guide-dialog {
@@ -1499,11 +1487,7 @@ textarea.code {
     grid-template-columns: 1fr;
   }
 
-  .guide-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .guide-steps {
-    position: static;
+  .case-progress-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

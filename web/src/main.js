@@ -2066,13 +2066,13 @@ function renderGuideStepButton(step, index) {
   const status = guideStepStatus(step);
   const stateClass = status.complete ? "ready" : status.started ? "warning" : "missing";
   const active = step.id === activeGuideStepId ? "active" : "";
-  const disabled = step.id !== activeGuideStepId ? "disabled" : "";
+  const label = active ? "current" : status.complete ? "done" : "later";
   return `
-    <button class="guide-step ${stateClass} ${active}" data-guide-step="${escapeHtml(step.id)}" ${disabled}>
+    <div class="guide-step ${stateClass} ${active}" aria-current="${active ? "step" : "false"}">
       <span>${index + 1}</span>
       <b>${escapeHtml(step.title)}</b>
-      <small>${status.complete ? "done" : status.started ? "in progress" : "next evidence"}</small>
-    </button>
+      <small>${label}</small>
+    </div>
   `;
 }
 
@@ -2886,11 +2886,11 @@ function renderCaseGuide(container) {
 
     ${renderWorkflowStatePanel({ title: "Shared Case Inputs" })}
 
-    <div class="guide-shell">
-      <nav class="guide-steps" aria-label="Case guide steps">
-        ${caseGuideSteps.map(renderGuideStepButton).join("")}
-      </nav>
-      <section class="guide-dialog">
+    <div class="case-progress-strip" aria-label="Case workflow progress">
+      ${caseGuideSteps.map(renderGuideStepButton).join("")}
+    </div>
+
+    <section class="guide-dialog">
         <div class="guide-dialog-head">
           <div>
             <span>${escapeHtml(activeStep.phase)}</span>
@@ -2933,19 +2933,10 @@ function renderCaseGuide(container) {
           <button class="primary" data-guide-route="${escapeHtml(activeStep.route)}">Open ${escapeHtml(activeStep.title)}</button>
           ${activeStep.alternateRoute ? `<button class="ghost" data-guide-route="${escapeHtml(activeStep.alternateRoute)}">Alternate workflow</button>` : ""}
         </div>
-      </section>
-    </div>
+    </section>
   `;
 
   hydratePlanContext(container);
-
-  container.querySelectorAll("[data-guide-step]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (btn.disabled) return;
-      activeGuideStepId = btn.dataset.guideStep;
-      renderCaseGuide(container);
-    });
-  });
   container.querySelectorAll("[data-guide-route]").forEach((btn) => {
     btn.addEventListener("click", () => setRoute(btn.dataset.guideRoute));
   });
