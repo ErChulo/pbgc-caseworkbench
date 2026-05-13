@@ -1140,6 +1140,145 @@ textarea.code {
   padding: 1.1rem;
 }
 
+.task-engine-surface {
+  display: grid;
+  gap: 1rem;
+}
+
+.task-engine-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.85rem;
+}
+
+.task-engine-head span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.task-engine-head h3 {
+  margin: 0.2rem 0 0;
+}
+
+.task-status-badge {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  padding: 0.3rem 0.55rem;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.task-engine-surface.ready .task-status-badge {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.task-engine-surface.warning .task-status-badge {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
+
+.task-engine-surface.missing .task-status-badge {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.task-engine-brief {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.8rem;
+}
+
+.task-engine-brief b {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.task-engine-brief p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.task-engine-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+  gap: 0.75rem;
+}
+
+.task-lane {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.8rem;
+}
+
+.task-lane > span {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.task-lane p,
+.task-lane small {
+  margin: 0;
+  color: var(--muted);
+}
+
+.task-lane ul,
+.task-ivs-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.task-ivs-list li {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.task-ivs-list b {
+  color: var(--accent);
+}
+
+.task-ivs-list span {
+  color: var(--text);
+}
+
+.task-ivs-list small {
+  color: var(--muted);
+}
+
+.task-downstream {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  border-top: 1px solid var(--border);
+  padding-top: 0.8rem;
+}
+
+.task-downstream span {
+  color: var(--muted);
+}
+
 .canonical-panel {
   border: 1px solid var(--border);
   border-radius: 8px;

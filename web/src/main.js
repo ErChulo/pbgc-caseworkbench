@@ -1589,6 +1589,131 @@ function evidenceRequirementForGuideStep(step) {
   return null;
 }
 
+function workflowTaskForStep(step) {
+  const req = evidenceRequirementForGuideStep(step);
+  const coverage = req ? evaluateEvidenceCoverage(req) : null;
+  const classes = req ? req.documentClassCodes.map(ivsClassByCode).filter(Boolean) : [];
+  const status = guideStepStatus(step);
+  const outputByStep = {
+    metadata: "plan-metadata.json",
+    r5: "R5Summary.json / ########R5.docx",
+    "data-elements": "DEL input package / ########DEL.pdf",
+    "synthetic-population": "########SyntheticPopulation.zip",
+    "plan-factors": "########PF.xlsx input package",
+    "section-436": "436 Limitation Analysis.docx input package",
+    "estimated-analyses": "Estimated analysis input packages",
+    v1: "v1-tab-blueprint.json / ########V1.xlsx support",
+    "bsrs-bcv": "########S1.cfg input package"
+  };
+  const missingReadiness = status.statuses.filter((item) => !item.ready);
+  const reviewWarnings = [...(coverage?.warnings ?? []), ...(step.warnings ?? [])];
+  return {
+    id: step.id,
+    title: step.title,
+    purpose: step.prompt,
+    status: status.complete ? "Ready for review/finalize" : status.started ? "Started, needs review" : "Needs source evidence",
+    route: step.route,
+    alternateRoute: step.alternateRoute,
+    sourceGuidance: {
+      ivsClasses: classes,
+      scraper: req?.scraperContract ?? "No scraper required for this planning task.",
+      manualFallback: req?.manualFallback ?? step.manualAction
+    },
+    expectedJson: req?.acceptedInput ?? step.uploadAction,
+    review: {
+      readiness: status.statuses,
+      missingReadiness,
+      citation: coverage?.citation_health ?? null,
+      warnings: reviewWarnings
+    },
+    citationRule: req?.citationRule ?? "Known extracted facts should cite source document, page, and locator when applicable.",
+    requiredFact: req?.requiredFact ?? step.prompt,
+    finalize: step.programmedAction,
+    output: outputByStep[step.id] ?? "task sub-product",
+    downstream: req?.downstreamImpact ?? []
+  };
+}
+
+function renderTaskEngineSurface(step) {
+  const task = workflowTaskForStep(step);
+  const primaryClass = task.sourceGuidance.ivsClasses[0];
+  const ready = task.review.missingReadiness.length === 0;
+  const started = task.review.readiness.some((item) => item.ready);
+  const statusClass = ready ? "ready" : started ? "warning" : "missing";
+  const ivsList = task.sourceGuidance.ivsClasses.length
+    ? task.sourceGuidance.ivsClasses
+        .slice(0, 6)
+        .map(
+          (cls) => `
+            <li>
+              <b>${escapeHtml(cls.code)}</b>
+              <span>${escapeHtml(cls.title)}</span>
+              <small>${escapeHtml(cls.searchUse)}</small>
+            </li>`
+        )
+        .join("")
+    : "<li><b>n/a</b><span>No IVS class mapped yet.</span><small>Use governing reference material for this task.</small></li>";
+  const missingList = task.review.missingReadiness.length
+    ? task.review.missingReadiness.map((item) => `<li>${escapeHtml(item.label)}: ${escapeHtml(item.detail)}</li>`).join("")
+    : "<li>All tracked prerequisites are available. Review warnings and citations before final use.</li>";
+  return `
+    <section class="task-engine-surface ${statusClass}">
+      <div class="task-engine-head">
+        <div>
+          <span>Active workflow task</span>
+          <h3>${escapeHtml(task.title)}</h3>
+        </div>
+        <b class="task-status-badge">${escapeHtml(task.status)}</b>
+      </div>
+      <div class="task-engine-brief">
+        <b>Task objective</b>
+        <p>${escapeHtml(task.requiredFact)}</p>
+      </div>
+      <div class="task-engine-grid">
+        <div class="task-lane">
+          <span>1</span>
+          <b>Find Source Evidence</b>
+          <p>${primaryClass ? `Start in IVS class ${escapeHtml(primaryClass.code)}: ${escapeHtml(primaryClass.title)}.` : "Use the listed governing source material for this task."}</p>
+          <ul class="task-ivs-list">${ivsList}</ul>
+        </div>
+        <div class="task-lane">
+          <span>2</span>
+          <b>Scrape Or Enter</b>
+          <p>Use this contract: ${escapeHtml(task.sourceGuidance.scraper)}</p>
+          <small>${escapeHtml(task.sourceGuidance.manualFallback)}</small>
+        </div>
+        <div class="task-lane">
+          <span>3</span>
+          <b>Load Structured Input</b>
+          <p>${escapeHtml(task.expectedJson)}</p>
+          <small>Load it in the task workspace, then return here to see readiness update.</small>
+        </div>
+        <div class="task-lane">
+          <span>4</span>
+          <b>Review And Validate</b>
+          <ul>${missingList}</ul>
+          <small>${escapeHtml(task.review.citation?.detail ?? task.citationRule)}</small>
+        </div>
+        <div class="task-lane">
+          <span>5</span>
+          <b>Finalize Output</b>
+          <p>${escapeHtml(task.finalize)}</p>
+          <small>Output: ${escapeHtml(task.output)}</small>
+        </div>
+      </div>
+      ${task.review.warnings.length ? `<div class="coverage-warning-list"><b>Task warnings</b><ul>${task.review.warnings.slice(0, 4).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul></div>` : ""}
+      <div class="task-downstream">
+        <b>Feeds downstream</b>
+        <span>${escapeHtml(task.downstream.join(", ") || "Next case task")}</span>
+      </div>
+      <div class="button-row">
+        <button class="primary" data-guide-route="${escapeHtml(task.route)}">Open task workspace</button>
+        ${task.alternateRoute ? `<button class="ghost" data-guide-route="${escapeHtml(task.alternateRoute)}">Open alternate workspace</button>` : ""}
+      </div>
+    </section>
+  `;
+}
+
 function renderEmbeddedEvidencePanel(step) {
   const req = evidenceRequirementForGuideStep(step);
   if (!req) {
@@ -2891,48 +3016,7 @@ function renderCaseGuide(container) {
     </div>
 
     <section class="guide-dialog">
-        <div class="guide-dialog-head">
-          <div>
-            <span>${escapeHtml(activeStep.phase)}</span>
-            <h3>${escapeHtml(activeStep.title)}</h3>
-          </div>
-          <b class="${activeStatus.complete ? "ready" : "warning"}">${activeStatus.complete ? "done" : "current step"}</b>
-        </div>
-        <p>${escapeHtml(activeStep.prompt)}</p>
-        <div class="guide-readiness">
-          ${activeStatus.statuses
-            .map(
-              (status) => `
-                <div class="${status.ready ? "ready" : "missing"}">
-                  <b>${status.ready ? "Ready" : "Needed"}</b>
-                  <span>${escapeHtml(status.label)}</span>
-                  <small>${escapeHtml(status.detail)}</small>
-                </div>`
-            )
-            .join("")}
-        </div>
-        <div class="guide-actions-grid">
-          <div>
-            <b>Gather Outside Info</b>
-            <p>${escapeHtml(activeStep.uploadAction)}</p>
-          </div>
-          <div>
-            <b>Manual Review</b>
-            <p>${escapeHtml(activeStep.manualAction)}</p>
-          </div>
-          <div>
-            <b>Programmed Step</b>
-            <p>${escapeHtml(activeStep.programmedAction)}</p>
-          </div>
-        </div>
-        <div class="banner subtle">
-          ${activeStep.warnings.map((warning) => escapeHtml(warning)).join(" ")}
-        </div>
-        ${renderEmbeddedEvidencePanel(activeStep)}
-        <div class="button-row">
-          <button class="primary" data-guide-route="${escapeHtml(activeStep.route)}">Open ${escapeHtml(activeStep.title)}</button>
-          ${activeStep.alternateRoute ? `<button class="ghost" data-guide-route="${escapeHtml(activeStep.alternateRoute)}">Alternate workflow</button>` : ""}
-        </div>
+      ${renderTaskEngineSurface(activeStep)}
     </section>
   `;
 
