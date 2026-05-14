@@ -30,7 +30,7 @@ Use the modules in this order:
 2. **Case Workflow**: work one active task at a time through the task engine: find source evidence, scrape or enter data, load structured JSON, review validation warnings, then finalize the sub-product for downstream modules.
 3. **Input Contracts**: technical reference for raw inputs, upstream outputs, and governing references when deeper inspection is needed.
 4. **R5 / Plan Summary**: load and validate `R5Summary.json` directly in the active Case Workflow task, then use the Plan Summary workspace for DOCX/template work.
-5. **DEL**: use `PlanMetadata`, `R5Summary.json`, and `DD.csv` to define required data elements.
+5. **DEL**: generate a deterministic `data-elements.artifact.json` package from `PlanMetadata`, loaded `R5Summary.json`, and bundled `DD.csv`; this is the governed input package for later `########DEL.pdf` generation.
 6. **Synthetic Population**: generate no-PII mock population files from DD field presets for testing downstream workflows.
 7. **Plan Factors**: prepare PF inputs from metadata, R5, DD fields, rates, mortality, optional forms, and factor rules.
 8. **436 / Estimated Analyses**: prepare limitation and estimated-benefit analysis artifacts from governed inputs and templates.
@@ -61,6 +61,8 @@ This separation is important:
 When a required fact cannot be tied to a known named document, modules should identify the relevant IVS/IPS document class instead. The governing document-type reference is `reference/Plan File Types.pdf`, the Plan File Indexing Specification Guide. It defines plan-file indices such as plan documents, participant data, correspondence, audit documents, actuarial closeout reports, standard termination files, reconsiderations, and missing participant files. This document-class layer should be used in prompts, input requirements, and citations so the actuary knows where to search in IVS.
 
 The app includes task-level evidence guidance inside **Case Workflow** for this purpose. Each active task states what fact family is needed, which IVS document classes to search, which scraper or JSON contract to use, what manual fallback is acceptable, what the app can validate, and which downstream artifact is unlocked. The R5 task also accepts `R5Summary.json` directly in the workflow and immediately shows schema, coverage, unknown/na, citation-gap, duplicate-id, and recognized-domain review signals. Normal use should follow the single primary action shown for the current workflow step. The full evidence reference can be downloaded as `case-evidence-guide.json`.
+
+The DEL task can generate `data-elements.artifact.json` directly from shared case state. It parses the bundled `reference/DD.csv`, embeds metadata and R5 hashes, summarizes direct input fields and calculated fields, carries R5 warnings forward, and records the DEL workflow run. This package is not yet the final DEL PDF; it is the deterministic field inventory and review package used to reach that generator.
 
 Evidence guidance also includes an **Evidence Coverage** check. It marks each requirement as ready, warning, or missing based on current structured inputs, PlanMetadata document-registry matches to expected IVS classes, and available citation validators. The full coverage report can be downloaded as `case-evidence-coverage.json`.
 
