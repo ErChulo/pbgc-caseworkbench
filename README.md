@@ -1,4 +1,4 @@
-# PBGC Caseworkbench
+# PBGC Caseworkbench [WORK IN PROGRESS]
 
 PBGC Caseworkbench is a browser-only, single-file workbench for PBGC terminated-plan actuarial case work. It is intended to help a case actuary organize inputs, produce governed intermediate artifacts, and generate or prepare the minimum case deliverables.
 
