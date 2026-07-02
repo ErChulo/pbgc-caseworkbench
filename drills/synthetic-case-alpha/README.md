@@ -54,11 +54,11 @@ Expected result: the app returns to the Case Intake / Metadata page and says met
 1. On **Case Intake** (`#/metadata`), choose `Upload PlanMetadata JSON`.
 2. Select `drills/synthetic-case-alpha/inputs/plan-metadata.synthetic-alpha.json`.
 3. Click `Save Metadata`.
-4. Confirm the page shows all required fields complete.
+4. If the app takes you to **Case Workflow**, look in **Shared Case Inputs** and confirm the first card says **PlanMetadata saved** and **Ready**.
 
 Expected result: the app context identifies `Synthetic Alpha Components Pension Plan` and case `SYN-2026-ALPHA`.
 
-If the app moves you to **Case Workflow** (`#/guide`) and shows **PlanMetadata saved / Ready**, you have already completed this step. Continue with the next step.
+If you see **PlanMetadata saved / Ready**, you have completed metadata ingestion. Continue with the next step.
 
 ## Step 3: Exercise Plan Summary Mechanics
 
