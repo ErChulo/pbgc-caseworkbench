@@ -1,0 +1,15 @@
+SYNTHETIC DRILL FILE - FINAL REVIEW NOTES
+
+Use this file for any final product or Letters/BCV scaffold upload that accepts
+plain text. It gives the module something local to hash and list in the draft
+artifact manifest.
+
+Review checklist:
+- Confirm PlanMetadata is loaded and saved.
+- Confirm module output embeds case SYN-2026-ALPHA.
+- Confirm Audit page can download manifest.json.
+- Confirm all generated outputs are treated as draft mechanics only.
+
+Known limitation:
+The current app does not yet generate actuarially complete final products for
+every module. This drill helps expose that gap.

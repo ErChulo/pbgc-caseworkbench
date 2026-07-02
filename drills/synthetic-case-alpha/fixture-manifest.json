@@ -1,0 +1,99 @@
+{
+  "drill_id": "synthetic-case-alpha",
+  "app_version_target": "0.7.x",
+  "case_number": "SYN-2026-ALPHA",
+  "plan_name": "Synthetic Alpha Components Pension Plan",
+  "no_pii_statement": "All files in this drill are synthetic placeholders. They contain no real participant data, no real PBGC case data, and no authoritative plan provisions or factor values.",
+  "files": [
+    {
+      "filename": "inputs/bcv-letter-config.synthetic-alpha.json",
+      "module": "Letters/BCV",
+      "route": "#/letters-bcv",
+      "format": "json",
+      "purpose": "Exercise BCV letter config scaffold upload, hash, draft artifact download, and manifest download.",
+      "expected_artifact": "bsrs-bcv-letter-config.artifact.json",
+      "synthetic_notice": "Synthetic config only; not a real BSRS or BCV configuration.",
+      "known_limitations": "Current module packages inputs into draft JSON and does not produce a final production config."
+    },
+    {
+      "filename": "inputs/estimated-administration.synthetic-alpha.csv",
+      "module": "Estimated Benefit Administration",
+      "route": "#/estimated-administration",
+      "format": "csv",
+      "purpose": "Exercise administration analysis scaffold upload and artifact manifest mechanics.",
+      "expected_artifact": "estimated-benefit-administration.artifact.json",
+      "synthetic_notice": "Synthetic work queue only.",
+      "known_limitations": "Current module does not perform administration analysis."
+    },
+    {
+      "filename": "inputs/estimated-adjustments.synthetic-alpha.csv",
+      "module": "Estimated Benefit Adjustments",
+      "route": "#/estimated-adjustments",
+      "format": "csv",
+      "purpose": "Exercise adjustment analysis scaffold upload and artifact manifest mechanics.",
+      "expected_artifact": "estimated-benefit-adjustments.artifact.json",
+      "synthetic_notice": "Synthetic benefit rows only.",
+      "known_limitations": "Current module does not calculate final adjustment results."
+    },
+    {
+      "filename": "inputs/final-review-notes.synthetic-alpha.txt",
+      "module": "Letters/BCV and final review",
+      "route": "#/letters-bcv",
+      "format": "txt",
+      "purpose": "Provide a plain-text final review input for the final scaffold step.",
+      "expected_artifact": "bsrs-bcv-letter-config.artifact.json",
+      "synthetic_notice": "Synthetic notes only.",
+      "known_limitations": "Used only to demonstrate input hashing and packaging."
+    },
+    {
+      "filename": "inputs/plan-factors.synthetic-alpha.csv",
+      "module": "Plan Factors",
+      "route": "#/factors",
+      "format": "csv",
+      "purpose": "Exercise plan factor scaffold upload and artifact manifest mechanics.",
+      "expected_artifact": "plan-factors.artifact.json",
+      "synthetic_notice": "Synthetic factor values only.",
+      "known_limitations": "Current module does not produce the final ########PF.xlsx workbook."
+    },
+    {
+      "filename": "inputs/plan-metadata.synthetic-alpha.json",
+      "module": "Metadata",
+      "route": "#/metadata",
+      "format": "json",
+      "purpose": "Unlock downstream routes by loading complete synthetic PlanMetadata.",
+      "expected_artifact": "plan-metadata download available from Metadata page",
+      "synthetic_notice": "Synthetic PlanMetadata only.",
+      "known_limitations": "Useful for mechanics; not a real extracted metadata package."
+    },
+    {
+      "filename": "inputs/plan-summary-source.synthetic-alpha.txt",
+      "module": "Plan Summary",
+      "route": "#/plan-summary",
+      "format": "txt",
+      "purpose": "Provide citation-like source notes for current or future Plan Summary mechanics.",
+      "expected_artifact": "route-dependent draft output",
+      "synthetic_notice": "Synthetic source text only.",
+      "known_limitations": "Plan Summary behavior is more specialized than the generic scaffold routes and may not produce a complete final DOCX in the current build."
+    },
+    {
+      "filename": "inputs/section-436-notes.synthetic-alpha.txt",
+      "module": "Section 436",
+      "route": "#/436",
+      "format": "txt",
+      "purpose": "Exercise Section 436 memo scaffold upload and artifact manifest mechanics.",
+      "expected_artifact": "section-436-memo.artifact.json",
+      "synthetic_notice": "Synthetic notes only.",
+      "known_limitations": "Current module does not produce a final legal or actuarial memo."
+    },
+    {
+      "filename": "inputs/v1-formulas.synthetic-alpha.csv",
+      "module": "DAG Viewer and Formula Tree",
+      "route": "#/dag-viewer and #/formula-tree",
+      "format": "csv",
+      "purpose": "Exercise formula text upload, graph JSON packaging, and opaque ATPBGC UDF handling.",
+      "expected_artifact": "dag-viewer.graph.json and formula-tree.graph.json",
+      "synthetic_notice": "Synthetic formula strings only.",
+      "known_limitations": "Current viewers package graph JSON; full interactive visualization remains incomplete."
+    }
+  ]
+}

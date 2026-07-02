@@ -1,0 +1,35 @@
+{
+  "synthetic_notice": "Synthetic drill file only. Not a real BCV or BSRS configuration.",
+  "case_number": "SYN-2026-ALPHA",
+  "plan_name": "Synthetic Alpha Components Pension Plan",
+  "letter_package": {
+    "package_id": "SYN-BCV-ALPHA",
+    "template_name": "Synthetic BCV Template",
+    "audience": "synthetic participants",
+    "output_mode": "draft-config-only"
+  },
+  "variables": [
+    {
+      "name": "PLAN_NAME",
+      "value": "Synthetic Alpha Components Pension Plan",
+      "source": "PlanMetadata.plan.plan_name"
+    },
+    {
+      "name": "CASE_NUMBER",
+      "value": "SYN-2026-ALPHA",
+      "source": "PlanMetadata.meta.case_number"
+    },
+    {
+      "name": "NOTICE_DATE",
+      "value": "2026-07-02",
+      "source": "synthetic drill default"
+    }
+  ],
+  "citations": [
+    {
+      "doc_id": "SYN-PLAN-001",
+      "page": 1,
+      "locator": "Title block"
+    }
+  ]
+}

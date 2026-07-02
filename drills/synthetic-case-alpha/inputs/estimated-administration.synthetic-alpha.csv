@@ -1,0 +1,5 @@
+work_item,owner,synthetic_due_date,status,notes
+Load synthetic population,Case actuary,2026-07-05,ready,Mechanics-only task
+Review synthetic benefit forms,Case actuary,2026-07-06,ready,Mechanics-only task
+Prepare synthetic adjustment package,Case actuary,2026-07-07,blocked,Depends on future real module logic
+Generate synthetic final manifest,Case actuary,2026-07-08,ready,Use Audit page download

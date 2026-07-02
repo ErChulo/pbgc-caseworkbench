@@ -100,3 +100,9 @@ If legacy Plan Summary DOCX filler exists, prioritize fixing known rate placemen
   - create/load PlanMetadata
   - run each module using uploaded inputs
   - download outputs with embedded manifests and stable versioning
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+at specs/022-drill-walkthroughs/plan.md
+<!-- SPECKIT END -->

@@ -1,0 +1,21 @@
+SYNTHETIC DRILL FILE - NOT REAL SECTION 436 ANALYSIS
+
+Case: SYN-2026-ALPHA
+Plan: Synthetic Alpha Components Pension Plan
+
+This file exists to exercise the Section 436 module scaffold. It is not a legal
+or actuarial analysis and should only be used for upload/hash/download mechanics.
+
+Synthetic dates:
+- Plan year start: 2025-01-01
+- DOPT: 2025-12-31
+- DOTR: 2026-02-15
+
+Synthetic facts:
+- AFTAP status: synthetic placeholder unknown/na.
+- Benefit restriction period: synthetic placeholder unknown/na.
+- CBA information: synthetic placeholder unknown/na.
+
+Citations:
+- DOPT: doc_id SYN-NOTICE-001, page 1, locator "Synthetic DOPT field"
+- DOTR: doc_id SYN-TRUST-001, page 1, locator "Trusteeship order date"

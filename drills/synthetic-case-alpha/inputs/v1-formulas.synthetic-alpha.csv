@@ -1,0 +1,7 @@
+cell,formula,description
+Input!B2,=1200,Synthetic monthly benefit input
+Input!B3,=50,Synthetic service input
+Calc!C2,=Input!B2*12,Synthetic annualized benefit
+Calc!C3,=Calc!C2/Input!B3,Synthetic unit benefit
+Output!D2,=ATPBGC_MAX(Calc!C2),Opaque ATPBGC UDF string for parser mechanics only
+Output!D3,=Output!D2-100,Synthetic offset formula

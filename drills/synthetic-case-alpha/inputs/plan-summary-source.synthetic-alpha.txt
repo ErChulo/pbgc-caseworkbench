@@ -1,0 +1,25 @@
+SYNTHETIC DRILL FILE - NOT REAL PLAN DATA
+
+Document: SYN-PLAN-001
+Plan: Synthetic Alpha Components Pension Plan
+Case: SYN-2026-ALPHA
+
+Purpose:
+This text file is a mechanics-only source for the Plan Summary route. It contains
+fake provisions and fake citations so the user can see upload, preview, draft
+artifact, and manifest behavior.
+
+Synthetic provisions:
+- Normal retirement age: synthetic age 65.
+- Normal form: synthetic single life annuity.
+- Early retirement: synthetic age 55 with 10 synthetic service units.
+- Vesting: synthetic 5-year cliff vesting.
+- Benefit formula: synthetic flat dollar formula.
+
+Citations:
+- Plan name: doc_id SYN-PLAN-001, page 1, locator "Title block"
+- Effective date: doc_id SYN-PLAN-001, page 2, locator "Effective date clause"
+- Normal retirement: doc_id SYN-PLAN-001, page 4, locator "Synthetic NRA clause"
+
+Reminder:
+Do not use these provisions or citations for real PBGC work.

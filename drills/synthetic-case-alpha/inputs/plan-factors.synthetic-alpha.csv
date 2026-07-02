@@ -1,0 +1,6 @@
+factor_id,description,synthetic_value,doc_id,page,locator,notes
+F_SYN_001,Placeholder early retirement factor,0.9000,SYN-PLAN-001,5,Synthetic ER factor table,Mechanics only
+F_SYN_002,Placeholder joint survivor factor,0.8500,SYN-PLAN-001,6,Synthetic optional form table,Mechanics only
+F_SYN_003,Placeholder lump sum segment one,0.0100,SYN-RATES-001,1,Synthetic placeholder rate table,Mechanics only
+F_SYN_004,Placeholder lump sum segment two,0.0200,SYN-RATES-001,1,Synthetic placeholder rate table,Mechanics only
+F_SYN_005,Placeholder lump sum segment three,0.0300,SYN-RATES-001,1,Synthetic placeholder rate table,Mechanics only

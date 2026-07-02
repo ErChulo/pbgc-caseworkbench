@@ -1,0 +1,5 @@
+participant_id,status,synthetic_current_benefit,synthetic_estimated_adjustment,reason,doc_id,page,locator
+SYN-P001,retiree,1200.00,-50.00,Placeholder maximum guarantee adjustment,SYN-ADJ-001,1,Synthetic row 1
+SYN-P002,beneficiary,800.00,-25.00,Placeholder phase-in adjustment,SYN-ADJ-001,1,Synthetic row 2
+SYN-P003,deferred,0.00,0.00,Placeholder no payment in status,SYN-ADJ-001,1,Synthetic row 3
+SYN-P004,active,0.00,0.00,Placeholder pending determination,SYN-ADJ-001,1,Synthetic row 4

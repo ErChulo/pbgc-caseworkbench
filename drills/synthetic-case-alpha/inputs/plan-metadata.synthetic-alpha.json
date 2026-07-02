@@ -1,0 +1,502 @@
+{
+  "schema_version": "0.7.0",
+  "meta": {
+    "case_number": {
+      "value": "SYN-2026-ALPHA",
+      "citations": [
+        {
+          "doc_id": "SYN-CASE-001",
+          "page": 1,
+          "locator": "Synthetic case cover sheet, line 3"
+        }
+      ]
+    },
+    "case_processing_section": {
+      "value": "Synthetic Case Processing Section A",
+      "citations": [
+        {
+          "doc_id": "SYN-CASE-001",
+          "page": 1,
+          "locator": "Synthetic case cover sheet, line 5"
+        }
+      ]
+    },
+    "notes": {
+      "value": "Synthetic drill metadata for mechanics demonstration only. Not a real PBGC case.",
+      "citations": [
+        {
+          "doc_id": "SYN-CASE-001",
+          "page": 1,
+          "locator": "Synthetic notice"
+        }
+      ]
+    }
+  },
+  "plan": {
+    "plan_name": {
+      "value": "Synthetic Alpha Components Pension Plan",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 1,
+          "locator": "Title block"
+        }
+      ]
+    },
+    "plan_number": {
+      "value": "001",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 1,
+          "locator": "Synthetic EIN/PN table"
+        }
+      ]
+    },
+    "ein": {
+      "value": "00-0000000",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 1,
+          "locator": "Synthetic EIN/PN table"
+        }
+      ]
+    },
+    "actuary": {
+      "value": "Synthetic Actuary",
+      "citations": [
+        {
+          "doc_id": "SYN-CASE-001",
+          "page": 1,
+          "locator": "Assignment table"
+        }
+      ]
+    },
+    "auditor": {
+      "value": "Synthetic Auditor",
+      "citations": [
+        {
+          "doc_id": "SYN-CASE-001",
+          "page": 1,
+          "locator": "Assignment table"
+        }
+      ]
+    },
+    "plan_sponsor_name": {
+      "value": "Synthetic Alpha Components LLC",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 1,
+          "locator": "Sponsor paragraph"
+        }
+      ]
+    },
+    "plan_type": {
+      "value": "Synthetic single-employer defined benefit plan",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 2,
+          "locator": "Plan type statement"
+        }
+      ]
+    },
+    "effective_date": {
+      "value": "2001-01-01",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 2,
+          "locator": "Effective date clause"
+        }
+      ]
+    },
+    "termination_date": {
+      "value": "2025-12-31",
+      "citations": [
+        {
+          "doc_id": "SYN-NOTICE-001",
+          "page": 1,
+          "locator": "Synthetic DOPT field"
+        }
+      ]
+    },
+    "termination_type": {
+      "value": "Synthetic distress termination",
+      "citations": [
+        {
+          "doc_id": "SYN-NOTICE-001",
+          "page": 1,
+          "locator": "Termination type field"
+        }
+      ]
+    },
+    "trusteeship_date": {
+      "value": "2026-02-15",
+      "citations": [
+        {
+          "doc_id": "SYN-TRUST-001",
+          "page": 1,
+          "locator": "Trusteeship order date"
+        }
+      ]
+    },
+    "nod_date": {
+      "value": "2025-10-15",
+      "citations": [
+        {
+          "doc_id": "SYN-NOTICE-001",
+          "page": 2,
+          "locator": "Notice of determination date"
+        }
+      ]
+    },
+    "noit_date": {
+      "value": "2025-09-01",
+      "citations": [
+        {
+          "doc_id": "SYN-NOTICE-001",
+          "page": 2,
+          "locator": "Notice of intent date"
+        }
+      ]
+    },
+    "bpd_bankruptcy": {
+      "value": "2025-08-15",
+      "citations": [
+        {
+          "doc_id": "SYN-BK-001",
+          "page": 1,
+          "locator": "Synthetic bankruptcy petition date"
+        }
+      ]
+    },
+    "dobf": {
+      "value": "2025-08-15",
+      "citations": [
+        {
+          "doc_id": "SYN-BK-001",
+          "page": 1,
+          "locator": "Synthetic bankruptcy filing date"
+        }
+      ]
+    },
+    "employer_status": {
+      "value": "Synthetic sponsor ceased covered operations",
+      "citations": [
+        {
+          "doc_id": "SYN-CASE-001",
+          "page": 2,
+          "locator": "Employer status note"
+        }
+      ]
+    },
+    "facility_closing_date": {
+      "value": "2025-07-31",
+      "citations": [
+        {
+          "doc_id": "SYN-CASE-001",
+          "page": 2,
+          "locator": "Facility closing note"
+        }
+      ]
+    },
+    "successor_plan": {
+      "value": "No synthetic successor plan identified",
+      "citations": [
+        {
+          "doc_id": "SYN-CASE-001",
+          "page": 2,
+          "locator": "Successor plan note"
+        }
+      ]
+    },
+    "plan_assets": {
+      "value": "Synthetic assets: 12,345,678",
+      "citations": [
+        {
+          "doc_id": "SYN-ASSET-001",
+          "page": 1,
+          "locator": "Synthetic asset summary"
+        }
+      ]
+    },
+    "sparr": {
+      "value": "Synthetic SPARR pending",
+      "citations": [
+        {
+          "doc_id": "SYN-CASE-001",
+          "page": 3,
+          "locator": "SPARR placeholder"
+        }
+      ]
+    },
+    "funding_status": {
+      "value": "Synthetic underfunded status for drill only",
+      "citations": [
+        {
+          "doc_id": "SYN-ASSET-001",
+          "page": 1,
+          "locator": "Synthetic funding note"
+        }
+      ]
+    },
+    "valuation_date": {
+      "value": "2025-12-31",
+      "citations": [
+        {
+          "doc_id": "SYN-ASSET-001",
+          "page": 1,
+          "locator": "Valuation date"
+        }
+      ]
+    },
+    "pbgc_case_status": {
+      "value": "Synthetic drill case",
+      "citations": [
+        {
+          "doc_id": "SYN-CASE-001",
+          "page": 1,
+          "locator": "Case status"
+        }
+      ]
+    },
+    "participant_count": {
+      "value": "42 synthetic participants",
+      "citations": [
+        {
+          "doc_id": "SYN-CENSUS-001",
+          "page": 1,
+          "locator": "Synthetic population count"
+        }
+      ]
+    },
+    "pbgc_lump_sum_first_segment": {
+      "value": "synthetic 1.00%",
+      "citations": [
+        {
+          "doc_id": "SYN-RATES-001",
+          "page": 1,
+          "locator": "Synthetic placeholder rate table"
+        }
+      ]
+    },
+    "pbgc_lump_sum_second_segment": {
+      "value": "synthetic 2.00%",
+      "citations": [
+        {
+          "doc_id": "SYN-RATES-001",
+          "page": 1,
+          "locator": "Synthetic placeholder rate table"
+        }
+      ]
+    },
+    "pbgc_lump_sum_third_segment": {
+      "value": "synthetic 3.00%",
+      "citations": [
+        {
+          "doc_id": "SYN-RATES-001",
+          "page": 1,
+          "locator": "Synthetic placeholder rate table"
+        }
+      ]
+    },
+    "pbgc_annuity_immediate_rate": {
+      "value": "synthetic 4.00%",
+      "citations": [
+        {
+          "doc_id": "SYN-RATES-001",
+          "page": 1,
+          "locator": "Synthetic placeholder rate table"
+        }
+      ]
+    },
+    "pbgc_annuity_thereafter_rate": {
+      "value": "synthetic 4.50%",
+      "citations": [
+        {
+          "doc_id": "SYN-RATES-001",
+          "page": 1,
+          "locator": "Synthetic placeholder rate table"
+        }
+      ]
+    }
+  },
+  "documents": [
+    {
+      "doc_id": "SYN-PLAN-001",
+      "name": {
+        "value": "Synthetic Alpha Plan Document",
+        "citations": [
+          {
+            "doc_id": "SYN-PLAN-001",
+            "page": 1,
+            "locator": "Title block"
+          }
+        ]
+      },
+      "type": {
+        "value": "Synthetic plan document",
+        "citations": [
+          {
+            "doc_id": "SYN-PLAN-001",
+            "page": 1,
+            "locator": "Document type"
+          }
+        ]
+      },
+      "effective_date": {
+        "value": "2001-01-01",
+        "citations": [
+          {
+            "doc_id": "SYN-PLAN-001",
+            "page": 2,
+            "locator": "Effective date clause"
+          }
+        ]
+      },
+      "adoption_date": {
+        "value": "2000-12-15",
+        "citations": [
+          {
+            "doc_id": "SYN-PLAN-001",
+            "page": 2,
+            "locator": "Adoption date clause"
+          }
+        ]
+      },
+      "applicable_period": {
+        "value": "2001-01-01 through 2025-12-31",
+        "citations": [
+          {
+            "doc_id": "SYN-PLAN-001",
+            "page": 2,
+            "locator": "Applicability statement"
+          }
+        ]
+      },
+      "source_file": {
+        "value": "plan-summary-source.synthetic-alpha.txt",
+        "citations": [
+          {
+            "doc_id": "SYN-PLAN-001",
+            "page": 1,
+            "locator": "Drill source file"
+          }
+        ]
+      },
+      "notes": {
+        "value": "Synthetic document registry entry for drill mechanics.",
+        "citations": [
+          {
+            "doc_id": "SYN-PLAN-001",
+            "page": 1,
+            "locator": "Synthetic notice"
+          }
+        ]
+      },
+      "viewer_id": {
+        "value": "SYN-IVS-PLAN",
+        "citations": [
+          {
+            "doc_id": "SYN-PLAN-001",
+            "page": 1,
+            "locator": "Synthetic viewer id"
+          }
+        ]
+      }
+    },
+    {
+      "doc_id": "SYN-NOTICE-001",
+      "name": {
+        "value": "Synthetic Termination Notices",
+        "citations": [
+          {
+            "doc_id": "SYN-NOTICE-001",
+            "page": 1,
+            "locator": "Title block"
+          }
+        ]
+      },
+      "type": {
+        "value": "Synthetic notice package",
+        "citations": [
+          {
+            "doc_id": "SYN-NOTICE-001",
+            "page": 1,
+            "locator": "Document type"
+          }
+        ]
+      },
+      "effective_date": {
+        "value": "2025-09-01",
+        "citations": [
+          {
+            "doc_id": "SYN-NOTICE-001",
+            "page": 2,
+            "locator": "NOIT date"
+          }
+        ]
+      },
+      "adoption_date": {
+        "value": "unknown",
+        "citations": []
+      },
+      "applicable_period": {
+        "value": "2025 termination process",
+        "citations": [
+          {
+            "doc_id": "SYN-NOTICE-001",
+            "page": 1,
+            "locator": "Notice package summary"
+          }
+        ]
+      },
+      "source_file": {
+        "value": "section-436-notes.synthetic-alpha.txt",
+        "citations": [
+          {
+            "doc_id": "SYN-NOTICE-001",
+            "page": 1,
+            "locator": "Drill source file"
+          }
+        ]
+      },
+      "notes": {
+        "value": "Synthetic notice package for drill mechanics.",
+        "citations": [
+          {
+            "doc_id": "SYN-NOTICE-001",
+            "page": 1,
+            "locator": "Synthetic notice"
+          }
+        ]
+      },
+      "viewer_id": {
+        "value": "SYN-IVS-NOTICE",
+        "citations": [
+          {
+            "doc_id": "SYN-NOTICE-001",
+            "page": 1,
+            "locator": "Synthetic viewer id"
+          }
+        ]
+      }
+    }
+  ],
+  "other_attributes": [
+    {
+      "name": "synthetic_drill_notice",
+      "value": "All values are synthetic placeholders for workflow mechanics only.",
+      "citations": [
+        {
+          "doc_id": "SYN-CASE-001",
+          "page": 1,
+          "locator": "Synthetic notice"
+        }
+      ]
+    }
+  ]
+}
