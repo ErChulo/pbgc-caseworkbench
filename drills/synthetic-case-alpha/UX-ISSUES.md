@@ -12,7 +12,8 @@ This file records UX problems that block or confuse a first-time user during the
 2. **Hidden routes require hash editing**
    - Several modules exist but are not visible in top navigation.
    - A first-time user should not need to edit `#/factors` or `#/436` manually.
-   - Fix direction: expose disabled/locked module cards in Case Workflow with clear "Open" buttons.
+   - Confirmed during the drill: Plan Factors and 436 were only reachable by manually editing the URL.
+   - Fix direction: expose every workflow step as a visible Case Workflow card with a clear "Open" or "Continue" button.
 
 3. **Metadata completion signal is indirect**
    - The reliable visible signal is **PlanMetadata saved / Ready** on Case Workflow.

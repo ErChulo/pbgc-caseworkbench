@@ -52,6 +52,7 @@ The user should never need to know a hash route, internal module id, or file con
 ## UI Changes Needed
 
 - Replace the current top nav with a workflow sidebar or stepper that shows all steps in order.
+- Every step must be reachable through a visible UI control. Manual URL/hash editing is not acceptable for core workflow steps.
 - Each step card must show:
   - required inputs,
   - accepted file types,
