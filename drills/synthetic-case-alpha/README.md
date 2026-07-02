@@ -2,6 +2,24 @@
 
 This drill lets you experience the current PBGC Case Actuary Workbench mechanics with synthetic files only. It is not a real PBGC case, not real participant data, and not authoritative actuarial guidance.
 
+## Read This First
+
+This drill is written for someone opening the app for the first time. If the app screen does not match the instruction, stop and write down:
+
+- the page title you see,
+- the button or tab you expected but could not find,
+- the exact step number where you got stuck.
+
+That mismatch is a product bug or UX gap, not a user mistake. The current workbench UI is still early and several modules are hidden or scaffolded.
+
+## Manual Test Rule For Every Step
+
+For each step, confirm three things before moving on:
+
+1. **Where am I?** The page title or top navigation item should match the step.
+2. **What did I click?** Use visible labels first; only use hash routes when the guide says the route is hidden.
+3. **How do I know it worked?** Look for the expected visible text or downloaded file listed in the step.
+
 ## What This Proves
 
 - The app can ingest and save PlanMetadata when the JSON satisfies the current schema.
@@ -41,13 +59,26 @@ release/pbgc-workbench.html
 
 Use a `file://` open. Do not start a backend server for the drill.
 
+When the app opens, you should see the top navigation with visible items similar to:
+
+- **Case Intake**
+- **Case Workflow**
+- **DAG Viewer**
+- **Formula Tree**
+- **Audit**
+- **Resources**
+
 ## Step 1: Start Clean
 
 1. Open the workbench.
 2. Click **Case Intake** in the top navigation, or go directly to `#/metadata`.
-3. Click `Clear Workspace` if you have old state from a prior run.
+3. Look for a page about case intake or metadata.
+4. Click `Clear Workspace` if you have old state from a prior run.
 
-Expected result: the app returns to the Case Intake / Metadata page and says metadata is needed before other modules are useful.
+How to know it worked:
+
+- You are on **Case Intake** or the URL ends with `#/metadata`.
+- If old metadata existed, the plan/case context should disappear or return to an empty state.
 
 ## Step 2: Ingest PlanMetadata
 
@@ -56,21 +87,36 @@ Expected result: the app returns to the Case Intake / Metadata page and says met
 3. Click `Save Metadata`.
 4. If the app takes you to **Case Workflow**, look in **Shared Case Inputs** and confirm the first card says **PlanMetadata saved** and **Ready**.
 
-Expected result: the app context identifies `Synthetic Alpha Components Pension Plan` and case `SYN-2026-ALPHA`.
+How to know it worked:
 
-If you see **PlanMetadata saved / Ready**, you have completed metadata ingestion. Continue with the next step.
+- The app shows plan `Synthetic Alpha Components Pension Plan`.
+- The app shows case `SYN-2026-ALPHA`.
+- On **Case Workflow**, the **Shared Case Inputs** panel shows **PlanMetadata saved** and **Ready**.
+
+If you see **PlanMetadata saved / Ready**, you have completed metadata ingestion. Continue with the next step even if you never saw a required-fields checklist.
 
 ## Step 3: Exercise Plan Summary Mechanics
 
-1. Navigate to `#/plan-summary`.
-2. If the current build exposes upload controls, upload `plan-summary-source.synthetic-alpha.txt`.
-3. If the current build does not expose a complete final output path, treat this route as a gap observation and continue.
+This route may be hidden from the top navigation.
 
-Expected result: you should at least be able to see whether Plan Summary is wired beyond metadata context. A complete final DOCX should not be assumed in this build.
+1. Click the browser address bar.
+2. Keep the same file path but replace the part after `#` with `#/plan-summary`.
+3. Press Enter.
+4. If the current build exposes upload controls, upload `plan-summary-source.synthetic-alpha.txt`.
+5. If the current build does not expose a complete final output path, treat this route as a gap observation and continue.
+
+How to know it worked:
+
+- You can see whether a Plan Summary page exists.
+- If there is no obvious upload/generate workflow, log this as a UX/product gap and continue.
+- A complete final DOCX should not be assumed in this build.
 
 ## Step 4: Package Plan Factors
 
-1. Navigate to `#/factors`.
+This route may be hidden from the top navigation.
+
+1. In the browser address bar, replace the hash route with `#/factors` and press Enter.
+2. Confirm the page title is **Plan Factors**.
 2. Upload `plan-factors.synthetic-alpha.csv`.
 3. In run notes, enter `Synthetic drill run. Mechanics only.`
 4. Click `Generate artifact JSON`.
@@ -81,11 +127,19 @@ Expected downloads:
 - `plan-factors.artifact.json`
 - `manifest.plan-factors.json`
 
+How to know it worked:
+
+- Your browser downloads `plan-factors.artifact.json`.
+- The page status says `DONE`.
+- The downloaded JSON mentions `SYN-2026-ALPHA`.
+
 ## Step 5: Package Section 436 Notes
 
-1. Navigate to `#/436`.
-2. Upload `section-436-notes.synthetic-alpha.txt`.
-3. Generate the artifact JSON and manifest.
+1. In the browser address bar, replace the hash route with `#/436` and press Enter.
+2. Confirm the page title is **Section 436 Limitation Memo**.
+3. Upload `section-436-notes.synthetic-alpha.txt`.
+4. Click `Generate artifact JSON`.
+5. Click `Download manifest.json`.
 
 Expected downloads:
 
@@ -94,10 +148,10 @@ Expected downloads:
 
 ## Step 6: Package Estimated Benefit Work
 
-Run both routes:
+These routes may be hidden from the top navigation. Run both routes from the browser address bar:
 
-1. `#/estimated-adjustments` with `estimated-adjustments.synthetic-alpha.csv`.
-2. `#/estimated-administration` with `estimated-administration.synthetic-alpha.csv`.
+1. Go to `#/estimated-adjustments`, confirm the page title mentions **Estimated Benefit Adjustment Analysis**, upload `estimated-adjustments.synthetic-alpha.csv`, and generate the artifact plus manifest.
+2. Go to `#/estimated-administration`, confirm the page title mentions **Estimated Benefit Administration Analysis**, upload `estimated-administration.synthetic-alpha.csv`, and generate the artifact plus manifest.
 
 Expected downloads:
 
@@ -110,10 +164,12 @@ These are draft input packages. They are not final benefit adjustment or adminis
 
 ## Step 7: Exercise Formula Mechanics
 
-1. Navigate to `#/dag-viewer`.
+These two routes are visible in the top navigation in the current build.
+
+1. Click **DAG Viewer** in the top navigation.
 2. Upload `v1-formulas.synthetic-alpha.csv`.
 3. Generate and download the graph JSON and manifest.
-4. Navigate to `#/formula-tree`.
+4. Click **Formula Tree** in the top navigation.
 5. Upload the same file and repeat.
 
 Expected downloads:
@@ -127,11 +183,15 @@ The formula file includes an `ATPBGC_MAX(...)` string. The workbench should trea
 
 ## Step 8: Package Letters / BCV Inputs
 
-1. Navigate to `#/letters-bcv`.
+This route may be hidden from the top navigation.
+
+1. In the browser address bar, replace the hash route with `#/letters-bcv` and press Enter.
+2. Confirm the page title mentions **BSRS / BCV Letter Generation Config**.
 2. Upload both files:
    - `bcv-letter-config.synthetic-alpha.json`
    - `final-review-notes.synthetic-alpha.txt`
-3. Generate and download the artifact JSON and manifest.
+3. Click `Generate artifact JSON`.
+4. Click `Download manifest.json`.
 
 Expected downloads:
 
@@ -142,7 +202,7 @@ This is not a final `########S1.cfg`; it is a deterministic draft package for fu
 
 ## Step 9: Review Audit / Manifest
 
-1. Navigate to `#/audit`.
+1. Click **Audit** in the top navigation.
 2. Review the last manifest shown on screen.
 3. Click `Download manifest.json`.
 
