@@ -54,6 +54,7 @@ drills/
     └── inputs/
         ├── plan-metadata.synthetic-alpha.json
         ├── plan-summary-source.synthetic-alpha.txt
+        ├── r5-summary.synthetic-alpha.json
         ├── plan-factors.synthetic-alpha.csv
         ├── section-436-notes.synthetic-alpha.txt
         ├── estimated-adjustments.synthetic-alpha.csv

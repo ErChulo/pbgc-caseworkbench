@@ -76,6 +76,16 @@
       "known_limitations": "Plan Summary behavior is more specialized than the generic scaffold routes and may not produce a complete final DOCX in the current build."
     },
     {
+      "filename": "inputs/r5-summary.synthetic-alpha.json",
+      "module": "Plan Summary / R5",
+      "route": "#/plan-summary",
+      "format": "json",
+      "purpose": "Load structured synthetic R5 summary evidence so the app can mark R5 case state as available.",
+      "expected_artifact": "R5 case state load; DOCX generation requires a separate template not included in this drill.",
+      "synthetic_notice": "Synthetic R5 answers only; known answers use synthetic citations and many items remain unknown/na.",
+      "known_limitations": "Current Plan Summary route also requires a DOCX template for final document generation."
+    },
+    {
       "filename": "inputs/section-436-notes.synthetic-alpha.txt",
       "module": "Section 436",
       "route": "#/436",

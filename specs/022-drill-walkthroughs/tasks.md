@@ -22,6 +22,7 @@
 
 - [X] T003 Create synthetic PlanMetadata fixture in drills/synthetic-case-alpha/inputs/plan-metadata.synthetic-alpha.json
 - [X] T004 [P] Create synthetic plan summary notes in drills/synthetic-case-alpha/inputs/plan-summary-source.synthetic-alpha.txt
+- [X] T004A [P] Create synthetic R5 summary JSON in drills/synthetic-case-alpha/inputs/r5-summary.synthetic-alpha.json
 - [X] T005 [P] Create synthetic plan factors CSV in drills/synthetic-case-alpha/inputs/plan-factors.synthetic-alpha.csv
 - [X] T006 [P] Create synthetic Section 436 notes in drills/synthetic-case-alpha/inputs/section-436-notes.synthetic-alpha.txt
 - [X] T007 [P] Create synthetic estimated adjustments CSV in drills/synthetic-case-alpha/inputs/estimated-adjustments.synthetic-alpha.csv

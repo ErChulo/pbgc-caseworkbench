@@ -105,14 +105,19 @@ This route may be hidden from the top navigation.
 1. Click the browser address bar.
 2. Keep the same file path but replace the part after `#` with `#/plan-summary`.
 3. Press Enter.
-4. If the current build exposes upload controls, upload `plan-summary-source.synthetic-alpha.txt`.
-5. If the current build does not expose a complete final output path, treat this route as a gap observation and continue.
+4. Confirm the page title is **Plan Summary**.
+5. Find the upload field labeled **R5Summary.json**.
+6. Upload `r5-summary.synthetic-alpha.json`.
+7. Do not upload `plan-summary-source.synthetic-alpha.txt` into this field. The current app expects JSON here.
+8. If you do not have a real **Plan Summary DOCX template**, do not click `Generate`. Treat this step as complete after the R5 JSON loads.
 
 How to know it worked:
 
-- You can see whether a Plan Summary page exists.
-- If there is no obvious upload/generate workflow, log this as a UX/product gap and continue.
-- A complete final DOCX should not be assumed in this build.
+- The **R5Summary.json** progress card changes from **Needed** to **Ready**, or the upload label shows `r5-summary.synthetic-alpha.json loaded`.
+- If you return to **Case Workflow**, the **R5** card should no longer look missing.
+- A complete final DOCX requires a DOCX template and should not be assumed in this drill.
+
+UX note: this screen is confusing because it mixes an R5 JSON upload with a DOCX generator. For this drill, the goal is only to load the synthetic R5 JSON.
 
 ## Step 4: Package Plan Factors
 

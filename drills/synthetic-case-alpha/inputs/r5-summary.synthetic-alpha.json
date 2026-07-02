@@ -1,0 +1,503 @@
+{
+  "schema_version": "0.7.0",
+  "summary_stage": "preliminary",
+  "source_documents": [
+    {
+      "doc_id": "SYN-PLAN-001",
+      "name": "Synthetic Alpha Plan Document",
+      "type": "synthetic plan document",
+      "effective_date": "2001-01-01",
+      "adoption_date": "2000-12-15",
+      "notes": "Synthetic source for R5 drill only."
+    }
+  ],
+  "items": [
+    {
+      "item_id": 1,
+      "question": "What is the Adoption Date of the document?",
+      "answer": "Synthetic answer for drill only covering normal retirement, early retirement, vesting, benefit formula, optional forms, and payment mechanics.",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 1,
+          "locator": "Synthetic R5 item 1",
+          "snippet": "Synthetic cited snippet for item 1."
+        }
+      ],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 2,
+      "question": "What is the Plan Anniversary?",
+      "answer": "Synthetic answer for drill only covering normal retirement, early retirement, vesting, benefit formula, optional forms, and payment mechanics.",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 1,
+          "locator": "Synthetic R5 item 2",
+          "snippet": "Synthetic cited snippet for item 2."
+        }
+      ],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 3,
+      "question": "What are the groups of employees covered under the plan?",
+      "answer": "Synthetic answer for drill only covering normal retirement, early retirement, vesting, benefit formula, optional forms, and payment mechanics.",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 1,
+          "locator": "Synthetic R5 item 3",
+          "snippet": "Synthetic cited snippet for item 3."
+        }
+      ],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 4,
+      "question": "What are the participation eligibility requirements in the plan?",
+      "answer": "Synthetic answer for drill only covering normal retirement, early retirement, vesting, benefit formula, optional forms, and payment mechanics.",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 2,
+          "locator": "Synthetic R5 item 4",
+          "snippet": "Synthetic cited snippet for item 4."
+        }
+      ],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 5,
+      "question": "What is the participation date after attainment of eligibility in the plan?",
+      "answer": "Synthetic answer for drill only covering normal retirement, early retirement, vesting, benefit formula, optional forms, and payment mechanics.",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 2,
+          "locator": "Synthetic R5 item 5",
+          "snippet": "Synthetic cited snippet for item 5."
+        }
+      ],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 6,
+      "question": "What is the Age/Service retirement eligibility for normal retirement in the plan?",
+      "answer": "Synthetic answer for drill only covering normal retirement, early retirement, vesting, benefit formula, optional forms, and payment mechanics.",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 2,
+          "locator": "Synthetic R5 item 6",
+          "snippet": "Synthetic cited snippet for item 6."
+        }
+      ],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 7,
+      "question": "What is the Start Date for normal retirement in the plan?",
+      "answer": "Synthetic answer for drill only covering normal retirement, early retirement, vesting, benefit formula, optional forms, and payment mechanics.",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 3,
+          "locator": "Synthetic R5 item 7",
+          "snippet": "Synthetic cited snippet for item 7."
+        }
+      ],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 8,
+      "question": "What is the Age/Service retirement eligibility for Early Unreduced benefit retirement in the plan?",
+      "answer": "Synthetic answer for drill only covering normal retirement, early retirement, vesting, benefit formula, optional forms, and payment mechanics.",
+      "citations": [
+        {
+          "doc_id": "SYN-PLAN-001",
+          "page": 3,
+          "locator": "Synthetic R5 item 8",
+          "snippet": "Synthetic cited snippet for item 8."
+        }
+      ],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 9,
+      "question": "What is the Age/Service retirement eligibility for Early Reduced benefit retirement in the plan?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 10,
+      "question": "What is the Start Date for early retirement in the plan?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 11,
+      "question": "For Deferred vested, not eligible to retire as of date of termination, what is the Age/Service retirement eligibility for normal retirement in the plan?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 12,
+      "question": "For Deferred vested, not eligible to retire as of date of termination, what is the Age/Service retirement eligibility for early retirement in the plan?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 13,
+      "question": "What is the retirement eligibility for late retirement in the plan?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 14,
+      "question": "What is the eligibility requirement for disability under the plan?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 15,
+      "question": "How the plan defines Eligibility/Participation service?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 16,
+      "question": "How the plan defines vesting service?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 17,
+      "question": "How the plan defines benefit service?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 18,
+      "question": "Does the plan defines other type of service besides eligibility/participation, vesting and benefit service?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 19,
+      "question": "What is the accrued benefit formula under the plan?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 20,
+      "question": "What is the Accrual factor in the accrued benefit formula?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 21,
+      "question": "What is the Short service factor in the accrued benefit formula?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 22,
+      "question": "What compensation is used in the accrued benefit formula?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 23,
+      "question": "How the plan defines average compensation to use in the accrued benefit formula?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 24,
+      "question": "What is the Covered Compensation for Integrated Plans?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 25,
+      "question": "What is the Primary Insurance Amount (PIA) Offset in the plan?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 26,
+      "question": "If the plan is a Cash-Balance plan, What is the Initial Account Balance in the plan?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 27,
+      "question": "If the plan is a Cash-Balance plan, How the the plan defines Benefit Credit in the Cash Balance Account?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 28,
+      "question": "If the plan is a Cash-Balance plan, How the the plan defines Interest Credit in the Cash Balance Account?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 29,
+      "question": "If the plan is a Cash-Balance plan, What is the Timing of Interest Credit in the Cash Balance Account?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 30,
+      "question": "If the plan is a Cash-Balance plan, What is the Annuity Conversion Factor in the Cash Balance Account?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 31,
+      "question": "If the plan is a Cash-Balance plan, What is the Annuity Conversion Method in the Cash Balance Account?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 32,
+      "question": "If there are Supplemental Benefits in the plan, What is the eligibility for those?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 33,
+      "question": "If there are Supplemental Benefits in the plan, What is the amount?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 34,
+      "question": "If there are Supplemental Benefits in the plan, What is the Duration?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 35,
+      "question": "What is the Normal Single Form of benefit as defined in the plan?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 36,
+      "question": "What is the Normal Married Form of benefit as defined in the plan?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 37,
+      "question": "What is the Basis for Form Conversion Factors as defined in the plan?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 38,
+      "question": "How the plan calculates the Early Retirement Adjustment?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 39,
+      "question": "How the plan calculates the Late Retirement Adjustment?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 40,
+      "question": "What are, if any, the Suspension of Benefit Provisions?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 41,
+      "question": "What are, if any, the Disability Benefit Provisions?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 42,
+      "question": "What are, if any, the Pre-Retirement Death Benefits?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 43,
+      "question": "What are, if any, the Post-Retirement Death Benefits?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 44,
+      "question": "What is the Vesting Schedule included in the Provisions for Deferred Participants?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 45,
+      "question": "What is the Cash-out Provisions included in the Provisions for Deferred Participants?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 46,
+      "question": "What is the One-Year Break In Service included in the Provisions for Deferred Participants?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 47,
+      "question": "What are the Transfer Provisions defined in the plan?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 48,
+      "question": "If the plan has Mandatory Employee Contributions (EEC), How the plan defines its Contributions?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 49,
+      "question": "If the plan has Mandatory Employee Contributions (EEC), How the plan defines its Interest?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 50,
+      "question": "If the plan has Mandatory Employee Contributions (EEC), What provisions are in place  If EEC Withdrawn?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 51,
+      "question": "What are the Voluntary Provisions defined in the plan, if any?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 52,
+      "question": "Was the plan Top-Heavy?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 53,
+      "question": "Top-Heavy Minimum Benefit applies to key employees in addition to non-key employees?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 54,
+      "question": "How plan defines Top-Heavy Service?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 55,
+      "question": "How plan defines Top-Heavy Average Compensation?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 56,
+      "question": "How plan defines Top-Heavy Minimum Benefit Formula?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 57,
+      "question": "How plan defines Top-Heavy Vesting?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 58,
+      "question": "How plan defines Default Actuarial Equivalence?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 59,
+      "question": "How plan defines Consensual Lump Sum Provisions?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 60,
+      "question": "Are there any Additional Provisions of Note?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    },
+    {
+      "item_id": 61,
+      "question": "What are the Names Of Majority Owners, if any?",
+      "answer": "unknown/na",
+      "citations": [],
+      "notes": "Synthetic drill item; not authoritative."
+    }
+  ],
+  "dependent_fields": {
+    "synthetic_notice": "All R5 answers are synthetic placeholders for mechanics only.",
+    "recognized_domain_seed": "normal retirement early retirement vesting benefit formula optional form annuity lump sum survivor disability death benefit"
+  }
+}

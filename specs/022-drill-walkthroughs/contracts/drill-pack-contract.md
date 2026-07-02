@@ -14,6 +14,7 @@ drills/synthetic-case-alpha/
 - `fixture-manifest.json`: Machine-readable inventory of all synthetic drill files.
 - `inputs/plan-metadata.synthetic-alpha.json`: PlanMetadata upload fixture.
 - `inputs/plan-summary-source.synthetic-alpha.txt`: Synthetic plan summary source notes.
+- `inputs/r5-summary.synthetic-alpha.json`: Synthetic structured R5Summary JSON accepted by the Plan Summary R5 upload field.
 - `inputs/plan-factors.synthetic-alpha.csv`: Synthetic factor rows.
 - `inputs/section-436-notes.synthetic-alpha.txt`: Synthetic Section 436 notes.
 - `inputs/estimated-adjustments.synthetic-alpha.csv`: Synthetic estimated adjustment rows.
