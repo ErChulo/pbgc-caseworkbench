@@ -44,19 +44,21 @@ Use a `file://` open. Do not start a backend server for the drill.
 ## Step 1: Start Clean
 
 1. Open the workbench.
-2. Go to `#/metadata`.
+2. Click **Case Intake** in the top navigation, or go directly to `#/metadata`.
 3. Click `Clear Workspace` if you have old state from a prior run.
 
-Expected result: the app returns to the Metadata page and says metadata is needed before other modules are useful.
+Expected result: the app returns to the Case Intake / Metadata page and says metadata is needed before other modules are useful.
 
 ## Step 2: Ingest PlanMetadata
 
-1. On `#/metadata`, choose `Upload PlanMetadata JSON`.
+1. On **Case Intake** (`#/metadata`), choose `Upload PlanMetadata JSON`.
 2. Select `drills/synthetic-case-alpha/inputs/plan-metadata.synthetic-alpha.json`.
 3. Click `Save Metadata`.
 4. Confirm the page shows all required fields complete.
 
 Expected result: the app context identifies `Synthetic Alpha Components Pension Plan` and case `SYN-2026-ALPHA`.
+
+If the app moves you to **Case Workflow** (`#/guide`) and shows **PlanMetadata saved / Ready**, you have already completed this step. Continue with the next step.
 
 ## Step 3: Exercise Plan Summary Mechanics
 
