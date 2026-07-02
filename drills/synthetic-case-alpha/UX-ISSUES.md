@@ -34,6 +34,11 @@ This file records UX problems that block or confuse a first-time user during the
    - The matching DOCX template exists at `reference/Plan Summary Shell.docx`, but the UI does not point users to it.
    - Fix direction: split "Load R5 Summary" from "Generate Plan Summary DOCX", or provide separate step cards with accepted file types and examples.
 
+7. **Workflow must not skip DEL after R5**
+   - The actual case workflow order places **DEL** immediately after **R5 / Plan Summary**.
+   - Any drill or UI path that jumps from R5 to Plan Factors breaks the user’s mental model and the project’s own workflow.
+   - Fix direction: make the next-step control explicit: R5 complete -> DEL input package.
+
 ## Manual Test Standard Going Forward
 
 Every future drill step must include:

@@ -115,16 +115,51 @@ Optional deeper workspace: the hidden `#/plan-summary` page has a separate **Pla
 
 UX note: this workflow is confusing because the visible Case Workflow panel loads R5 JSON, while the hidden Plan Summary page handles DOCX generation. These need to be split or linked clearly in the UI.
 
-## Step 4: Package Plan Factors
+## Step 4: Generate DEL Package
 
-This route may be hidden from the top navigation.
+Stay on **Case Workflow**. After R5 loads, the workflow should advance to **DEL**.
+
+1. Look for the current workflow panel titled **DEL input package**.
+2. Confirm the panel says it uses PlanMetadata, loaded R5Summary, and bundled `reference/DD.csv`.
+3. Click **Generate DEL package JSON**.
+4. If a **Download DEL manifest** button appears, click it.
+
+Expected downloads:
+
+- `data-elements.artifact.json`
+- `manifest.data-elements.json`
+
+How to know it worked:
+
+- Your browser downloads `data-elements.artifact.json`.
+- The DEL panel shows a last package or generated status.
+- The downloaded JSON mentions `SYN-2026-ALPHA`.
+
+UX note: DEL being the next step is correct. If the app or guide jumps to Plan Factors immediately after R5, that is a workflow bug.
+
+## Step 5: Synthetic Population Checkpoint
+
+The workflow lists **Synthetic Population** after DEL. Treat this as a checkpoint, not a full production task.
+
+1. If **Case Workflow** advances to **Synthetic Population**, read the panel and note what it asks for.
+2. If there is an obvious generate/download action, run it with the default settings.
+3. If the page is unclear, record it as a UX gap and continue.
+
+How to know it worked:
+
+- You understand whether the app can create synthetic no-PII population files yet.
+- If it downloads a ZIP or manifest, keep it with the other drill outputs.
+
+## Step 6: Package Plan Factors
+
+Only do Plan Factors after DEL and the Synthetic Population checkpoint.
 
 1. In the browser address bar, replace the hash route with `#/factors` and press Enter.
 2. Confirm the page title is **Plan Factors**.
-2. Upload `plan-factors.synthetic-alpha.csv`.
-3. In run notes, enter `Synthetic drill run. Mechanics only.`
-4. Click `Generate artifact JSON`.
-5. Then click `Download manifest.json`.
+3. Upload `plan-factors.synthetic-alpha.csv`.
+4. In run notes, enter `Synthetic drill run. Mechanics only.`
+5. Click `Generate artifact JSON`.
+6. Then click `Download manifest.json`.
 
 Expected downloads:
 
@@ -137,7 +172,7 @@ How to know it worked:
 - The page status says `DONE`.
 - The downloaded JSON mentions `SYN-2026-ALPHA`.
 
-## Step 5: Package Section 436 Notes
+## Step 7: Package Section 436 Notes
 
 1. In the browser address bar, replace the hash route with `#/436` and press Enter.
 2. Confirm the page title is **Section 436 Limitation Memo**.
@@ -150,7 +185,7 @@ Expected downloads:
 - `section-436-memo.artifact.json`
 - `manifest.section-436.json`
 
-## Step 6: Package Estimated Benefit Work
+## Step 8: Package Estimated Benefit Work
 
 These routes may be hidden from the top navigation. Run both routes from the browser address bar:
 
@@ -166,7 +201,7 @@ Expected downloads:
 
 These are draft input packages. They are not final benefit adjustment or administration analyses.
 
-## Step 7: Exercise Formula Mechanics
+## Step 9: Exercise Formula Mechanics
 
 These two routes are visible in the top navigation in the current build.
 
@@ -185,7 +220,7 @@ Expected downloads:
 
 The formula file includes an `ATPBGC_MAX(...)` string. The workbench should treat it as text, not execute it.
 
-## Step 8: Package Letters / BCV Inputs
+## Step 10: Package Letters / BCV Inputs
 
 This route may be hidden from the top navigation.
 
@@ -204,7 +239,7 @@ Expected downloads:
 
 This is not a final `########S1.cfg`; it is a deterministic draft package for future generator work.
 
-## Step 9: Review Audit / Manifest
+## Step 11: Review Audit / Manifest
 
 1. Click **Audit** in the top navigation.
 2. Review the last manifest shown on screen.
@@ -235,7 +270,7 @@ Confirm the manifest includes:
 
 ## Suggested Next Development Direction
 
-1. Make PlanMetadata validation and save behavior covered by tests.
-2. Pick one scaffold module, preferably Plan Factors or Section 436, and replace draft packaging with a minimal real output.
-3. Add manifest embedding for that module's final artifact.
-4. Use this drill as the acceptance script for the first complete vertical slice.
+1. Redesign **Case Workflow** as the primary home screen.
+2. Make each workflow step a visible card with exactly one primary action and one success signal.
+3. Remove the need to edit hash routes manually.
+4. Use this drill as the acceptance script for the redesigned workflow.
