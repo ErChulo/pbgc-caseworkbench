@@ -82,10 +82,13 @@ How to know it worked:
 
 ## Step 2: Ingest PlanMetadata
 
+Important: after this step, the app may automatically leave **Case Intake** and switch to **Case Workflow**. That is current app behavior.
+
 1. On **Case Intake** (`#/metadata`), choose `Upload PlanMetadata JSON`.
 2. Select `drills/synthetic-case-alpha/inputs/plan-metadata.synthetic-alpha.json`.
 3. Click `Save Metadata`.
-4. If the app takes you to **Case Workflow**, look in **Shared Case Inputs** and confirm the first card says **PlanMetadata saved** and **Ready**.
+4. Expect the app to move you to **Case Workflow**.
+5. On **Case Workflow**, look in **Shared Case Inputs** and confirm the first card says **PlanMetadata saved** and **Ready**.
 
 How to know it worked:
 
@@ -93,7 +96,7 @@ How to know it worked:
 - The app shows case `SYN-2026-ALPHA`.
 - On **Case Workflow**, the **Shared Case Inputs** panel shows **PlanMetadata saved** and **Ready**.
 
-If you see **PlanMetadata saved / Ready**, you have completed metadata ingestion. Continue with the next step even if you never saw a required-fields checklist.
+If you see **PlanMetadata saved / Ready**, you have completed metadata ingestion. Stay on **Case Workflow** for orientation, then continue with Step 3. Do not go back to **Case Intake** unless a later instruction explicitly says so.
 
 ## Step 3: Exercise Plan Summary Mechanics
 

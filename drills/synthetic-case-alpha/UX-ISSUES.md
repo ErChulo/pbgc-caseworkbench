@@ -17,7 +17,8 @@ This file records UX problems that block or confuse a first-time user during the
 3. **Metadata completion signal is indirect**
    - The reliable visible signal is **PlanMetadata saved / Ready** on Case Workflow.
    - The UI does not clearly say "Metadata ingestion complete."
-   - Fix direction: after save, show a plain success banner with next action.
+   - The app may automatically navigate away from **Case Intake** to **Case Workflow** after metadata is saved, which can disorient a first-time user.
+   - Fix direction: after save, show a plain success banner with next action and explain any automatic navigation before it happens.
 
 4. **Scaffold modules look like real modules**
    - They generate artifact JSON, not final actuarial products.
