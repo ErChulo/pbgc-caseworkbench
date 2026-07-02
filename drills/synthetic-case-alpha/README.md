@@ -106,18 +106,22 @@ This route may be hidden from the top navigation.
 2. Keep the same file path but replace the part after `#` with `#/plan-summary`.
 3. Press Enter.
 4. Confirm the page title is **Plan Summary**.
-5. Find the upload field labeled **R5Summary.json**.
-6. Upload `r5-summary.synthetic-alpha.json`.
-7. Do not upload `plan-summary-source.synthetic-alpha.txt` into this field. The current app expects JSON here.
-8. If you do not have a real **Plan Summary DOCX template**, do not click `Generate`. Treat this step as complete after the R5 JSON loads.
+5. Find the upload field labeled **Plan Summary DOCX template**.
+6. Upload `reference/Plan Summary Shell.docx`.
+7. Find the upload field labeled **R5Summary.json**.
+8. Upload `drills/synthetic-case-alpha/inputs/r5-summary.synthetic-alpha.json`.
+9. Do not upload `plan-summary-source.synthetic-alpha.txt` into either field. It is only human-readable source notes for this drill.
+10. Click `Generate 001R5.docx`.
+11. Click `Download manifest.json`.
 
 How to know it worked:
 
 - The **R5Summary.json** progress card changes from **Needed** to **Ready**, or the upload label shows `r5-summary.synthetic-alpha.json loaded`.
+- The **Template** progress card changes from **Needed** to **Ready**, or the upload label shows `Plan Summary Shell.docx`.
+- Your browser downloads `001R5.docx`.
 - If you return to **Case Workflow**, the **R5** card should no longer look missing.
-- A complete final DOCX requires a DOCX template and should not be assumed in this drill.
 
-UX note: this screen is confusing because it mixes an R5 JSON upload with a DOCX generator. For this drill, the goal is only to load the synthetic R5 JSON.
+UX note: this screen is confusing because it mixes an R5 JSON upload with a DOCX generator and does not point to the repository template. For this drill, use the template in `reference/Plan Summary Shell.docx`.
 
 ## Step 4: Package Plan Factors
 

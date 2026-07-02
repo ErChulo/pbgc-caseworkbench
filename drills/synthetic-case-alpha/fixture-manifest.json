@@ -80,10 +80,20 @@
       "module": "Plan Summary / R5",
       "route": "#/plan-summary",
       "format": "json",
-      "purpose": "Load structured synthetic R5 summary evidence so the app can mark R5 case state as available.",
-      "expected_artifact": "R5 case state load; DOCX generation requires a separate template not included in this drill.",
+      "purpose": "Load structured synthetic R5 summary evidence and generate a draft Plan Summary DOCX with the repository template.",
+      "expected_artifact": "001R5.docx when used with reference/Plan Summary Shell.docx",
       "synthetic_notice": "Synthetic R5 answers only; known answers use synthetic citations and many items remain unknown/na.",
-      "known_limitations": "Current Plan Summary route also requires a DOCX template for final document generation."
+      "known_limitations": "Generated DOCX is a mechanics drill output from synthetic R5 data, not a real Plan Summary."
+    },
+    {
+      "filename": "../../reference/Plan Summary Shell.docx",
+      "module": "Plan Summary / R5",
+      "route": "#/plan-summary",
+      "format": "docx",
+      "purpose": "Repository Plan Summary DOCX template used with the synthetic R5Summary JSON.",
+      "expected_artifact": "001R5.docx",
+      "synthetic_notice": "Template is a repository reference file; synthetic drill data is supplied separately.",
+      "known_limitations": "Template output quality depends on current DOCX filling logic."
     },
     {
       "filename": "inputs/section-436-notes.synthetic-alpha.txt",

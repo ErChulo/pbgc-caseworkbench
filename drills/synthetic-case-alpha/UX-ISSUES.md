@@ -31,6 +31,7 @@ This file records UX problems that block or confuse a first-time user during the
 6. **Plan Summary combines two different jobs without enough guidance**
    - The screen asks for both a **Plan Summary DOCX template** and **R5Summary.json**.
    - A first-time user can reasonably try to upload source notes into the R5 field, but that field only accepts JSON.
+   - The matching DOCX template exists at `reference/Plan Summary Shell.docx`, but the UI does not point users to it.
    - Fix direction: split "Load R5 Summary" from "Generate Plan Summary DOCX", or provide separate step cards with accepted file types and examples.
 
 ## Manual Test Standard Going Forward
