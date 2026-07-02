@@ -226,11 +226,11 @@ This route may be hidden from the top navigation.
 
 1. In the browser address bar, replace the hash route with `#/letters-bcv` and press Enter.
 2. Confirm the page title mentions **BSRS / BCV Letter Generation Config**.
-2. Upload both files:
+3. Upload both files:
    - `bcv-letter-config.synthetic-alpha.json`
    - `final-review-notes.synthetic-alpha.txt`
-3. Click `Generate artifact JSON`.
-4. Click `Download manifest.json`.
+4. Click `Generate artifact JSON`.
+5. Click `Download manifest.json`.
 
 Expected downloads:
 
@@ -257,6 +257,30 @@ Confirm the manifest includes:
 - `input_hashes`
 - `plan_metadata_hash`
 - case `SYN-2026-ALPHA`
+
+## Manual Drill Result: 2026-07-02
+
+Completed end-to-end with a first-time user driving the UI.
+
+Confirmed working mechanics:
+
+- PlanMetadata loaded and workflow advanced.
+- R5 JSON loaded from the visible Case Workflow intake.
+- DEL package downloaded.
+- Synthetic population ZIP downloaded.
+- Plan Factors artifact and manifest downloaded.
+- 436 artifact and manifest downloaded.
+- Estimated adjustment and administration artifacts downloaded.
+- DAG Viewer and Formula Tree graph artifacts downloaded.
+- Letters/BCV artifact and manifest downloaded.
+- Audit manifest downloaded.
+
+Confirmed UX blockers:
+
+- Several core steps require manual URL/hash editing.
+- The UI does not expose all workflow steps through visible controls.
+- R5 intake and Plan Summary DOCX generation are split across confusing surfaces.
+- The workflow needs explicit next-step guidance after each successful action.
 
 ## Known Gaps This Drill Should Make Visible
 
