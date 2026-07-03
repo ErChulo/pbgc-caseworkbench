@@ -6,6 +6,26 @@
   "no_pii_statement": "All files in this drill are synthetic placeholders. They contain no real participant data, no real PBGC case data, and no authoritative plan provisions or factor values.",
   "files": [
     {
+      "filename": "inputs/bsrs-config-base.synthetic-alpha.txt",
+      "module": "BSRS Config Builder",
+      "route": "#/letters-bcv",
+      "format": "txt",
+      "purpose": "Exercise patch-first BSRS config parsing, validation, line-level diff, and patched config export.",
+      "expected_artifact": "bsrs-config.patched.txt",
+      "synthetic_notice": "Synthetic BSRS config only; not a real production config.",
+      "known_limitations": "Current builder applies controlled patch rules and validation only; full production S1 generation remains future work."
+    },
+    {
+      "filename": "inputs/bsrs-population.synthetic-alpha.csv",
+      "module": "BSRS Config Builder",
+      "route": "#/letters-bcv",
+      "format": "csv",
+      "purpose": "Provide no-PII synthetic participant rows for BSRS field inventory and validation.",
+      "expected_artifact": "bsrs-validation-report.json",
+      "synthetic_notice": "Synthetic participant-like rows only; contains no real PII.",
+      "known_limitations": "Used for mechanics and validation inventory, not production statement testing."
+    },
+    {
       "filename": "inputs/bcv-letter-config.synthetic-alpha.json",
       "module": "Letters/BCV",
       "route": "#/letters-bcv",

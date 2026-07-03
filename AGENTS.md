@@ -104,5 +104,5 @@ If legacy Plan Summary DOCX filler exists, prioritize fixing known rate placemen
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/022-drill-walkthroughs/plan.md
+at specs/023-bsrs-config-builder/plan.md
 <!-- SPECKIT END -->

@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "pack": "vite build && cd .. && node scripts/pack-single-html.mjs",
+    "test": "node --test test/*.test.mjs",
     "preview": "vite preview"
   },
   "devDependencies": {

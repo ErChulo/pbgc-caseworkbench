@@ -14,6 +14,16 @@ import Ajv from "ajv";
 import planMetadataSchema from "./planMetadata.schema.json";
 import r5SummarySchema from "./r5Summary.schema.json";
 import { APP_VERSION, SCHEMA_VERSION } from "./version.js";
+import {
+  BSRS_MODULE_ID,
+  BSRS_MODULE_VERSION,
+  BSRS_RULES,
+  applyBsrsPatches,
+  parseBsrsConfig,
+  parsePopulation,
+  summarizeR5Json,
+  validateBsrsConfig
+} from "./bsrs-config-builder.js";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validatePlanMetadata = ajv.compile(planMetadataSchema);
@@ -118,7 +128,7 @@ const routes = [
   { path: "#/v1-builder", title: "V1 Builder", render: renderV1BuilderAlias, hidden: true },
   { path: "#/dag-viewer", title: "DAG Viewer", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.dagViewer) },
   { path: "#/formula-tree", title: "Formula Tree", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.formulaTree) },
-  { path: "#/letters-bcv", title: "Letters/BCV", readiness: "scaffold", render: (container) => renderArtifactModule(container, artifactModuleConfigs.lettersBcv), hidden: true },
+  { path: "#/letters-bcv", title: "BSRS Config", readiness: "scaffold", render: renderBsrsConfigBuilder, hidden: true },
   { path: "#/audit", title: "Audit", render: renderAudit }
 ];
 
@@ -294,12 +304,12 @@ const artifactModuleConfigs = {
   },
   lettersBcv: {
     id: "letters-bcv-config",
-    title: "BSRS / BCV Letter Generation Config",
-    description: "Create a deterministic package for the eventual ########S1.cfg letter generation config.",
-    outputName: "bsrs-bcv-letter-config.artifact.json",
+    title: "BSRS Config Builder",
+    description: "Build and validate deterministic BSRS config.txt patches for the eventual ########S1.cfg workflow.",
+    outputName: "bsrs-config.patched.txt",
     accepted: ".json,.txt,.csv,.docx,.xlsx,.xlsm,.xls",
-    prompt: "Upload letter templates, BSRS configs, and variable mappings.",
-    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Synthetic population for testing when available", "Letter templates", "BCV/BSRS config inputs"],
+    prompt: "Upload R5Summary JSON, population CSV/JSON, and a base BSRS config.txt.",
+    requiredInputs: ["PlanMetadata", "R5 summary JSON/profile", "Population CSV/JSON", "Base BSRS config.txt"],
     upstreamInputs: ["metadata", "r5", "synthetic"]
   }
 };
@@ -4715,6 +4725,400 @@ function renderArtifactModule(container, config) {
   });
 
   update();
+}
+
+function renderBsrsConfigBuilder(container) {
+  const planName = getPlanValue(state.planMetadata, "plan_name") || "unknown";
+  const caseNo = state.planMetadata?.meta?.case_number?.value ?? "unknown";
+  let session = {
+    files: {},
+    r5: null,
+    population: null,
+    configText: "",
+    workingText: "",
+    parsedLines: [],
+    patchResult: null,
+    validation: null,
+    manifest: null
+  };
+
+  container.innerHTML = `
+    <section class="page-hero">
+      <div class="page-title">
+        <h2>BSRS Config Builder</h2>
+        <p>Patch, validate, and export deterministic BSRS config.txt changes.</p>
+        <p class="meta-line"><b>Case:</b> ${escapeHtml(planName)} (${escapeHtml(caseNo)})</p>
+      </div>
+    </section>
+
+    ${planContextHtml()}
+    ${renderWorkflowStatePanel({ title: "Shared Case Inputs", keys: ["metadata", "r5", "synthetic"] })}
+
+    <div class="banner subtle"><b>Generated output must be reviewed before production use.</b> Patch mode changes only declared target lines and keeps unrelated BSRS lines intact.</div>
+
+    <div class="bsrs-layout">
+      <section class="card bsrs-panel">
+        <div class="workflow-card-head">
+          <div>
+            <h3>Inputs</h3>
+            <p class="muted">Upload the three files needed for patch mode.</p>
+          </div>
+          <span>Patch-first MVP</span>
+        </div>
+        <div class="grid three">
+          <div>
+            <label><b>R5 plan summary JSON</b></label>
+            <input id="bsrs_r5_file" type="file" accept=".json,application/json" />
+          </div>
+          <div>
+            <label><b>Population CSV / JSON</b></label>
+            <input id="bsrs_population_file" type="file" accept=".csv,.json,.txt" />
+          </div>
+          <div>
+            <label><b>Base BSRS config.txt</b></label>
+            <input id="bsrs_config_file" type="file" accept=".txt,.csv" />
+          </div>
+        </div>
+        <div class="button-row">
+          <button id="bsrs_parse_inputs" class="primary">Parse inputs</button>
+          <button id="bsrs_clear" class="ghost">Clear BSRS session</button>
+        </div>
+        <div id="bsrs_status" class="workflow-status-box">Choose R5 JSON, population CSV/JSON, and base BSRS config.txt, then parse inputs.</div>
+      </section>
+
+      <section class="card bsrs-panel">
+        <div class="workflow-card-head">
+          <div>
+            <h3>Inventory</h3>
+            <p class="muted">Confirm file parsing before applying patches.</p>
+          </div>
+          <span id="bsrs_inventory_badge">waiting</span>
+        </div>
+        <div id="bsrs_inventory" class="bsrs-inventory-grid"></div>
+      </section>
+
+      <section class="card bsrs-panel">
+        <div class="workflow-card-head">
+          <div>
+            <h3>Mode</h3>
+            <p class="muted">Patch mode is production-oriented; scaffold mode is review-only.</p>
+          </div>
+        </div>
+        <select id="bsrs_mode">
+          <option value="patch">Patch Mode</option>
+          <option value="test">Test Runner</option>
+          <option value="scaffold">Full Scaffold Mode (review only)</option>
+        </select>
+        <div id="bsrs_mode_note" class="workflow-status-box" data-tone="success">Patch Mode: applies selected controlled rules to uploaded base config only.</div>
+      </section>
+
+      <section class="card bsrs-panel">
+        <div class="workflow-card-head">
+          <div>
+            <h3>Rule Library</h3>
+            <p class="muted">Controlled patches only. Each rule has a stable ID.</p>
+          </div>
+          <span>${BSRS_RULES.length} built-in rules</span>
+        </div>
+        <div id="bsrs_rules" class="bsrs-rule-list">
+          ${BSRS_RULES.map((rule) => `
+            <label class="bsrs-rule-card">
+              <input type="checkbox" class="bsrs_rule_check" value="${escapeHtml(rule.id)}" checked />
+              <span>
+                <b>${escapeHtml(rule.title)}</b>
+                <small>${escapeHtml(rule.id)} | ${escapeHtml(rule.family)}</small>
+                <small>${escapeHtml(rule.description)}</small>
+              </span>
+            </label>
+          `).join("")}
+        </div>
+        <div class="button-row">
+          <button id="bsrs_apply_patches" class="primary" disabled>Apply selected patches</button>
+        </div>
+      </section>
+
+      <section class="card bsrs-panel">
+        <div class="workflow-card-head">
+          <div>
+            <h3>Validation</h3>
+            <p class="muted">Find structure and routing risks before export.</p>
+          </div>
+          <span id="bsrs_validation_badge">not run</span>
+        </div>
+        <div class="button-row">
+          <button id="bsrs_validate" disabled>Run validation</button>
+        </div>
+        <div id="bsrs_validation" class="bsrs-results"></div>
+      </section>
+
+      <section class="card bsrs-panel">
+        <div class="workflow-card-head">
+          <div>
+            <h3>Diff / Change Log</h3>
+            <p class="muted">Line-level changes from selected patches.</p>
+          </div>
+          <span id="bsrs_change_badge">0 changes</span>
+        </div>
+        <div id="bsrs_diff" class="bsrs-results"></div>
+      </section>
+
+      <section class="card bsrs-panel">
+        <div class="workflow-card-head">
+          <div>
+            <h3>Exports</h3>
+            <p class="muted">Download patched config and review artifacts.</p>
+          </div>
+        </div>
+        <div class="button-row">
+          <button id="bsrs_export_config" class="primary" disabled>Export patched config.txt</button>
+          <button id="bsrs_export_changelog" disabled>Export change log</button>
+          <button id="bsrs_export_validation" disabled>Export validation report</button>
+          <button id="bsrs_export_manifest" class="ghost" disabled>Download manifest.json</button>
+        </div>
+      </section>
+    </div>
+  `;
+
+  hydratePlanContext(container);
+
+  const r5Input = container.querySelector("#bsrs_r5_file");
+  const populationInput = container.querySelector("#bsrs_population_file");
+  const configInput = container.querySelector("#bsrs_config_file");
+  const parseBtn = container.querySelector("#bsrs_parse_inputs");
+  const clearBtn = container.querySelector("#bsrs_clear");
+  const statusEl = container.querySelector("#bsrs_status");
+  const inventoryEl = container.querySelector("#bsrs_inventory");
+  const inventoryBadge = container.querySelector("#bsrs_inventory_badge");
+  const modeSelect = container.querySelector("#bsrs_mode");
+  const modeNote = container.querySelector("#bsrs_mode_note");
+  const applyBtn = container.querySelector("#bsrs_apply_patches");
+  const validateBtn = container.querySelector("#bsrs_validate");
+  const validationEl = container.querySelector("#bsrs_validation");
+  const validationBadge = container.querySelector("#bsrs_validation_badge");
+  const diffEl = container.querySelector("#bsrs_diff");
+  const changeBadge = container.querySelector("#bsrs_change_badge");
+  const exportConfigBtn = container.querySelector("#bsrs_export_config");
+  const exportChangeLogBtn = container.querySelector("#bsrs_export_changelog");
+  const exportValidationBtn = container.querySelector("#bsrs_export_validation");
+  const exportManifestBtn = container.querySelector("#bsrs_export_manifest");
+
+  function selectedInputFiles() {
+    return [session.files.r5, session.files.population, session.files.config].filter(Boolean);
+  }
+
+  function setStatus(message, tone = "info") {
+    statusEl.textContent = message;
+    statusEl.dataset.tone = tone;
+  }
+
+  function selectedRuleIds() {
+    return [...container.querySelectorAll(".bsrs_rule_check:checked")].map((input) => input.value);
+  }
+
+  function renderInventory() {
+    const rows = [
+      ["R5 summary", session.r5 ? `${session.r5.item_count} item(s), ${session.r5.source_documents} source document(s)` : "Not loaded"],
+      ["Population", session.population ? `${session.population.rows.length} row(s), ${session.population.fields.length} field(s)` : "Not loaded"],
+      ["Missing recommended fields", session.population ? `${session.population.missing_recommended_fields.length}` : "Not checked"],
+      ["Base config", session.parsedLines.length ? `${session.parsedLines.length} line(s)` : "Not loaded"]
+    ];
+    inventoryEl.innerHTML = rows
+      .map(([label, value]) => `<div><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>`)
+      .join("");
+    inventoryBadge.textContent = session.parsedLines.length ? "parsed" : "waiting";
+    applyBtn.disabled = !session.parsedLines.length;
+    validateBtn.disabled = !session.parsedLines.length;
+    exportConfigBtn.disabled = !session.workingText;
+    exportChangeLogBtn.disabled = !session.patchResult;
+    exportValidationBtn.disabled = !session.validation;
+    exportManifestBtn.disabled = !session.manifest;
+  }
+
+  function renderDiff() {
+    const changes = session.patchResult?.changes ?? [];
+    const warnings = session.patchResult?.warnings ?? [];
+    changeBadge.textContent = `${changes.length} changes`;
+    diffEl.innerHTML = changes.length || warnings.length
+      ? `
+        ${changes.map((change) => `
+          <div class="bsrs-diff-item">
+            <b>Line ${escapeHtml(String(change.line_number))} | ${escapeHtml(change.rule_id)}</b>
+            <pre><span class="diffdel">- ${escapeHtml(change.before)}</span>\n<span class="diffadd">+ ${escapeHtml(change.after)}</span></pre>
+          </div>
+        `).join("")}
+        ${warnings.map((warning) => `<div class="bsrs-warning"><b>${escapeHtml(warning.rule_id)}</b><span>${escapeHtml(warning.message)}</span></div>`).join("")}
+      `
+      : `<div class="meta-line">No patches applied yet.</div>`;
+  }
+
+  function renderValidation() {
+    if (!session.validation) {
+      validationEl.innerHTML = `<div class="meta-line">Validation has not run.</div>`;
+      validationBadge.textContent = "not run";
+      return;
+    }
+    const { summary, issues } = session.validation;
+    validationBadge.textContent = `${summary.errors} errors, ${summary.warnings} warnings`;
+    validationEl.innerHTML = `
+      <div class="bsrs-summary-row">
+        <div><span>Rows</span><b>${summary.rows}</b></div>
+        <div><span>Errors</span><b>${summary.errors}</b></div>
+        <div><span>Warnings</span><b>${summary.warnings}</b></div>
+        <div><span>Info</span><b>${summary.info}</b></div>
+      </div>
+      <div class="bsrs-issue-list">
+        ${issues.slice(0, 80).map((issue) => `
+          <div class="bsrs-issue ${escapeHtml(issue.severity)}">
+            <b>${escapeHtml(issue.severity)} | line ${escapeHtml(String(issue.line_number))} | ${escapeHtml(issue.rule_id)}</b>
+            <span>${escapeHtml(issue.message)}</span>
+            <small>${escapeHtml(issue.action)}</small>
+          </div>
+        `).join("") || `<div class="meta-line">No validation issues detected.</div>`}
+      </div>
+    `;
+  }
+
+  async function buildBsrsManifest(extra = {}) {
+    const manifest = await buildRunManifest(BSRS_MODULE_ID, BSRS_MODULE_VERSION, selectedInputFiles());
+    return { ...manifest, ...extra };
+  }
+
+  async function markBsrsRun(outputName, extra = {}) {
+    const manifest = await buildBsrsManifest(extra);
+    session.manifest = manifest;
+    state.lastManifest = manifest;
+    state.caseWorkflow.moduleRuns["letters-bcv-config"] = {
+      generated_at_utc: manifest.generated_at_utc,
+      output_name: outputName,
+      input_hashes: manifest.input_hashes,
+      manifest
+    };
+    saveState();
+    renderInventory();
+    return manifest;
+  }
+
+  parseBtn.addEventListener("click", async () => {
+    try {
+      session.files = {
+        r5: r5Input.files?.[0] ?? null,
+        population: populationInput.files?.[0] ?? null,
+        config: configInput.files?.[0] ?? null
+      };
+      if (!session.files.r5 || !session.files.population || !session.files.config) {
+        setStatus("Select R5 JSON, population CSV/JSON, and base BSRS config.txt before parsing.", "error");
+        return;
+      }
+      const [r5Text, populationText, configText] = await Promise.all([
+        session.files.r5.text(),
+        session.files.population.text(),
+        session.files.config.text()
+      ]);
+      session.r5 = summarizeR5Json(r5Text);
+      session.population = parsePopulation(populationText, session.files.population.name);
+      session.configText = configText;
+      session.workingText = configText;
+      session.parsedLines = parseBsrsConfig(configText);
+      session.patchResult = null;
+      session.validation = null;
+      session.manifest = await buildBsrsManifest({ status: "inputs-parsed" });
+      setStatus(`Parsed ${session.parsedLines.length} BSRS config line(s) and ${session.population.rows.length} population row(s).`, "success");
+      renderInventory();
+      renderDiff();
+      renderValidation();
+    } catch (err) {
+      setStatus(`ERROR: ${err.message}`, "error");
+    }
+  });
+
+  applyBtn.addEventListener("click", async () => {
+    try {
+      if (!session.workingText) throw new Error("Parse inputs before applying patches.");
+      session.patchResult = applyBsrsPatches(session.workingText, selectedRuleIds());
+      session.workingText = session.patchResult.text;
+      session.parsedLines = parseBsrsConfig(session.workingText);
+      const manifest = await markBsrsRun("bsrs-config.patched.txt", {
+        status: "patched",
+        applied_patch_count: session.patchResult.changes.length,
+        skipped_patch_count: session.patchResult.warnings.length
+      });
+      setStatus(`Applied ${session.patchResult.changes.length} patch change(s). Review diff before production use.`, session.patchResult.changes.length ? "success" : "warning");
+      renderDiff();
+      renderInventory();
+      state.lastManifest = manifest;
+    } catch (err) {
+      setStatus(`ERROR: ${err.message}`, "error");
+    }
+  });
+
+  validateBtn.addEventListener("click", async () => {
+    try {
+      if (!session.workingText) throw new Error("Parse inputs before validation.");
+      session.validation = validateBsrsConfig(session.workingText, session.population?.fields ?? []);
+      await markBsrsRun("bsrs-validation-report.json", {
+        status: "validated",
+        validation_summary: session.validation.summary
+      });
+      setStatus(`Validation complete: ${session.validation.summary.errors} errors, ${session.validation.summary.warnings} warnings.`, session.validation.summary.errors ? "warning" : "success");
+      renderValidation();
+      renderInventory();
+    } catch (err) {
+      setStatus(`ERROR: ${err.message}`, "error");
+    }
+  });
+
+  exportConfigBtn.addEventListener("click", async () => {
+    if (!session.workingText) return;
+    await markBsrsRun("bsrs-config.patched.txt", { status: "exported-config" });
+    downloadBlob(new Blob([session.workingText], { type: "text/plain" }), "bsrs-config.patched.txt");
+    setStatus("Downloaded bsrs-config.patched.txt.", "success");
+  });
+
+  exportChangeLogBtn.addEventListener("click", async () => {
+    if (!session.patchResult) return;
+    const meta = await markBsrsRun("bsrs-change-log.json", { status: "exported-change-log" });
+    const payload = { meta, changes: session.patchResult.changes, warnings: session.patchResult.warnings };
+    downloadBlob(new Blob([stringifyStable(payload)], { type: "application/json" }), "bsrs-change-log.json");
+    setStatus("Downloaded bsrs-change-log.json.", "success");
+  });
+
+  exportValidationBtn.addEventListener("click", async () => {
+    if (!session.validation) return;
+    const meta = await markBsrsRun("bsrs-validation-report.json", { status: "exported-validation-report" });
+    downloadBlob(new Blob([stringifyStable({ meta, ...session.validation })], { type: "application/json" }), "bsrs-validation-report.json");
+    setStatus("Downloaded bsrs-validation-report.json.", "success");
+  });
+
+  exportManifestBtn.addEventListener("click", () => {
+    if (!session.manifest) return;
+    downloadBlob(new Blob([JSON.stringify(session.manifest, null, 2)], { type: "application/json" }), "manifest.bsrs-config-builder.json");
+  });
+
+  modeSelect.addEventListener("change", () => {
+    const notes = {
+      patch: ["Patch Mode: applies selected controlled rules to uploaded base config only.", "success"],
+      test: ["Test Runner mode is planned next; use validation and diff panels in this MVP slice.", "warning"],
+      scaffold: ["Full Scaffold Mode is review-only and not production-ready in this MVP slice.", "warning"]
+    };
+    const [message, tone] = notes[modeSelect.value] ?? notes.patch;
+    modeNote.textContent = message;
+    modeNote.dataset.tone = tone;
+  });
+
+  clearBtn.addEventListener("click", () => {
+    session = { files: {}, r5: null, population: null, configText: "", workingText: "", parsedLines: [], patchResult: null, validation: null, manifest: null };
+    r5Input.value = "";
+    populationInput.value = "";
+    configInput.value = "";
+    setStatus("Cleared BSRS session. Choose files and parse inputs again.");
+    renderInventory();
+    renderDiff();
+    renderValidation();
+  });
+
+  renderInventory();
+  renderDiff();
+  renderValidation();
 }
 
 function renderAudit(container) {

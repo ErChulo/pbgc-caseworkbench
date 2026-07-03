@@ -258,19 +258,28 @@ The formula file includes an `ATPBGC_MAX(...)` string. The workbench should trea
 
 1. On **Case Workflow**, click the **BSRS / BCV** workflow step.
 2. Click **Open BSRS / BCV workspace**.
-3. Confirm the page title mentions **BSRS / BCV Letter Generation Config**.
-4. Upload both files:
-   - `bcv-letter-config.synthetic-alpha.json`
-   - `final-review-notes.synthetic-alpha.txt`
-5. Click `Generate artifact JSON`.
-6. Click `Download manifest.json`.
+3. Confirm the page title is **BSRS Config Builder**.
+4. Upload these three files:
+   - R5 plan summary JSON: `r5-summary.synthetic-alpha.json`
+   - Population CSV / JSON: `bsrs-population.synthetic-alpha.csv`
+   - Base BSRS config.txt: `bsrs-config-base.synthetic-alpha.txt`
+5. Click **Parse inputs**.
+6. Confirm the inventory shows R5 summary, population rows, missing recommended fields, and base config lines.
+7. Stay in **Patch Mode**.
+8. Leave all built-in rule checkboxes selected.
+9. Click **Apply selected patches**.
+10. Review the **Diff / Change Log** panel.
+11. Click **Run validation**.
+12. Export patched config, change log, validation report, and manifest.
 
 Expected downloads:
 
-- `bsrs-bcv-letter-config.artifact.json`
-- `manifest.letters-bcv-config.json`
+- `bsrs-config.patched.txt`
+- `bsrs-change-log.json`
+- `bsrs-validation-report.json`
+- `manifest.bsrs-config-builder.json`
 
-This is not a final `########S1.cfg`; it is a deterministic draft package for future generator work.
+This is not a final `########S1.cfg`; it is a deterministic patched BSRS config drill output for review.
 
 If any step above requires typing a `#/route` into the browser, the UX iteration failed and should be fixed before continuing.
 

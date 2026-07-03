@@ -1,0 +1,5 @@
+0		"""*** SYNTHETIC BSRS CONFIG BASE ***"""		TH	TH
+"@ISDATE(LS_EST_DATE) AND LS_TERM>LS_EST_AMT AND LS_TERM>0 AND I046<>2 AND CALC_INDICATOR=""R"""	LN(128)	"""Participant's PBGC Monthly Benefit after Lump Sum Distribution:"""	LS_TERM	TL	$2
+"@ISDATE(DOR) AND N308>0 AND VP>0 AND I046<>2 AND ANNUITY_TYPE<>""0"" AND ANNUITY_TYPE<>""1"""	LN(118)	"""You elected an optional form."""	TERM_MB_ARD_FF	TL	$2
+"CALC_INDICATOR=""V"" AND (I049=2 OR I049=4 OR I049=12 OR I049=14) AND LS_EST_AMT>0"	C	"""Duplicate residual block risk"""	LS_TERM	TL	$2
+0		"""Summary of Participant's Benefits"""	XRD_SURV_MB_TERM	TL	$2

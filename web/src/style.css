@@ -363,6 +363,10 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
+.grid.three {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 button {
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -1770,6 +1774,103 @@ textarea.code {
 }
 
 .v1-ranking-item.best {
+  border-color: var(--accent);
+}
+
+.bsrs-layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.bsrs-panel {
+  border-radius: 8px;
+}
+
+.bsrs-inventory-grid,
+.bsrs-summary-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
+}
+
+.bsrs-inventory-grid > div,
+.bsrs-summary-row > div {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.75rem;
+}
+
+.bsrs-inventory-grid span,
+.bsrs-summary-row span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.bsrs-rule-list,
+.bsrs-results,
+.bsrs-issue-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.bsrs-rule-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.75rem;
+}
+
+.bsrs-rule-card input {
+  margin-top: 0.2rem;
+}
+
+.bsrs-rule-card span,
+.bsrs-rule-card small,
+.bsrs-issue,
+.bsrs-warning {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.bsrs-rule-card small,
+.bsrs-issue small,
+.bsrs-warning span {
+  color: var(--muted);
+}
+
+.bsrs-diff-item,
+.bsrs-issue,
+.bsrs-warning {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.75rem;
+}
+
+.bsrs-diff-item pre {
+  margin: 0.55rem 0 0;
+  white-space: pre-wrap;
+}
+
+.bsrs-issue.error {
+  border-color: var(--danger);
+}
+
+.bsrs-issue.warning,
+.bsrs-warning {
+  border-color: var(--accent-2);
+}
+
+.bsrs-issue.info {
   border-color: var(--accent);
 }
 
