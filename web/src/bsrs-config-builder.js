@@ -1,3 +1,5 @@
+import { BSRS_FUNCTION_NAMES } from "./bsrs-functions.js";
+
 export const BSRS_MODULE_ID = "bsrs-config-builder";
 export const BSRS_MODULE_VERSION = "0.7.0";
 
@@ -427,6 +429,13 @@ function unsupportedFunctions(expression) {
   return [...new Set(found.filter((name) => name !== "@ISDATE"))].sort();
 }
 
+function classifyBsrsFunctions(expression) {
+  const names = unsupportedFunctions(expression);
+  const recognized = names.filter((name) => BSRS_FUNCTION_NAMES.has(name.slice(1)));
+  const unknown = names.filter((name) => !BSRS_FUNCTION_NAMES.has(name.slice(1)));
+  return { names, recognized, unknown };
+}
+
 function protectCriteriaLiterals(expression) {
   const literals = [];
   const protect = (value, quoteType) => {
@@ -456,13 +465,18 @@ function translateBsrsCriteria(criteria) {
     };
   }
 
-  const unsupported = unsupportedFunctions(normalized);
-  if (unsupported.length) {
+  const functionClass = classifyBsrsFunctions(normalized);
+  if (functionClass.names.length) {
+    const reason = functionClass.recognized.length
+      ? `Recognized BSRS function(s) not implemented in the conservative evaluator: ${functionClass.recognized.join(", ")}.`
+      : `Unknown BSRS function name(s) not found in reference list: ${functionClass.unknown.join(", ")}.`;
     return {
       status: "manual_review",
       normalized,
-      unsupported_functions: unsupported,
-      reason: `Unsupported BSRS function(s): ${unsupported.join(", ")}.`
+      unsupported_functions: functionClass.names,
+      recognized_functions: functionClass.recognized,
+      unknown_functions: functionClass.unknown,
+      reason
     };
   }
 
@@ -510,7 +524,9 @@ export function evaluateBsrsCriteria(criteria, row = {}) {
       value: null,
       normalized: translated.normalized,
       reason: translated.reason,
-      unsupported_functions: translated.unsupported_functions ?? []
+      unsupported_functions: translated.unsupported_functions ?? [],
+      recognized_functions: translated.recognized_functions ?? [],
+      unknown_functions: translated.unknown_functions ?? []
     };
   }
   try {
@@ -531,7 +547,9 @@ export function evaluateBsrsCriteria(criteria, row = {}) {
       value: null,
       normalized: translated.normalized,
       reason: `Evaluator could not safely run criteria: ${err.message}.`,
-      unsupported_functions: []
+      unsupported_functions: [],
+      recognized_functions: [],
+      unknown_functions: []
     };
   }
 }

@@ -17,6 +17,9 @@ BSRS config builder into the existing case workbench.
 - Q: What criteria should the BSRS row-hit evaluator support in this iteration? -> A:
   Conservative evaluator: simple comparisons, boolean logic, parentheses, quoted
   strings, numbers, and `@ISDATE(...)`; all other BSRS functions are manual review.
+- Q: Which BSRS function list is authoritative for function-name recognition? -> A:
+  `reference/BSRS functions.txt`; use it as the recognized-name reference only, not as
+  an execution contract.
 
 ## User Scenarios & Testing *(mandatory)*
 

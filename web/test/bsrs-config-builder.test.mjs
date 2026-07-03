@@ -129,7 +129,18 @@ test("evaluateBsrsCriteria marks unsupported function names for manual review", 
   const result = evaluateBsrsCriteria('"@IF(RETSTAT=1,1,0)=1"', { RETSTAT: "1" });
   assert.equal(result.status, "manual_review");
   assert.deepEqual(result.unsupported_functions, ["@IF"]);
-  assert.match(result.reason, /Unsupported BSRS function/);
+  assert.deepEqual(result.recognized_functions, ["@IF"]);
+  assert.deepEqual(result.unknown_functions, []);
+  assert.match(result.reason, /Recognized BSRS function/);
+});
+
+test("evaluateBsrsCriteria flags names outside the official BSRS list", () => {
+  const result = evaluateBsrsCriteria('"@MAXLIMPPA(RETSTAT)>0"', { RETSTAT: "1" });
+  assert.equal(result.status, "manual_review");
+  assert.deepEqual(result.unsupported_functions, ["@MAXLIMPPA"]);
+  assert.deepEqual(result.recognized_functions, []);
+  assert.deepEqual(result.unknown_functions, ["@MAXLIMPPA"]);
+  assert.match(result.reason, /not found in reference list/);
 });
 
 test("evaluateBsrsRowsForParticipant returns hits and manual-review rows", () => {
