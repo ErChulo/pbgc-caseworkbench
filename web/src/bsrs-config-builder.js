@@ -394,6 +394,197 @@ export function participantDisplayId(row, index = 0) {
   );
 }
 
+function normalizeBsrsCriteria(criteria) {
+  let text = String(criteria ?? "").trim();
+  if (text.length >= 2 && text.startsWith("\"") && text.endsWith("\"")) {
+    text = text.slice(1, -1);
+  }
+  return text.replace(/""/g, "\"").trim();
+}
+
+function rowValue(row, fieldName) {
+  const target = String(fieldName ?? "").toUpperCase();
+  const key = Object.keys(row ?? {}).find((name) => name.toUpperCase() === target);
+  if (!key) return "";
+  const raw = row[key];
+  const text = String(raw ?? "").trim();
+  if (!text) return "";
+  const numericText = text.replace(/[$,% ,]/g, "");
+  if (/^-?\d+(\.\d+)?$/.test(numericText)) return Number(numericText);
+  return text;
+}
+
+function isDateValue(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return false;
+  if (!/^\d{1,4}[/-]\d{1,2}([/-]\d{1,4})?$/.test(text)) return false;
+  return !Number.isNaN(Date.parse(text));
+}
+
+function unsupportedFunctions(expression) {
+  const found = [...String(expression ?? "").matchAll(/@([A-Z][A-Z0-9_]*)\s*\(/gi)]
+    .map((match) => `@${match[1].toUpperCase()}`);
+  return [...new Set(found.filter((name) => name !== "@ISDATE"))].sort();
+}
+
+function protectCriteriaLiterals(expression) {
+  const literals = [];
+  const protect = (value, quoteType) => {
+    const index = literals.length;
+    literals.push(quoteType === "date" ? value.slice(1, -1) : value.slice(1, -1));
+    return `__BSRS_LITERAL_${index}__`;
+  };
+  const withoutDates = expression.replace(/#[^#]*#/g, (match) => protect(match, "date"));
+  const text = withoutDates.replace(/"[^"]*"/g, (match) => protect(match, "string"));
+  return { text, literals };
+}
+
+function restoreCriteriaLiterals(expression, literals) {
+  return expression.replace(/__BSRS_LITERAL_(\d+)__/g, (_, index) =>
+    JSON.stringify(literals[Number(index)] ?? "")
+  );
+}
+
+function translateBsrsCriteria(criteria) {
+  const normalized = normalizeBsrsCriteria(criteria);
+  if (!normalized || normalized === "0") {
+    return {
+      status: "translated",
+      normalized,
+      expression: "true",
+      note: normalized === "0" ? "Criteria 0 treated as unconditional." : "Blank criteria treated as unconditional."
+    };
+  }
+
+  const unsupported = unsupportedFunctions(normalized);
+  if (unsupported.length) {
+    return {
+      status: "manual_review",
+      normalized,
+      unsupported_functions: unsupported,
+      reason: `Unsupported BSRS function(s): ${unsupported.join(", ")}.`
+    };
+  }
+
+  const { text: protectedText, literals } = protectCriteriaLiterals(normalized);
+  let expression = protectedText
+    .replace(/@ISDATE\s*\(\s*([A-Z_][A-Z0-9_]*)\s*\)/gi, (_, field) => `isDate(val(${JSON.stringify(field)}))`)
+    .replace(/\bAND\b/gi, "&&")
+    .replace(/\bOR\b/gi, "||")
+    .replace(/\bNOT\b/gi, "!")
+    .replace(/<>/g, "!=")
+    .replace(/(^|[^<>=!])=([^=]|$)/g, "$1==$2");
+
+  expression = expression.replace(/\b[A-Z_][A-Z0-9_]*\b/g, (token, offset, source) => {
+    if (source[offset - 1] === "\"" && source[offset + token.length] === "\"") return token;
+    if (/^__BSRS_LITERAL_\d+__$/.test(token)) return token;
+    return `val(${JSON.stringify(token)})`;
+  });
+  expression = restoreCriteriaLiterals(expression, literals);
+
+  const withoutStrings = expression.replace(/"([^"\\]|\\.)*"/g, "");
+  const identifiers = [...withoutStrings.matchAll(/\b[A-Za-z_$][A-Za-z0-9_$]*\b/g)].map((match) => match[0]);
+  const unknownIdentifiers = [...new Set(identifiers.filter((id) => !["val", "isDate", "true", "false"].includes(id)))].sort();
+  if (unknownIdentifiers.length) {
+    return {
+      status: "manual_review",
+      normalized,
+      reason: `Unsupported token(s): ${unknownIdentifiers.join(", ")}.`
+    };
+  }
+  if (!/^[\s().!<>=&|+\-*/%,0-9A-Za-z_$"\\:]+$/.test(expression)) {
+    return {
+      status: "manual_review",
+      normalized,
+      reason: "Criteria contains characters outside the conservative evaluator."
+    };
+  }
+  return { status: "translated", normalized, expression };
+}
+
+export function evaluateBsrsCriteria(criteria, row = {}) {
+  const translated = translateBsrsCriteria(criteria);
+  if (translated.status === "manual_review") {
+    return {
+      status: "manual_review",
+      value: null,
+      normalized: translated.normalized,
+      reason: translated.reason,
+      unsupported_functions: translated.unsupported_functions ?? []
+    };
+  }
+  try {
+    const value = Function("val", "isDate", `"use strict"; return Boolean(${translated.expression});`)(
+      (fieldName) => rowValue(row, fieldName),
+      isDateValue
+    );
+    return {
+      status: "evaluated",
+      value,
+      normalized: translated.normalized,
+      expression: translated.expression,
+      note: translated.note
+    };
+  } catch (err) {
+    return {
+      status: "manual_review",
+      value: null,
+      normalized: translated.normalized,
+      reason: `Evaluator could not safely run criteria: ${err.message}.`,
+      unsupported_functions: []
+    };
+  }
+}
+
+function previewExpression(value) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  return text.length > 140 ? `${text.slice(0, 137)}...` : text;
+}
+
+export function evaluateBsrsRowsForParticipant(text, row = {}) {
+  const lines = parseBsrsConfig(text);
+  const result = {
+    summary: {
+      total_rows: lines.filter((line) => line.raw.trim()).length,
+      evaluated_rows: 0,
+      hit_rows: 0,
+      missed_rows: 0,
+      manual_review_rows: 0
+    },
+    hits: [],
+    misses: [],
+    manual_review: []
+  };
+
+  lines.forEach((line) => {
+    if (!line.raw.trim()) return;
+    const evaluation = evaluateBsrsCriteria(line.criteria, row);
+    const item = {
+      line_number: line.line_number,
+      label: line.label,
+      criteria: evaluation.normalized,
+      text_expression: previewExpression(line.text_expression),
+      detail_expression: previewExpression(line.detail_expression),
+      evaluation
+    };
+    if (evaluation.status === "manual_review") {
+      result.summary.manual_review_rows += 1;
+      result.manual_review.push(item);
+      return;
+    }
+    result.summary.evaluated_rows += 1;
+    if (evaluation.value) {
+      result.summary.hit_rows += 1;
+      result.hits.push(item);
+    } else {
+      result.summary.missed_rows += 1;
+      result.misses.push(item);
+    }
+  });
+
+  return result;
+}
+
 export function buildParticipantDiagnostic(row, index = 0, rules = BSRS_RULES) {
   const classification = classifyParticipant(row);
   const residual = residualResult(row);

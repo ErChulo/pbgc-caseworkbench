@@ -14,6 +14,9 @@ BSRS config builder into the existing case workbench.
 - No critical ambiguity detected before planning. The source files consistently call for
   a deterministic, patch-first BSRS Config Builder with full scaffold mode clearly
   labeled as non-production until reviewed.
+- Q: What criteria should the BSRS row-hit evaluator support in this iteration? -> A:
+  Conservative evaluator: simple comparisons, boolean logic, parentheses, quoted
+  strings, numbers, and `@ISDATE(...)`; all other BSRS functions are manual review.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -170,6 +173,9 @@ families and verifying the output is clearly labeled as non-production until rev
 - **FR-016**: Participant diagnostics MUST show classification, statement families,
   fired rules, suppressed rules, missing fields, residual arithmetic, and manual-review
   expression rows.
+- **FR-016a**: Participant row-hit diagnostics MUST use a conservative evaluator for
+  simple criteria only and MUST mark unsupported BSRS functions as `manual review
+  required` instead of presenting them as exact hits or misses.
 - **FR-017**: System MUST treat V1/BCV population fields as calculated inputs and MUST
   NOT replace or re-compute the valuation engine.
 - **FR-018**: System MUST use controlled templates, base config text, or rule library

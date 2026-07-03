@@ -20,6 +20,7 @@ import {
   BSRS_RULES,
   applyBsrsPatches,
   buildParticipantDiagnostic,
+  evaluateBsrsRowsForParticipant,
   parseBsrsConfig,
   parsePopulation,
   summarizeR5Json,
@@ -4741,7 +4742,8 @@ function renderBsrsConfigBuilder(container) {
     patchResult: null,
     validation: null,
     manifest: null,
-    participantDiagnostic: null
+    participantDiagnostic: null,
+    rowEvaluation: null
   };
   const sharedR5Summary = getR5WorkflowSummary();
 
@@ -4831,6 +4833,7 @@ function renderBsrsConfigBuilder(container) {
         </div>
         <div class="button-row">
           <button id="bsrs_run_participant" disabled>Run participant diagnostics</button>
+          <button id="bsrs_export_participant" disabled>Export participant diagnostic</button>
         </div>
         <div id="bsrs_participant_results" class="bsrs-results"></div>
       </section>
@@ -4944,6 +4947,7 @@ function renderBsrsConfigBuilder(container) {
   const participantSelect = container.querySelector("#bsrs_participant_select");
   const participantFilter = container.querySelector("#bsrs_participant_filter");
   const runParticipantBtn = container.querySelector("#bsrs_run_participant");
+  const exportParticipantBtn = container.querySelector("#bsrs_export_participant");
   const participantResultsEl = container.querySelector("#bsrs_participant_results");
 
   function selectedInputFiles() {
@@ -5000,12 +5004,16 @@ function renderBsrsConfigBuilder(container) {
   function renderParticipantOptions(filter = "") {
     const rows = session.population?.rows ?? [];
     const q = filter.trim().toLowerCase();
+    const currentValue = participantSelect.value;
     const visible = rows
       .map((row, index) => ({ row, index }))
       .filter(({ row }) => !q || JSON.stringify(row).toLowerCase().includes(q));
     participantSelect.innerHTML = visible
       .map(({ row, index }) => `<option value="${index}">${escapeHtml(participantLabel(row, index))}</option>`)
       .join("");
+    if (visible.some(({ index }) => String(index) === currentValue)) {
+      participantSelect.value = currentValue;
+    }
     const enabled = rows.length > 0;
     participantSelect.disabled = !enabled;
     participantFilter.disabled = !enabled;
@@ -5019,12 +5027,16 @@ function renderBsrsConfigBuilder(container) {
       participantResultsEl.innerHTML = `<div class="meta-line">No participant diagnostic run yet.</div>`;
       return;
     }
+    const rowEvaluation = diagnostic.row_evaluation ?? session.rowEvaluation;
+    const rowSummary = rowEvaluation?.summary;
     participantResultsEl.innerHTML = `
       <div class="bsrs-summary-row">
         <div><span>Participant</span><b>${escapeHtml(diagnostic.participant_id)}</b></div>
         <div><span>Classification</span><b>${escapeHtml(diagnostic.classification)}</b></div>
         <div><span>Residual guard</span><b>${diagnostic.residual.ok ? "true" : "false"}</b></div>
         <div><span>Residual factor</span><b>${escapeHtml(String(diagnostic.residual.factor))}</b></div>
+        <div><span>Row hits</span><b>${escapeHtml(String(rowSummary?.hit_rows ?? 0))}</b></div>
+        <div><span>Manual review</span><b>${escapeHtml(String(rowSummary?.manual_review_rows ?? 0))}</b></div>
       </div>
       <div class="bsrs-diagnostic-grid">
         <div>
@@ -5040,6 +5052,38 @@ function renderBsrsConfigBuilder(container) {
           <ul>${diagnostic.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("") || "<li>none</li>"}</ul>
         </div>
       </div>
+      ${rowEvaluation ? `
+        <div class="bsrs-row-eval">
+          <h4>Evaluated Row Hits</h4>
+          <div class="bsrs-table-wrap">
+            <table class="compact-table">
+              <thead>
+                <tr><th>Line</th><th>Label</th><th>Criteria</th><th>Text / Detail Preview</th></tr>
+              </thead>
+              <tbody>
+                ${rowEvaluation.hits.slice(0, 40).map((item) => `
+                  <tr>
+                    <td>${escapeHtml(String(item.line_number))}</td>
+                    <td>${escapeHtml(item.label || "-")}</td>
+                    <td><code>${escapeHtml(item.criteria || "unconditional")}</code></td>
+                    <td>${escapeHtml([item.text_expression, item.detail_expression].filter(Boolean).join(" | ") || "-")}</td>
+                  </tr>
+                `).join("") || `<tr><td colspan="4">No evaluated config rows hit this participant.</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+          <h4>Manual Review Required</h4>
+          <div class="bsrs-issue-list">
+            ${rowEvaluation.manual_review.slice(0, 40).map((item) => `
+              <div class="bsrs-issue warning">
+                <b>line ${escapeHtml(String(item.line_number))} | ${escapeHtml(item.label || "unlabeled")}</b>
+                <span>${escapeHtml(item.evaluation.reason)}</span>
+                <small><code>${escapeHtml(item.criteria || "blank criteria")}</code></small>
+              </div>
+            `).join("") || `<div class="meta-line">No manual-review criteria found for this participant.</div>`}
+          </div>
+        </div>
+      ` : ""}
     `;
   }
 
@@ -5060,6 +5104,7 @@ function renderBsrsConfigBuilder(container) {
     exportChangeLogBtn.disabled = !session.patchResult;
     exportValidationBtn.disabled = !session.validation;
     exportManifestBtn.disabled = !session.manifest;
+    exportParticipantBtn.disabled = !session.participantDiagnostic;
     renderChecklist();
     renderParticipantOptions(participantFilter.value);
     renderParticipantDiagnostic(session.participantDiagnostic);
@@ -5159,6 +5204,7 @@ function renderBsrsConfigBuilder(container) {
       session.patchResult = null;
       session.validation = null;
       session.participantDiagnostic = null;
+      session.rowEvaluation = null;
       session.manifest = await buildBsrsManifest({
         status: "inputs-parsed",
         r5_source: session.files.r5 ? "uploaded-file" : "shared-workflow",
@@ -5212,6 +5258,7 @@ function renderBsrsConfigBuilder(container) {
   participantFilter.addEventListener("input", () => {
     renderParticipantOptions(participantFilter.value);
     session.participantDiagnostic = null;
+    session.rowEvaluation = null;
     renderParticipantDiagnostic(null);
   });
 
@@ -5222,9 +5269,30 @@ function renderBsrsConfigBuilder(container) {
       renderParticipantDiagnostic(null);
       return;
     }
-    session.participantDiagnostic = buildParticipantDiagnostic(row, index, BSRS_RULES);
+    session.rowEvaluation = evaluateBsrsRowsForParticipant(session.workingText || session.configText, row);
+    session.participantDiagnostic = {
+      ...buildParticipantDiagnostic(row, index, BSRS_RULES),
+      row_evaluation: session.rowEvaluation
+    };
     renderParticipantDiagnostic(session.participantDiagnostic);
     setStatus(`Participant diagnostics ready for ${session.participantDiagnostic.participant_id}.`, "success");
+    renderInventory();
+  });
+
+  exportParticipantBtn.addEventListener("click", async () => {
+    if (!session.participantDiagnostic) return;
+    const meta = await markBsrsRun("bsrs-participant-diagnostic.json", {
+      status: "exported-participant-diagnostic",
+      participant_id: session.participantDiagnostic.participant_id,
+      row_hit_summary: session.rowEvaluation?.summary ?? {}
+    });
+    const payload = {
+      meta,
+      diagnostic: session.participantDiagnostic,
+      row_evaluation: session.rowEvaluation
+    };
+    downloadBlob(new Blob([stringifyStable(payload)], { type: "application/json" }), "bsrs-participant-diagnostic.json");
+    setStatus("Downloaded bsrs-participant-diagnostic.json.", "success");
   });
 
   exportConfigBtn.addEventListener("click", async () => {
@@ -5266,7 +5334,7 @@ function renderBsrsConfigBuilder(container) {
   });
 
   clearBtn.addEventListener("click", () => {
-    session = { files: {}, r5: null, population: null, configText: "", workingText: "", parsedLines: [], patchResult: null, validation: null, manifest: null, participantDiagnostic: null };
+    session = { files: {}, r5: null, population: null, configText: "", workingText: "", parsedLines: [], patchResult: null, validation: null, manifest: null, participantDiagnostic: null, rowEvaluation: null };
     r5Input.value = "";
     populationInput.value = "";
     configInput.value = "";

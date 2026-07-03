@@ -1860,6 +1860,42 @@ textarea.code {
   color: var(--muted);
 }
 
+.bsrs-row-eval {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.bsrs-row-eval h4 {
+  margin: 0.35rem 0 0;
+}
+
+.bsrs-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.compact-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+  background: var(--surface-strong);
+}
+
+.compact-table th,
+.compact-table td {
+  padding: 0.65rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.compact-table th {
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
 .bsrs-diagnostic-grid ul {
   margin: 0.25rem 0 0;
   padding-left: 1.1rem;

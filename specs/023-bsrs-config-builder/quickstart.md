@@ -70,6 +70,11 @@ Expected:
    - beneficiary/survivor statement
 2. Select each row in the participant selector.
 3. Run diagnostics.
+4. Confirm **Evaluated Row Hits** shows config line numbers that the conservative
+   evaluator could prove for that row.
+5. Confirm **Manual Review Required** lists any config criteria with unsupported
+   `@...(...)` functions instead of treating them as exact hits or misses.
+6. Export `bsrs-participant-diagnostic.json`.
 
 Expected:
 
@@ -79,6 +84,7 @@ Expected:
 - Normal married J&S participant row shows participant payable amount, not survivor
   continuation amount.
 - Survivor row uses survivor/beneficiary amount and language.
+- Unsupported BSRS functions are named in the manual-review section but not evaluated.
 
 ## Automated Checks
 

@@ -101,9 +101,10 @@ blank annuity type, normal married J&S, and beneficiary/survivor statements.
 ### Implementation for User Story 3
 
 - [x] T031 [US3] Implement participant classifier and residual calculator in `web/src/bsrs-config-builder.js`
-- [ ] T032 [US3] Implement approximate criteria evaluator with manual-review fallback in `web/src/bsrs-config-builder.js`
+- [x] T032 [US3] Implement approximate criteria evaluator with manual-review fallback in `web/src/bsrs-config-builder.js`
 - [x] T033 [US3] Render participant selector/search and diagnostics panel in `web/src/main.js`
 - [x] T034 [US3] Render fired/suppressed rule lists and missing fields in `web/src/main.js`
+- [x] T044 [US3] Export participant row-hit diagnostic report from `web/src/main.js`
 
 **Checkpoint**: Participant diagnostics work independently of export.
 
@@ -137,7 +138,7 @@ family contributes no lines and the output starts with a scaffold warning.
 - [x] T040 [P] Add manual review checklist documentation in `specs/023-bsrs-config-builder/quickstart.md`
 - [x] T041 Run `npm test` from `web/`
 - [x] T042 Run `npm run pack` from `web/`
-- [ ] T043 Verify `release/pbgc-workbench.html` opens under `file://` and BSRS route is visible from Case Workflow
+- [x] T043 Verify `release/pbgc-workbench.html` opens under `file://` and BSRS route is visible from Case Workflow
 
 ---
 

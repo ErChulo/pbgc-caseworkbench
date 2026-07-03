@@ -4,6 +4,8 @@ import {
   applyBsrsPatches,
   buildParticipantDiagnostic,
   classifyParticipant,
+  evaluateBsrsCriteria,
+  evaluateBsrsRowsForParticipant,
   parseBsrsConfig,
   parsePopulation,
   residualResult,
@@ -105,4 +107,40 @@ test("buildParticipantDiagnostic reports fired and suppressed rules", () => {
   });
   assert.ok(noResidual.suppressed_rules.includes("bsrs-ls-positive-residual-guard"));
   assert.ok(noResidual.suppressed_rules.includes("bsrs-blank-annuity-type-guard"));
+});
+
+test("evaluateBsrsCriteria handles conservative comparisons and dates", () => {
+  const result = evaluateBsrsCriteria(
+    '"@ISDATE(LS_EST_DATE) AND LS_EST_AMT>0 AND LS_TERM>LS_EST_AMT AND CALC_INDICATOR=""R"""',
+    { LS_EST_DATE: "1/1/2024", LS_EST_AMT: "100", LS_TERM: "400", CALC_INDICATOR: "R" }
+  );
+  assert.equal(result.status, "evaluated");
+  assert.equal(result.value, true);
+
+  const miss = evaluateBsrsCriteria(
+    '"@ISDATE(LS_EST_DATE) AND LS_EST_AMT>0 AND LS_TERM>LS_EST_AMT"',
+    { LS_EST_DATE: "1/1/2024", LS_EST_AMT: "500", LS_TERM: "400" }
+  );
+  assert.equal(miss.status, "evaluated");
+  assert.equal(miss.value, false);
+});
+
+test("evaluateBsrsCriteria marks unsupported function names for manual review", () => {
+  const result = evaluateBsrsCriteria('"@IF(RETSTAT=1,1,0)=1"', { RETSTAT: "1" });
+  assert.equal(result.status, "manual_review");
+  assert.deepEqual(result.unsupported_functions, ["@IF"]);
+  assert.match(result.reason, /Unsupported BSRS function/);
+});
+
+test("evaluateBsrsRowsForParticipant returns hits and manual-review rows", () => {
+  const config = [
+    '0\t\t"""Always"""\t\tTH\tTH',
+    '"LS_EST_AMT>0 AND LS_TERM>LS_EST_AMT"\tLN(128)\t"""Residual"""\tLS_TERM\tTL\t$2',
+    '"@STRING(RETSTAT)=""1"""\tLN(999)\t"""Unsupported"""\tRETSTAT\tTL\t$2'
+  ].join("\n");
+  const result = evaluateBsrsRowsForParticipant(config, { LS_EST_AMT: "100", LS_TERM: "400", RETSTAT: "1" });
+  assert.equal(result.summary.hit_rows, 2);
+  assert.equal(result.summary.manual_review_rows, 1);
+  assert.equal(result.hits[1].line_number, 2);
+  assert.equal(result.manual_review[0].line_number, 3);
 });
