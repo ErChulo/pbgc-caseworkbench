@@ -22,20 +22,21 @@ Use `file://`; do not start a backend.
 3. Click **BSRS / BCV**.
 4. Click **Open BSRS / BCV workspace**.
 5. Confirm page title is **BSRS Config Builder**.
-6. Upload R5 JSON:
-   `drills/synthetic-case-alpha/inputs/r5-summary.synthetic-alpha.json`
+6. If the screen shows shared R5 is already loaded, skip the R5 upload.
 7. Upload population CSV/JSON fixture for this feature.
 8. Upload a base config, initially one of:
    - `reference/sample-bsrs-baseData-config.txt`
    - `reference/sample-bsrs-recalculation-config.txt`
-9. Confirm inventory shows config row count, detected fields, and missing recommended
+9. If shared R5 is not loaded, upload R5 JSON:
+   `drills/synthetic-case-alpha/inputs/r5-summary.synthetic-alpha.json`
+10. Confirm inventory shows config row count, detected fields, and missing recommended
    fields.
-10. Select **Patch Mode**.
-11. Enable a residual lump-sum safety rule.
-12. Apply selected patches.
-13. Confirm diff panel shows line numbers and before/after rows.
-14. Export patched config and change log.
-15. Download manifest.
+11. Select **Patch Mode**.
+12. Enable a residual lump-sum safety rule.
+13. Apply selected patches.
+14. Confirm diff panel shows line numbers and before/after rows.
+15. Export patched config and change log.
+16. Download manifest.
 
 Expected:
 

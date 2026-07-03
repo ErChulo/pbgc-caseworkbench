@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   applyBsrsPatches,
+  buildParticipantDiagnostic,
   classifyParticipant,
   parseBsrsConfig,
   parsePopulation,
@@ -81,4 +82,27 @@ test("classifyParticipant identifies basic BSRS routing classes", () => {
   assert.equal(classifyParticipant({ DOR: "1/1/2025" }), "Retired/in pay or retirement statement");
   assert.equal(classifyParticipant({ DOD: "1/1/2025" }), "Death/beneficiary review");
   assert.equal(classifyParticipant({ DOTE: "1/1/2025", DOPT: "1/1/2025" }), "Active vested / active at DOPT");
+});
+
+test("buildParticipantDiagnostic reports fired and suppressed rules", () => {
+  const positive = buildParticipantDiagnostic({
+    CustID: "SYN-1",
+    LS_EST_DATE: "1/1/2024",
+    LS_EST_AMT: "100",
+    LS_TERM: "400",
+    ANNUITY_TYPE: ""
+  });
+  assert.equal(positive.participant_id, "SYN-1");
+  assert.ok(positive.fired_rules.includes("bsrs-ls-positive-residual-guard"));
+  assert.ok(positive.fired_rules.includes("bsrs-blank-annuity-type-guard"));
+
+  const noResidual = buildParticipantDiagnostic({
+    CustID: "SYN-2",
+    LS_EST_DATE: "1/1/2024",
+    LS_EST_AMT: "0",
+    LS_TERM: "400",
+    ANNUITY_TYPE: "1"
+  });
+  assert.ok(noResidual.suppressed_rules.includes("bsrs-ls-positive-residual-guard"));
+  assert.ok(noResidual.suppressed_rules.includes("bsrs-blank-annuity-type-guard"));
 });

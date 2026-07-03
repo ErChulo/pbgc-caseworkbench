@@ -19,6 +19,7 @@ import {
   BSRS_MODULE_VERSION,
   BSRS_RULES,
   applyBsrsPatches,
+  buildParticipantDiagnostic,
   parseBsrsConfig,
   parsePopulation,
   summarizeR5Json,
@@ -4739,8 +4740,10 @@ function renderBsrsConfigBuilder(container) {
     parsedLines: [],
     patchResult: null,
     validation: null,
-    manifest: null
+    manifest: null,
+    participantDiagnostic: null
   };
+  const sharedR5Summary = getR5WorkflowSummary();
 
   container.innerHTML = `
     <section class="page-hero">
@@ -4761,21 +4764,22 @@ function renderBsrsConfigBuilder(container) {
         <div class="workflow-card-head">
           <div>
             <h3>Inputs</h3>
-            <p class="muted">Upload the three files needed for patch mode.</p>
+            <p class="muted">Use the already-loaded R5 when available, then add BSRS population and config files.</p>
           </div>
           <span>Patch-first MVP</span>
         </div>
         <div class="grid three">
           <div>
-            <label><b>R5 plan summary JSON</b></label>
+            <label><b>R5 plan summary JSON override</b></label>
             <input id="bsrs_r5_file" type="file" accept=".json,application/json" />
+            <div class="meta-line">${sharedR5Summary ? "Shared R5 already loaded; upload only to override/hash a fresh R5 file." : "No shared R5 found. Upload R5 JSON here."}</div>
           </div>
           <div>
-            <label><b>Population CSV / JSON</b></label>
+            <label><b>BSRS population CSV</b></label>
             <input id="bsrs_population_file" type="file" accept=".csv,.json,.txt" />
           </div>
           <div>
-            <label><b>Base BSRS config.txt</b></label>
+            <label><b>Base BSRS config TXT</b></label>
             <input id="bsrs_config_file" type="file" accept=".txt,.csv" />
           </div>
         </div>
@@ -4783,7 +4787,17 @@ function renderBsrsConfigBuilder(container) {
           <button id="bsrs_parse_inputs" class="primary">Parse inputs</button>
           <button id="bsrs_clear" class="ghost">Clear BSRS session</button>
         </div>
-        <div id="bsrs_status" class="workflow-status-box">Choose R5 JSON, population CSV/JSON, and base BSRS config.txt, then parse inputs.</div>
+        <div id="bsrs_status" class="workflow-status-box">${sharedR5Summary ? "Shared R5 is ready. Choose BSRS population CSV and base BSRS config TXT, then parse inputs." : "Choose R5 JSON, BSRS population CSV, and base BSRS config TXT, then parse inputs."}</div>
+      </section>
+
+      <section class="card bsrs-panel">
+        <div class="workflow-card-head">
+          <div>
+            <h3>Guided Run</h3>
+            <p class="muted">Work left to right. Each step unlocks the next review point.</p>
+          </div>
+        </div>
+        <div id="bsrs_checklist" class="bsrs-checklist"></div>
       </section>
 
       <section class="card bsrs-panel">
@@ -4795,6 +4809,30 @@ function renderBsrsConfigBuilder(container) {
           <span id="bsrs_inventory_badge">waiting</span>
         </div>
         <div id="bsrs_inventory" class="bsrs-inventory-grid"></div>
+      </section>
+
+      <section class="card bsrs-panel">
+        <div class="workflow-card-head">
+          <div>
+            <h3>Participant Test Runner</h3>
+            <p class="muted">Select one synthetic population row and inspect routing guards before production review.</p>
+          </div>
+          <span id="bsrs_participant_badge">waiting</span>
+        </div>
+        <div class="grid two">
+          <div>
+            <label><b>Participant row</b></label>
+            <select id="bsrs_participant_select" disabled></select>
+          </div>
+          <div>
+            <label><b>Quick filter</b></label>
+            <input id="bsrs_participant_filter" type="text" placeholder="CustID, ID, RETSTAT, LS_EST_AMT..." disabled />
+          </div>
+        </div>
+        <div class="button-row">
+          <button id="bsrs_run_participant" disabled>Run participant diagnostics</button>
+        </div>
+        <div id="bsrs_participant_results" class="bsrs-results"></div>
       </section>
 
       <section class="card bsrs-panel">
@@ -4887,6 +4925,7 @@ function renderBsrsConfigBuilder(container) {
   const parseBtn = container.querySelector("#bsrs_parse_inputs");
   const clearBtn = container.querySelector("#bsrs_clear");
   const statusEl = container.querySelector("#bsrs_status");
+  const checklistEl = container.querySelector("#bsrs_checklist");
   const inventoryEl = container.querySelector("#bsrs_inventory");
   const inventoryBadge = container.querySelector("#bsrs_inventory_badge");
   const modeSelect = container.querySelector("#bsrs_mode");
@@ -4901,6 +4940,11 @@ function renderBsrsConfigBuilder(container) {
   const exportChangeLogBtn = container.querySelector("#bsrs_export_changelog");
   const exportValidationBtn = container.querySelector("#bsrs_export_validation");
   const exportManifestBtn = container.querySelector("#bsrs_export_manifest");
+  const participantBadge = container.querySelector("#bsrs_participant_badge");
+  const participantSelect = container.querySelector("#bsrs_participant_select");
+  const participantFilter = container.querySelector("#bsrs_participant_filter");
+  const runParticipantBtn = container.querySelector("#bsrs_run_participant");
+  const participantResultsEl = container.querySelector("#bsrs_participant_results");
 
   function selectedInputFiles() {
     return [session.files.r5, session.files.population, session.files.config].filter(Boolean);
@@ -4913,6 +4957,90 @@ function renderBsrsConfigBuilder(container) {
 
   function selectedRuleIds() {
     return [...container.querySelectorAll(".bsrs_rule_check:checked")].map((input) => input.value);
+  }
+
+  function workflowR5ForBsrs() {
+    const r5 = getR5WorkflowSummary();
+    if (!r5) return null;
+    return {
+      reused: true,
+      item_count: r5.profile?.item_count ?? r5.profile?.total_items ?? "shared",
+      source_documents: r5.source_files?.length ?? 0,
+      summary_stage: "shared workflow R5",
+      input_hashes: r5.input_hashes ?? {},
+      source_files: r5.source_files ?? []
+    };
+  }
+
+  function renderChecklist() {
+    const items = [
+      ["1", "Inputs parsed", !!session.parsedLines.length],
+      ["2", "Patches reviewed", !!session.patchResult],
+      ["3", "Validation run", !!session.validation],
+      ["4", "Exports ready", !!session.manifest]
+    ];
+    checklistEl.innerHTML = items
+      .map(
+        ([number, label, ready]) => `
+          <div class="bsrs-check ${ready ? "ready" : ""}">
+            <span>${number}</span>
+            <b>${escapeHtml(label)}</b>
+            <small>${ready ? "done" : "pending"}</small>
+          </div>`
+      )
+      .join("");
+  }
+
+  function participantLabel(row, index) {
+    const id = row?.CustID ?? row?.CUSTID ?? row?.BCV_REC_ID ?? row?.ID ?? `row ${index + 1}`;
+    const name = [row?.FNAME, row?.MNAME, row?.LNAME].filter(Boolean).join(" ");
+    return `${index + 1}. ${id}${name ? ` ${name}` : ""}`;
+  }
+
+  function renderParticipantOptions(filter = "") {
+    const rows = session.population?.rows ?? [];
+    const q = filter.trim().toLowerCase();
+    const visible = rows
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => !q || JSON.stringify(row).toLowerCase().includes(q));
+    participantSelect.innerHTML = visible
+      .map(({ row, index }) => `<option value="${index}">${escapeHtml(participantLabel(row, index))}</option>`)
+      .join("");
+    const enabled = rows.length > 0;
+    participantSelect.disabled = !enabled;
+    participantFilter.disabled = !enabled;
+    runParticipantBtn.disabled = !enabled;
+    participantBadge.textContent = enabled ? `${rows.length} row(s)` : "waiting";
+    if (!enabled) participantResultsEl.innerHTML = `<div class="meta-line">Parse population data to run participant diagnostics.</div>`;
+  }
+
+  function renderParticipantDiagnostic(diagnostic) {
+    if (!diagnostic) {
+      participantResultsEl.innerHTML = `<div class="meta-line">No participant diagnostic run yet.</div>`;
+      return;
+    }
+    participantResultsEl.innerHTML = `
+      <div class="bsrs-summary-row">
+        <div><span>Participant</span><b>${escapeHtml(diagnostic.participant_id)}</b></div>
+        <div><span>Classification</span><b>${escapeHtml(diagnostic.classification)}</b></div>
+        <div><span>Residual guard</span><b>${diagnostic.residual.ok ? "true" : "false"}</b></div>
+        <div><span>Residual factor</span><b>${escapeHtml(String(diagnostic.residual.factor))}</b></div>
+      </div>
+      <div class="bsrs-diagnostic-grid">
+        <div>
+          <b>Fired rules</b>
+          <ul>${diagnostic.fired_rules.map((rule) => `<li>${escapeHtml(rule)}</li>`).join("") || "<li>none</li>"}</ul>
+        </div>
+        <div>
+          <b>Suppressed rules</b>
+          <ul>${diagnostic.suppressed_rules.map((rule) => `<li>${escapeHtml(rule)}</li>`).join("") || "<li>none</li>"}</ul>
+        </div>
+        <div>
+          <b>Warnings</b>
+          <ul>${diagnostic.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("") || "<li>none</li>"}</ul>
+        </div>
+      </div>
+    `;
   }
 
   function renderInventory() {
@@ -4932,6 +5060,9 @@ function renderBsrsConfigBuilder(container) {
     exportChangeLogBtn.disabled = !session.patchResult;
     exportValidationBtn.disabled = !session.validation;
     exportManifestBtn.disabled = !session.manifest;
+    renderChecklist();
+    renderParticipantOptions(participantFilter.value);
+    renderParticipantDiagnostic(session.participantDiagnostic);
   }
 
   function renderDiff() {
@@ -4980,7 +5111,12 @@ function renderBsrsConfigBuilder(container) {
 
   async function buildBsrsManifest(extra = {}) {
     const manifest = await buildRunManifest(BSRS_MODULE_ID, BSRS_MODULE_VERSION, selectedInputFiles());
-    return { ...manifest, ...extra };
+    return {
+      ...manifest,
+      r5_source: session.files.r5 ? "uploaded-file" : session.r5 ? "shared-workflow" : "missing",
+      reused_r5_input_hashes: !session.files.r5 && session.r5?.input_hashes ? session.r5.input_hashes : undefined,
+      ...extra
+    };
   }
 
   async function markBsrsRun(outputName, extra = {}) {
@@ -5005,24 +5141,30 @@ function renderBsrsConfigBuilder(container) {
         population: populationInput.files?.[0] ?? null,
         config: configInput.files?.[0] ?? null
       };
-      if (!session.files.r5 || !session.files.population || !session.files.config) {
-        setStatus("Select R5 JSON, population CSV/JSON, and base BSRS config.txt before parsing.", "error");
+      const reusedR5 = workflowR5ForBsrs();
+      if ((!session.files.r5 && !reusedR5) || !session.files.population || !session.files.config) {
+        setStatus("Select BSRS population CSV and base BSRS config TXT. Upload R5 JSON only if shared R5 is not already loaded.", "error");
         return;
       }
       const [r5Text, populationText, configText] = await Promise.all([
-        session.files.r5.text(),
+        session.files.r5 ? session.files.r5.text() : Promise.resolve(null),
         session.files.population.text(),
         session.files.config.text()
       ]);
-      session.r5 = summarizeR5Json(r5Text);
+      session.r5 = r5Text ? summarizeR5Json(r5Text) : reusedR5;
       session.population = parsePopulation(populationText, session.files.population.name);
       session.configText = configText;
       session.workingText = configText;
       session.parsedLines = parseBsrsConfig(configText);
       session.patchResult = null;
       session.validation = null;
-      session.manifest = await buildBsrsManifest({ status: "inputs-parsed" });
-      setStatus(`Parsed ${session.parsedLines.length} BSRS config line(s) and ${session.population.rows.length} population row(s).`, "success");
+      session.participantDiagnostic = null;
+      session.manifest = await buildBsrsManifest({
+        status: "inputs-parsed",
+        r5_source: session.files.r5 ? "uploaded-file" : "shared-workflow",
+        reused_r5_input_hashes: !session.files.r5 ? reusedR5?.input_hashes ?? {} : undefined
+      });
+      setStatus(`Parsed ${session.parsedLines.length} BSRS config line(s) and ${session.population.rows.length} population row(s). R5 source: ${session.files.r5 ? "uploaded file" : "shared workflow"}.`, "success");
       renderInventory();
       renderDiff();
       renderValidation();
@@ -5067,6 +5209,24 @@ function renderBsrsConfigBuilder(container) {
     }
   });
 
+  participantFilter.addEventListener("input", () => {
+    renderParticipantOptions(participantFilter.value);
+    session.participantDiagnostic = null;
+    renderParticipantDiagnostic(null);
+  });
+
+  runParticipantBtn.addEventListener("click", () => {
+    const index = Number(participantSelect.value);
+    const row = session.population?.rows?.[index];
+    if (!row) {
+      renderParticipantDiagnostic(null);
+      return;
+    }
+    session.participantDiagnostic = buildParticipantDiagnostic(row, index, BSRS_RULES);
+    renderParticipantDiagnostic(session.participantDiagnostic);
+    setStatus(`Participant diagnostics ready for ${session.participantDiagnostic.participant_id}.`, "success");
+  });
+
   exportConfigBtn.addEventListener("click", async () => {
     if (!session.workingText) return;
     await markBsrsRun("bsrs-config.patched.txt", { status: "exported-config" });
@@ -5097,7 +5257,7 @@ function renderBsrsConfigBuilder(container) {
   modeSelect.addEventListener("change", () => {
     const notes = {
       patch: ["Patch Mode: applies selected controlled rules to uploaded base config only.", "success"],
-      test: ["Test Runner mode is planned next; use validation and diff panels in this MVP slice.", "warning"],
+      test: ["Test Runner: select one participant row and run diagnostics below.", "success"],
       scaffold: ["Full Scaffold Mode is review-only and not production-ready in this MVP slice.", "warning"]
     };
     const [message, tone] = notes[modeSelect.value] ?? notes.patch;
@@ -5106,10 +5266,11 @@ function renderBsrsConfigBuilder(container) {
   });
 
   clearBtn.addEventListener("click", () => {
-    session = { files: {}, r5: null, population: null, configText: "", workingText: "", parsedLines: [], patchResult: null, validation: null, manifest: null };
+    session = { files: {}, r5: null, population: null, configText: "", workingText: "", parsedLines: [], patchResult: null, validation: null, manifest: null, participantDiagnostic: null };
     r5Input.value = "";
     populationInput.value = "";
     configInput.value = "";
+    participantFilter.value = "";
     setStatus("Cleared BSRS session. Choose files and parse inputs again.");
     renderInventory();
     renderDiff();

@@ -382,3 +382,51 @@ export function classifyParticipant(row) {
   if (["1", "2"].includes(String(row?.RETSTAT ?? ""))) return "Separated vested / deferred";
   return "Unknown";
 }
+
+export function participantDisplayId(row, index = 0) {
+  return (
+    row?.CustID ??
+    row?.CUSTID ??
+    row?.CUSTOMER_ID ??
+    row?.BCV_REC_ID ??
+    row?.ID ??
+    `row-${index + 1}`
+  );
+}
+
+export function buildParticipantDiagnostic(row, index = 0, rules = BSRS_RULES) {
+  const classification = classifyParticipant(row);
+  const residual = residualResult(row);
+  const fields = new Set(Object.keys(row ?? {}).map((field) => field.toUpperCase()));
+  const missingFields = [...new Set(rules.flatMap((rule) => rule.required_fields ?? []))]
+    .filter((field) => !fields.has(field.toUpperCase()))
+    .sort();
+  const firedRules = [];
+  const suppressedRules = [];
+
+  rules.forEach((rule) => {
+    if (rule.family === "residualLS") {
+      (residual.ok ? firedRules : suppressedRules).push(rule.id);
+      return;
+    }
+    if (rule.id === "bsrs-blank-annuity-type-guard") {
+      const value = String(row?.ANNUITY_TYPE ?? "");
+      (value === "" ? firedRules : suppressedRules).push(rule.id);
+      return;
+    }
+    suppressedRules.push(rule.id);
+  });
+
+  return {
+    participant_id: participantDisplayId(row, index),
+    classification,
+    residual,
+    fired_rules: firedRules.sort(),
+    suppressed_rules: suppressedRules.sort(),
+    missing_fields: missingFields,
+    warnings: [
+      residual.ok ? "" : "Positive residual lump-sum guard is false; residual rules must not affect this row.",
+      missingFields.length ? `${missingFields.length} recommended field(s) missing from this row.` : ""
+    ].filter(Boolean)
+  };
+}

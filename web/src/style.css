@@ -1818,6 +1818,53 @@ textarea.code {
   gap: 0.65rem;
 }
 
+.bsrs-checklist,
+.bsrs-diagnostic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.65rem;
+}
+
+.bsrs-check,
+.bsrs-diagnostic-grid > div {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 0.75rem;
+}
+
+.bsrs-check span {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.bsrs-check.ready {
+  border-color: var(--accent);
+}
+
+.bsrs-check.ready span {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.bsrs-check small,
+.bsrs-diagnostic-grid li {
+  color: var(--muted);
+}
+
+.bsrs-diagnostic-grid ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+
 .bsrs-rule-card {
   display: grid;
   grid-template-columns: auto 1fr;

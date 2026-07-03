@@ -259,18 +259,21 @@ The formula file includes an `ATPBGC_MAX(...)` string. The workbench should trea
 1. On **Case Workflow**, click the **BSRS / BCV** workflow step.
 2. Click **Open BSRS / BCV workspace**.
 3. Confirm the page title is **BSRS Config Builder**.
-4. Upload these three files:
-   - R5 plan summary JSON: `r5-summary.synthetic-alpha.json`
-   - Population CSV / JSON: `bsrs-population.synthetic-alpha.csv`
-   - Base BSRS config.txt: `bsrs-config-base.synthetic-alpha.txt`
-5. Click **Parse inputs**.
-6. Confirm the inventory shows R5 summary, population rows, missing recommended fields, and base config lines.
-7. Stay in **Patch Mode**.
-8. Leave all built-in rule checkboxes selected.
-9. Click **Apply selected patches**.
-10. Review the **Diff / Change Log** panel.
-11. Click **Run validation**.
-12. Export patched config, change log, validation report, and manifest.
+4. Confirm the R5 input area says shared R5 is already loaded. If it does, do not upload R5 again.
+5. Upload these two files:
+   - BSRS population CSV: `bsrs-population.synthetic-alpha.csv`
+   - Base BSRS config TXT: `bsrs-config-base.synthetic-alpha.txt`
+6. If the screen says no shared R5 was found, upload `r5-summary.synthetic-alpha.json` in the R5 override field.
+7. Click **Parse inputs**.
+8. Confirm the guided run checklist marks **Inputs parsed** done.
+9. Confirm the inventory shows R5 summary, population rows, missing recommended fields, and base config lines.
+10. Stay in **Patch Mode**.
+11. Leave all built-in rule checkboxes selected.
+12. Click **Apply selected patches**.
+13. Review the **Diff / Change Log** panel.
+14. Click **Run validation**.
+15. In **Participant Test Runner**, select a participant row and click **Run participant diagnostics**.
+16. Export patched config, change log, validation report, and manifest.
 
 Expected downloads:
 
