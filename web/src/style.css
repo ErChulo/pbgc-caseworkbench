@@ -1215,6 +1215,32 @@ textarea.code {
   color: var(--text);
 }
 
+.workflow-status-box {
+  margin: 0.9rem 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.workflow-status-box[data-tone="success"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-strong));
+}
+
+.workflow-status-box[data-tone="warning"] {
+  border-color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent-2) 12%, var(--surface-strong));
+}
+
+.workflow-status-box[data-tone="error"] {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface-strong));
+}
+
 .task-cockpit-actions {
   display: flex;
   flex-wrap: wrap;

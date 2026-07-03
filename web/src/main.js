@@ -4903,7 +4903,7 @@ function renderV1EngineExplorer(container) {
         <button id="v1_open_audit" class="ghost">Open V1 audit</button>
         <button id="v1_clear_session" class="ghost">Clear V1 session</button>
       </div>
-      <div id="v1_status" class="meta-line">Approved V1 records are read-only and stay in Caseworkbench memory for this browser session.</div>
+      <div id="v1_status" class="workflow-status-box">Select v1-summary.synthetic-alpha.json, then click Import Approved V1.</div>
       <div id="v1_bridge_status" class="meta-line"></div>
       <div id="v1_selected">${renderSelectedV1Summary()}</div>
       <div class="section-divider"></div>
@@ -4957,6 +4957,11 @@ function renderV1EngineExplorer(container) {
 
   hydratePlanContext(container);
 
+  function setV1Status(message, tone = "info") {
+    statusEl.textContent = message;
+    statusEl.dataset.tone = tone;
+  }
+
   function refreshV1Ui() {
     selectedEl.innerHTML = renderSelectedV1Summary();
     profilesEl.innerHTML = renderV1ProfilesSummary();
@@ -4967,48 +4972,90 @@ function renderV1EngineExplorer(container) {
   }
 
   approvedFiles.addEventListener("change", () => {
-    importBtn.disabled = !(approvedFiles.files?.length);
+    const files = [...(approvedFiles.files ?? [])];
+    importBtn.disabled = !files.length;
+    setV1Status(
+      files.length
+        ? `Ready to import ${files.map((file) => file.name).join(", ")}. Click Import Approved V1.`
+        : "No approved V1 JSON selected yet.",
+      files.length ? "info" : "warning"
+    );
   });
 
   r5Files.addEventListener("change", () => {
-    loadR5Btn.disabled = !(r5Files.files?.length);
+    const files = [...(r5Files.files ?? [])];
+    loadR5Btn.disabled = !files.length;
+    setV1Status(
+      files.length
+        ? `Ready to load R5 file ${files.map((file) => file.name).join(", ")}. Click Load R5.`
+        : "No R5 JSON selected yet.",
+      files.length ? "info" : "warning"
+    );
   });
 
   importBtn.addEventListener("click", async () => {
-    statusEl.textContent = "Importing approved V1 engines...";
+    const files = [...(approvedFiles.files ?? [])];
+    if (!files.length) {
+      setV1Status("No approved V1 JSON selected. Use the file picker above first.", "error");
+      return;
+    }
+    importBtn.disabled = true;
+    setV1Status(`Importing approved V1 engine: ${files.map((file) => file.name).join(", ")}...`);
     try {
-      const result = await importApprovedV1Files([...(approvedFiles.files ?? [])]);
-      statusEl.textContent = `Imported ${result.imported.length}; skipped ${result.skipped.length}. ${result.diagnostics.slice(0, 3).join(" ")}`;
+      const result = await importApprovedV1Files(files);
+      setV1Status(
+        `Imported ${result.imported.length}; skipped ${result.skipped.length}. ${result.diagnostics.slice(0, 3).join(" ")}`,
+        result.imported.length ? "success" : "warning"
+      );
       refreshV1Ui();
       await sendExplorerBridgeContext(iframe, bridgeStatusEl);
     } catch (err) {
-      statusEl.textContent = `ERROR: ${err.message}`;
+      setV1Status(`ERROR: ${err.message}`, "error");
+    } finally {
+      importBtn.disabled = !(approvedFiles.files?.length);
     }
   });
 
   loadR5Btn.addEventListener("click", async () => {
-    statusEl.textContent = "Loading R5 summaries...";
+    const files = [...(r5Files.files ?? [])];
+    if (!files.length) {
+      setV1Status("No R5 JSON selected. Use the R5 file picker first.", "error");
+      return;
+    }
+    loadR5Btn.disabled = true;
+    setV1Status(`Loading R5 file: ${files.map((file) => file.name).join(", ")}...`);
     try {
-      const result = await importR5Files([...(r5Files.files ?? [])]);
-      statusEl.textContent = `Loaded ${result.inputs.length} R5 file(s). Domains: ${result.profile.recognized_domains.join(", ") || "none"}. ${result.diagnostics.join(" ")}`;
+      const result = await importR5Files(files);
+      setV1Status(
+        `Loaded ${result.inputs.length} R5 file(s). Domains: ${result.profile.recognized_domains.join(", ") || "none"}. ${result.diagnostics.join(" ")}`,
+        result.inputs.length ? "success" : "warning"
+      );
       refreshV1Ui();
     } catch (err) {
-      statusEl.textContent = `ERROR: ${err.message}`;
+      setV1Status(`ERROR: ${err.message}`, "error");
+    } finally {
+      loadR5Btn.disabled = !(r5Files.files?.length);
     }
   });
 
   rankBtn.addEventListener("click", async () => {
-    statusEl.textContent = "Ranking approved V1 candidates...";
+    rankBtn.disabled = true;
+    setV1Status("Ranking approved V1 candidates...");
     try {
       const result = await runV1R5Ranking();
       const best = result.rankings[0];
-      statusEl.textContent = best
-        ? `Best candidate: ${best.workbook_name} (${best.candidate_record_id}) with score ${best.overall_score}. Reuse evidence only; not approval.`
-        : "No candidate could be ranked.";
+      setV1Status(
+        best
+          ? `Best candidate: ${best.workbook_name} (${best.candidate_record_id}) with score ${best.overall_score}. Reuse evidence only; not approval.`
+          : "No candidate could be ranked.",
+        best ? "success" : "warning"
+      );
       refreshV1Ui();
       await sendExplorerBridgeContext(iframe, bridgeStatusEl);
     } catch (err) {
-      statusEl.textContent = `ERROR: ${err.message}`;
+      setV1Status(`ERROR: ${err.message}`, "error");
+    } finally {
+      rankBtn.disabled = !(state.v1Warehouse.profiles.length && state.v1Warehouse.r5Files.length);
     }
   });
 
@@ -5016,9 +5063,12 @@ function renderV1EngineExplorer(container) {
     const btn = event.target.closest("[data-select-v1]");
     if (!btn) return;
     const selected = selectV1Candidate(btn.dataset.selectV1);
-    statusEl.textContent = selected
-      ? `Selected current case V1 candidate: ${selected.workbook_name}.`
-      : "Could not select that V1 candidate.";
+    setV1Status(
+      selected
+        ? `Selected current case V1 candidate: ${selected.workbook_name}.`
+        : "Could not select that V1 candidate.",
+      selected ? "success" : "error"
+    );
     refreshV1Ui();
     sendExplorerBridgeContext(iframe, bridgeStatusEl).catch((err) => {
       bridgeStatusEl.textContent = `Bridge error: ${err.message}`;
@@ -5047,7 +5097,7 @@ function renderV1EngineExplorer(container) {
     state.caseWorkflow.selectedV1 = null;
     state.lastManifest = null;
     saveState();
-    statusEl.textContent = "Cleared V1 session state.";
+    setV1Status("Cleared V1 session state.");
     refreshV1Ui();
   });
 
