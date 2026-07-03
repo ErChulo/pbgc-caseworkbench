@@ -106,6 +106,16 @@
       "known_limitations": "Current module does not produce a final legal or actuarial memo."
     },
     {
+      "filename": "inputs/v1-summary.synthetic-alpha.json",
+      "module": "V1 Engine Explorer",
+      "route": "#/v1-engine-explorer",
+      "format": "json",
+      "purpose": "Import one synthetic approved V1 engine summary, rank it against the synthetic R5 summary, and select it for the case workflow.",
+      "expected_artifact": "manifest.v1-approved-import.json and manifest.v1-r5-ranking.json",
+      "synthetic_notice": "Synthetic approved V1 summary only; not a real V1 workbook and contains no PII.",
+      "known_limitations": "Current module ranks existing approved summaries and records a selected candidate; it does not generate a production V1 workbook."
+    },
+    {
       "filename": "inputs/v1-formulas.synthetic-alpha.csv",
       "module": "DAG Viewer and Formula Tree",
       "route": "#/dag-viewer and #/formula-tree",

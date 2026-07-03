@@ -209,7 +209,33 @@ Expected downloads:
 
 These are draft input packages. They are not final benefit adjustment or administration analyses.
 
-## Step 9: Exercise Formula Mechanics
+## Step 9: Select Mock V1
+
+Use this step to import a fake approved V1 engine summary and select it for the case. This is not the formula CSV.
+
+1. On **Case Workflow**, click the **V1** workflow step.
+2. Click **Open V1 workspace**.
+3. Confirm the page title is **V1 Engine Explorer**.
+4. Under **Approved V1 engines (read-only)**, upload `v1-summary.synthetic-alpha.json`.
+5. Click **Import Approved V1**.
+6. Under **Current-case R5Summary.json**, upload `r5-summary.synthetic-alpha.json`.
+7. Click **Load R5**.
+8. Click **Rank V1 Candidates**.
+9. In the ranking result, click **Use this V1 for case**.
+10. If manifest buttons are visible, download the import and ranking manifests.
+
+How to know it worked:
+
+- The page shows one approved engine.
+- The ranking list shows `Synthetic Alpha Approved V1 Engine`.
+- The selected engine summary says **Current case V1 engine**.
+
+Expected downloads:
+
+- `manifest.v1-approved-import.json`
+- `manifest.v1-r5-ranking.json`
+
+## Step 10: Exercise Formula Mechanics
 
 These two routes are visible in the top navigation in the current build.
 
@@ -228,7 +254,7 @@ Expected downloads:
 
 The formula file includes an `ATPBGC_MAX(...)` string. The workbench should treat it as text, not execute it.
 
-## Step 10: Package Letters / BCV Inputs
+## Step 11: Package Letters / BCV Inputs
 
 1. On **Case Workflow**, click the **BSRS / BCV** workflow step.
 2. Click **Open BSRS / BCV workspace**.
@@ -248,7 +274,7 @@ This is not a final `########S1.cfg`; it is a deterministic draft package for fu
 
 If any step above requires typing a `#/route` into the browser, the UX iteration failed and should be fixed before continuing.
 
-## Step 11: Review Audit / Manifest
+## Step 12: Review Audit / Manifest
 
 1. Click **Audit** in the top navigation.
 2. Review the last manifest shown on screen.

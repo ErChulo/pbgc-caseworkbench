@@ -1,0 +1,136 @@
+{
+  "schemaVersion": "0.7.0",
+  "summaryStage": "synthetic-approved-engine",
+  "workbookName": "Synthetic Alpha Approved V1 Engine",
+  "sourceTabs": [
+    "Inputs",
+    "Eligibility",
+    "Benefits",
+    "Limits",
+    "Forms",
+    "Outputs"
+  ],
+  "runs": [
+    "NRD",
+    "ERD",
+    "DEFERRED_VESTED",
+    "QPSA"
+  ],
+  "namedRanges": [
+    {
+      "name": "CASE_NUMBER",
+      "refersTo": "Inputs!B2"
+    },
+    {
+      "name": "ACCRUED_MONTHLY_BENEFIT",
+      "refersTo": "Benefits!C12"
+    },
+    {
+      "name": "PBGC_MAX_LIMIT",
+      "refersTo": "Limits!C8"
+    }
+  ],
+  "cells": {
+    "Inputs!B2": {
+      "sheet": "Inputs",
+      "address": "B2",
+      "value": "SYN-2026-ALPHA",
+      "genericField": "case_number",
+      "description": "Synthetic case number input for approved V1 ranking drill."
+    },
+    "Inputs!B6": {
+      "sheet": "Inputs",
+      "address": "B6",
+      "value": "65",
+      "genericField": "nrd_age",
+      "description": "Normal retirement age input; retirement age and retirement date domain signal."
+    },
+    "Eligibility!C5": {
+      "sheet": "Eligibility",
+      "address": "C5",
+      "formula": "=IF(Inputs!B6>=65,\"NRD\",\"ERD\")",
+      "hasFormula": true,
+      "functions": [
+        "IF"
+      ],
+      "genericField": "retirement_dates",
+      "description": "Synthetic normal retirement date and early retirement date eligibility logic."
+    },
+    "Benefits!C10": {
+      "sheet": "Benefits",
+      "address": "C10",
+      "formula": "=MIN(Inputs!B12*Inputs!B13,Inputs!B14)",
+      "hasFormula": true,
+      "functions": [
+        "MIN"
+      ],
+      "genericField": "accrued_monthly_benefit",
+      "description": "Synthetic accrued monthly benefit formula using credited service, compensation, and benefit amount terms."
+    },
+    "Benefits!C12": {
+      "sheet": "Benefits",
+      "address": "C12",
+      "formula": "=Benefits!C10*Forms!C8",
+      "hasFormula": true,
+      "functions": [],
+      "genericField": "vested_monthly_benefit",
+      "description": "Synthetic vested monthly benefit after annuity form conversion."
+    },
+    "Limits!C8": {
+      "sheet": "Limits",
+      "address": "C8",
+      "formula": "=ATPBGC_MAX(Benefits!C12,Inputs!B6)",
+      "hasFormula": true,
+      "functions": [
+        "ATPBGC_MAX"
+      ],
+      "genericField": "pbgc_maxlim_4022",
+      "description": "Synthetic PBGC maximum guarantee and 4022 limitation calculation. ATPBGC UDF remains opaque text."
+    },
+    "Limits!C14": {
+      "sheet": "Limits",
+      "address": "C14",
+      "formula": "=IF(Inputs!B20=\"436_FREEZE\",0,Benefits!C12)",
+      "hasFormula": true,
+      "functions": [
+        "IF"
+      ],
+      "genericField": "section_436_restriction",
+      "description": "Synthetic Section 436 benefit freeze and restriction signal."
+    },
+    "Forms!C8": {
+      "sheet": "Forms",
+      "address": "C8",
+      "formula": "=ATPBGC_FORM_CONVERSION(Inputs!B18,Inputs!B19)",
+      "hasFormula": true,
+      "functions": [
+        "ATPBGC_FORM_CONVERSION"
+      ],
+      "genericField": "annuity_form_conversion",
+      "description": "Synthetic annuity form conversion with joint and survivor option wording."
+    },
+    "Forms!C20": {
+      "sheet": "Forms",
+      "address": "C20",
+      "formula": "=ATPBGC_QPSA(Inputs!B21,Inputs!B22)",
+      "hasFormula": true,
+      "functions": [
+        "ATPBGC_QPSA"
+      ],
+      "genericField": "qpsa_spouse_beneficiary",
+      "description": "Synthetic QPSA spouse beneficiary domain signal."
+    },
+    "Outputs!D5": {
+      "sheet": "Outputs",
+      "address": "D5",
+      "formula": "=MIN(Benefits!C12,Limits!C8,Limits!C14)",
+      "hasFormula": true,
+      "functions": [
+        "MIN"
+      ],
+      "genericField": "final_pbgc_payable_monthly_benefit",
+      "description": "Synthetic final payable monthly benefit after PBGC max, Section 436, and benefit limitation rules."
+    }
+  },
+  "syntheticNotice": "Synthetic approved V1 summary for the drill only. This is not a real V1 workbook and contains no PII."
+}
