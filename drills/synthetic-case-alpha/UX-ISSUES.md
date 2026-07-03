@@ -13,7 +13,8 @@ This file records UX problems that block or confuse a first-time user during the
    - Several modules exist but are not visible in top navigation.
    - A first-time user should not need to edit `#/factors` or `#/436` manually.
    - Confirmed during the drill: Plan Factors and 436 were only reachable by manually editing the URL.
-   - Fix direction: expose every workflow step as a visible Case Workflow card with a clear "Open" or "Continue" button.
+   - UX iteration added clickable workflow steps plus visible workspace buttons on Case Workflow.
+   - Remaining test: rerun the drill and confirm no core step requires manual URL/hash editing.
 
 3. **Metadata completion signal is indirect**
    - The reliable visible signal is **PlanMetadata saved / Ready** on Case Workflow.

@@ -1078,11 +1078,23 @@ textarea.code {
 .guide-step {
   display: grid;
   gap: 0.3rem;
+  width: 100%;
   border-top: 3px solid var(--border);
+  border-right: none;
+  border-bottom: none;
+  border-left: none;
+  border-radius: 0;
   background: transparent;
   color: var(--text);
   padding: 0.55rem 0.3rem;
   text-align: center;
+  cursor: pointer;
+  transform: none;
+}
+
+.guide-step:hover {
+  background: var(--surface-strong);
+  transform: none;
 }
 
 .guide-step span {
@@ -1143,6 +1155,92 @@ textarea.code {
 .task-engine-surface {
   display: grid;
   gap: 1rem;
+}
+
+.task-cockpit {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(120px, 0.5fr);
+  gap: 0.75rem;
+  align-items: stretch;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 1rem;
+}
+
+.task-cockpit-main {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.task-cockpit-main span,
+.task-cockpit-card span,
+.task-cockpit-status span {
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.task-cockpit-main h3,
+.task-cockpit-main p {
+  margin: 0;
+}
+
+.task-cockpit-card,
+.task-cockpit-status {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0.75rem;
+}
+
+.task-cockpit-status b {
+  color: var(--danger);
+  font-size: 1.2rem;
+}
+
+.task-cockpit-status.ready b {
+  color: var(--accent);
+}
+
+.task-cockpit-status.warning b {
+  color: var(--accent-2);
+}
+
+.task-cockpit-card b,
+.task-cockpit-status small {
+  color: var(--text);
+}
+
+.task-cockpit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  grid-column: 1 / -1;
+  align-items: center;
+}
+
+.task-cockpit-actions .banner {
+  margin: 0;
+}
+
+.task-details {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0.85rem;
+}
+
+.task-details summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.task-details[open] summary {
+  margin-bottom: 0.85rem;
 }
 
 .task-engine-head {
@@ -1692,5 +1790,9 @@ textarea.code {
 
   .case-progress-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .task-cockpit {
+    grid-template-columns: 1fr;
   }
 }

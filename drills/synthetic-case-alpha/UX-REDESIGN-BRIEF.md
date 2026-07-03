@@ -67,3 +67,10 @@ The user should never need to know a hash route, internal module id, or file con
 ## Acceptance Test
 
 A first-time user can complete `drills/synthetic-case-alpha/README.md` without editing the URL manually and without asking where a required button is.
+
+## First Implementation Pass
+
+- Added clickable workflow steps on **Case Workflow**.
+- Added a compact current-step cockpit with input, output, status, and visible workspace action.
+- Moved dense evidence/review material behind a **Details** disclosure.
+- Updated the drill so manual URL editing is a failure condition, not an instruction.

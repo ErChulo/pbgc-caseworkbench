@@ -141,21 +141,23 @@ UX note: DEL being the next step is correct. If the app or guide jumps to Plan F
 
 The workflow lists **Synthetic Population** after DEL. Treat this as a checkpoint, not a full production task.
 
-1. If **Case Workflow** advances to **Synthetic Population**, read the panel and note what it asks for.
-2. If there is an obvious generate/download action, run it with the default settings.
-3. If the page is unclear, record it as a UX gap and continue.
+1. On **Case Workflow**, click the **Synthetic Population** workflow step if it is not already current.
+2. Click **Open Synthetic Population workspace**.
+3. Use the default settings.
+4. Click **Generate 001SyntheticPopulation.zip** or the equivalent generate button.
 
 How to know it worked:
 
-- You understand whether the app can create synthetic no-PII population files yet.
-- If it downloads a ZIP or manifest, keep it with the other drill outputs.
+- Your browser downloads `001SyntheticPopulation.zip` or a similarly named synthetic population file.
+- Synthetic Population no longer looks missing in the workflow.
 
 ## Step 6: Package Plan Factors
 
 Only do Plan Factors after DEL and the Synthetic Population checkpoint.
 
-1. In the browser address bar, replace the hash route with `#/factors` and press Enter.
-2. Confirm the page title is **Plan Factors**.
+1. On **Case Workflow**, click the **Plan Factors** workflow step.
+2. Click **Open Plan Factors workspace**.
+3. Confirm the page title is **Plan Factors**.
 3. Upload `plan-factors.synthetic-alpha.csv`.
 4. In run notes, enter `Synthetic drill run. Mechanics only.`
 5. Click `Generate artifact JSON`.
@@ -174,11 +176,12 @@ How to know it worked:
 
 ## Step 7: Package Section 436 Notes
 
-1. In the browser address bar, replace the hash route with `#/436` and press Enter.
-2. Confirm the page title is **Section 436 Limitation Memo**.
-3. Upload `section-436-notes.synthetic-alpha.txt`.
-4. Click `Generate artifact JSON`.
-5. Click `Download manifest.json`.
+1. On **Case Workflow**, click the **436** workflow step.
+2. Click **Open 436 workspace**.
+3. Confirm the page title is **Section 436 Limitation Memo**.
+4. Upload `section-436-notes.synthetic-alpha.txt`.
+5. Click `Generate artifact JSON`.
+6. Click `Download manifest.json`.
 
 Expected downloads:
 
@@ -187,10 +190,15 @@ Expected downloads:
 
 ## Step 8: Package Estimated Benefit Work
 
-These routes may be hidden from the top navigation. Run both routes from the browser address bar:
+Use visible workflow controls. Do not edit the URL manually.
 
-1. Go to `#/estimated-adjustments`, confirm the page title mentions **Estimated Benefit Adjustment Analysis**, upload `estimated-adjustments.synthetic-alpha.csv`, and generate the artifact plus manifest.
-2. Go to `#/estimated-administration`, confirm the page title mentions **Estimated Benefit Administration Analysis**, upload `estimated-administration.synthetic-alpha.csv`, and generate the artifact plus manifest.
+1. On **Case Workflow**, click the **Estimated Analyses** workflow step.
+2. Click **Open Estimated Analyses workspace**.
+3. Confirm the page title mentions **Estimated Benefit Adjustment Analysis**.
+4. Upload `estimated-adjustments.synthetic-alpha.csv`, generate the artifact, and download the manifest.
+5. Return to **Case Workflow**, click **Estimated Analyses**, then click **Open alternate workspace**.
+6. Confirm the page title mentions **Estimated Benefit Administration Analysis**.
+7. Upload `estimated-administration.synthetic-alpha.csv`, generate the artifact, and download the manifest.
 
 Expected downloads:
 
@@ -222,15 +230,14 @@ The formula file includes an `ATPBGC_MAX(...)` string. The workbench should trea
 
 ## Step 10: Package Letters / BCV Inputs
 
-This route may be hidden from the top navigation.
-
-1. In the browser address bar, replace the hash route with `#/letters-bcv` and press Enter.
-2. Confirm the page title mentions **BSRS / BCV Letter Generation Config**.
-3. Upload both files:
+1. On **Case Workflow**, click the **BSRS / BCV** workflow step.
+2. Click **Open BSRS / BCV workspace**.
+3. Confirm the page title mentions **BSRS / BCV Letter Generation Config**.
+4. Upload both files:
    - `bcv-letter-config.synthetic-alpha.json`
    - `final-review-notes.synthetic-alpha.txt`
-4. Click `Generate artifact JSON`.
-5. Click `Download manifest.json`.
+5. Click `Generate artifact JSON`.
+6. Click `Download manifest.json`.
 
 Expected downloads:
 
@@ -238,6 +245,8 @@ Expected downloads:
 - `manifest.letters-bcv-config.json`
 
 This is not a final `########S1.cfg`; it is a deterministic draft package for future generator work.
+
+If any step above requires typing a `#/route` into the browser, the UX iteration failed and should be fixed before continuing.
 
 ## Step 11: Review Audit / Manifest
 

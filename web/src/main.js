@@ -701,7 +701,7 @@ function workflowInputStatus() {
       label: r5Summary ? "R5 loaded" : "R5 missing",
       detail: r5Summary
         ? `${r5Summary.source_files?.length ?? 0} file(s), domains: ${(r5Summary.profile?.recognized_domains ?? []).join(", ") || "none"}`
-        : "Load R5 summary JSON in V1 Explorer."
+        : "Load R5Summary JSON in Case Workflow."
     },
     v1: {
       ready: !!selectedV1,
@@ -1855,6 +1855,13 @@ function renderTaskEngineSurface(step) {
   const ready = task.review.missingReadiness.length === 0;
   const started = task.review.readiness.some((item) => item.ready);
   const statusClass = ready ? "ready" : started ? "warning" : "missing";
+  const nextStep = firstIncompleteGuideStep();
+  const canContinue = ready && nextStep.id !== task.id;
+  const inlineActionByStep = {
+    r5: "Use the R5Summary JSON intake below.",
+    "data-elements": "Use the DEL input package controls below."
+  };
+  const primaryActionLabel = inlineActionByStep[task.id] ?? `Open ${task.title} workspace`;
   const ivsList = task.sourceGuidance.ivsClasses.length
     ? task.sourceGuidance.ivsClasses
         .slice(0, 6)
@@ -1873,6 +1880,37 @@ function renderTaskEngineSurface(step) {
     : "<li>All tracked prerequisites are available. Review warnings and citations before final use.</li>";
   return `
     <section class="task-engine-surface ${statusClass}">
+      <div class="task-cockpit">
+        <div class="task-cockpit-main">
+          <span>Current step</span>
+          <h3>${escapeHtml(task.title)}</h3>
+          <p>${escapeHtml(task.requiredFact)}</p>
+        </div>
+        <div class="task-cockpit-status ${statusClass}">
+          <span>${ready ? "Ready" : started ? "Started" : "Needed"}</span>
+          <b>${task.review.readiness.length ? `${task.review.readiness.filter((item) => item.ready).length}/${task.review.readiness.length}` : "n/a"}</b>
+          <small>${escapeHtml(task.status)}</small>
+        </div>
+        <div class="task-cockpit-card">
+          <span>Input needed</span>
+          <b>${escapeHtml(task.expectedJson)}</b>
+        </div>
+        <div class="task-cockpit-card">
+          <span>Expected output</span>
+          <b>${escapeHtml(task.output)}</b>
+        </div>
+        <div class="task-cockpit-actions">
+          ${
+            inlineActionByStep[task.id]
+              ? `<div class="banner subtle">${escapeHtml(primaryActionLabel)}</div>`
+              : `<button class="primary" data-guide-route="${escapeHtml(task.route)}">${escapeHtml(primaryActionLabel)}</button>`
+          }
+          ${task.alternateRoute ? `<button class="ghost" data-guide-route="${escapeHtml(task.alternateRoute)}">Open alternate workspace</button>` : ""}
+          ${canContinue ? `<button class="primary" data-guide-next-task>Continue to ${escapeHtml(nextStep.title)}</button>` : ""}
+        </div>
+      </div>
+      <details class="task-details">
+        <summary>Details, evidence rules, and review checks</summary>
       <div class="task-engine-head">
         <div>
           <span>Active workflow task</span>
@@ -1917,16 +1955,20 @@ function renderTaskEngineSurface(step) {
         </div>
       </div>
       ${task.review.warnings.length ? `<div class="coverage-warning-list"><b>Task warnings</b><ul>${task.review.warnings.slice(0, 4).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul></div>` : ""}
-      ${task.id === "r5" ? renderR5TaskIntake() : ""}
-      ${task.id === "data-elements" ? renderDelTaskPackage() : ""}
       <div class="task-downstream">
         <b>Feeds downstream</b>
         <span>${escapeHtml(task.downstream.join(", ") || "Next case task")}</span>
       </div>
+      </details>
+      ${task.id === "r5" ? renderR5TaskIntake() : ""}
+      ${task.id === "data-elements" ? renderDelTaskPackage() : ""}
       <div class="button-row">
-        <button class="primary" data-guide-route="${escapeHtml(task.route)}">Open task workspace</button>
-        ${task.alternateRoute ? `<button class="ghost" data-guide-route="${escapeHtml(task.alternateRoute)}">Open alternate workspace</button>` : ""}
-        ${ready && firstIncompleteGuideStep().id !== task.id ? `<button class="ghost" data-guide-next-task>Continue to next task</button>` : ""}
+        ${
+          inlineActionByStep[task.id]
+            ? ""
+            : `<button class="ghost" data-guide-route="${escapeHtml(task.route)}">Open ${escapeHtml(task.title)} workspace</button>`
+        }
+        ${canContinue ? `<button class="ghost" data-guide-next-task>Continue to ${escapeHtml(nextStep.title)}</button>` : ""}
       </div>
     </section>
   `;
@@ -2411,11 +2453,11 @@ function renderGuideStepButton(step, index) {
   const active = step.id === activeGuideStepId ? "active" : "";
   const label = active ? "current" : status.complete ? "done" : "later";
   return `
-    <div class="guide-step ${stateClass} ${active}" aria-current="${active ? "step" : "false"}">
+    <button type="button" class="guide-step ${stateClass} ${active}" data-guide-step="${escapeHtml(step.id)}" aria-current="${active ? "step" : "false"}">
       <span>${index + 1}</span>
       <b>${escapeHtml(step.title)}</b>
       <small>${label}</small>
-    </div>
+    </button>
   `;
 }
 
@@ -3240,6 +3282,12 @@ function renderCaseGuide(container) {
   hydratePlanContext(container);
   container.querySelectorAll("[data-guide-route]").forEach((btn) => {
     btn.addEventListener("click", () => setRoute(btn.dataset.guideRoute));
+  });
+  container.querySelectorAll("[data-guide-step]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      activeGuideStepId = btn.dataset.guideStep;
+      renderCaseGuide(container);
+    });
   });
   container.querySelectorAll("[data-guide-next-task]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -6870,5 +6918,3 @@ loadState();
 renderShell();
 applyTheme("dark");
 renderRoute();
-
-
