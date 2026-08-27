@@ -1,0 +1,8 @@
+{
+  "project_root": "pbgc-caseworkbench-2",
+  "files": 157,
+  "directories": 118,
+  "includes_constitution": true,
+  "includes_redacted_population": true,
+  "includes_r5_json_count": 8
+}

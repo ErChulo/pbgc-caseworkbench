@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.pbgc-caseworkbench/schemas/evidence/observation.schema.json",
+  "title": "Evidence observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["observationId", "fieldId", "rawValue", "method", "confidence", "locator"],
+  "properties": {
+    "observationId": { "type": "string", "minLength": 1 },
+    "fieldId": { "type": "string", "minLength": 1 },
+    "rawValue": {},
+    "normalizedCandidate": {},
+    "method": { "enum": ["native-text", "ocr", "spreadsheet", "manual", "derived"] },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactId", "excerptHash"],
+      "properties": {
+        "artifactId": { "type": "string", "minLength": 1 },
+        "page": { "type": "integer", "minimum": 1 },
+        "sheet": { "type": "string" },
+        "range": { "type": "string" },
+        "excerptHash": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" }
+      }
+    }
+  }
+}
+

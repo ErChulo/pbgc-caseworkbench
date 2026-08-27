@@ -1,0 +1,58 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "case-actuary-builder",
+  "share": "disabled",
+  "subagent_depth": 1,
+  "snapshot": true,
+  "instructions": [
+    "AGENTS.md",
+    "governance/constitution.md",
+    "docs/architecture.md",
+    "docs/design.md"
+  ],
+  "watcher": {
+    "ignore": [
+      "node_modules/**",
+      "dist/**",
+      "coverage/**",
+      "cases/**",
+      "exports/**",
+      "public/vendor/**",
+      "public/models/**"
+    ]
+  },
+  "permission": {
+    "skill": "allow",
+    "external_directory": "deny",
+    "webfetch": "ask",
+    "websearch": "ask"
+  },
+  "mcp": {
+    "playwright": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@playwright/mcp@latest",
+        "--headless",
+        "--isolated",
+        "--block-service-workers"
+      ],
+      "enabled": false
+    },
+    "github": {
+      "type": "local",
+      "command": [
+        "github-mcp-server",
+        "stdio"
+      ],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_PERSONAL_ACCESS_TOKEN}",
+        "GITHUB_READ_ONLY": "1",
+        "GITHUB_LOCKDOWN_MODE": "1",
+        "GITHUB_TOOLSETS": "context,repos,issues,pull_requests"
+      },
+      "enabled": false
+    }
+  }
+}

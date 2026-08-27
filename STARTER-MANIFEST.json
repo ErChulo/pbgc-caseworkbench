@@ -1,0 +1,25 @@
+{
+  "starter": "pbgc-caseworkbench-opencode-starter",
+  "version": "0.1.0",
+  "created": "2026-08-27",
+  "deployment": "single-user local-first browser application",
+  "agents": 7,
+  "skills": 10,
+  "mcpServers": [
+    { "name": "playwright", "enabledByDefault": false },
+    { "name": "github", "enabledByDefault": false, "mode": "read-only-lockdown" }
+  ],
+  "dataDictionary": {
+    "path": "references/data-dictionary/data_dictionary_complete.xlsm",
+    "sha256": "d7b7c63a432ecc0e7e9e1371a65effeae552b13d8a53a952752bd206ee79bc96",
+    "preservedByteForByte": true
+  },
+  "validation": {
+    "opencodeSchema": "passed",
+    "skillMetadata": "passed",
+    "typecheck": "passed",
+    "tests": "passed",
+    "singleFileBuild": "passed"
+  }
+}
+

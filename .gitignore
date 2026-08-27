@@ -1,0 +1,35 @@
+node_modules/
+dist/
+coverage/
+.vite/
+
+# Real case material must never enter version control.
+cases/
+exports/
+backups/
+tmp/
+*.casebundle
+*.casebundle.enc
+
+# Local runtime assets and browser state.
+public/vendor/*
+!public/vendor/README.md
+public/models/*
+!public/models/README.md
+playwright-report/
+test-results/
+.auth/
+
+# Local settings and secrets.
+.env
+.env.*
+!.env.example
+*.log
+
+# Office lock files and OS/editor noise.
+~$*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
