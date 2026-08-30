@@ -94,19 +94,55 @@ export class IndexedDBCaseStore implements CaseStore {
     });
   }
 
-  async createCase(record: CaseRecord): Promise<CaseRecord> {
+  async createCaseWithAudit(
+    record: CaseRecord,
+    event: AuditEvent,
+  ): Promise<CaseRecord> {
+    // Fail closed before opening the transaction: the audit event must belong
+    // to the case being created and be its "case-created" event, otherwise the
+    // documented atomic invariant would be silently defeatable.
+    if (event.caseId !== record.caseId) {
+      throw new Error(
+        `createCaseWithAudit: audit event caseId (${event.caseId}) does not match case (${record.caseId})`,
+      );
+    }
+    if (event.eventType !== "case-created") {
+      throw new Error(
+        `createCaseWithAudit: expected a "case-created" audit event, got "${event.eventType}"`,
+      );
+    }
+
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_CASES, "readwrite");
-      const store = tx.objectStore(STORE_CASES);
-      const req = store.add(record);
-      req.onsuccess = () => resolve({ ...record });
-      req.onerror = () => {
-        if (req.error?.name === "ConstraintError") {
-          reject(new Error(`Case already exists: ${record.caseId}`));
+      // ONE readwrite transaction spanning the case and its audit event, so a
+      // failure on either write aborts the whole transaction: a new case can
+      // never be persisted without its `case-created` event (and vice versa).
+      const tx = db.transaction([STORE_CASES, STORE_AUDIT], "readwrite");
+      const caseStore = tx.objectStore(STORE_CASES);
+      const auditStore = tx.objectStore(STORE_AUDIT);
+
+      let failure: Error | null = null;
+      const caseReq = caseStore.add(record);
+      caseReq.onerror = () => {
+        if (caseReq.error?.name === "ConstraintError") {
+          failure = new Error(`Case already exists: ${record.caseId}`);
         } else {
-          reject(req.error);
+          failure = caseReq.error ?? new Error("Failed to create case");
         }
+      };
+
+      const auditReq = auditStore.add({ ...event, sequence: 1 });
+      auditReq.onerror = () => {
+        failure = auditReq.error ?? new Error("Failed to append audit event");
+      };
+
+      tx.onabort = () =>
+        reject(failure ?? new Error("IndexedDB transaction aborted"));
+      tx.onerror = () =>
+        reject(failure ?? tx.error ?? new Error("IndexedDB transaction error"));
+      tx.oncomplete = () => {
+        if (failure) reject(failure);
+        else resolve({ ...record });
       };
     });
   }

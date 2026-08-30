@@ -28,14 +28,35 @@ export class InMemoryCaseStore implements CaseStore {
     return this.cases.get(caseId) ?? null;
   }
 
-  async createCase(record: CaseRecord): Promise<CaseRecord> {
+  async createCaseWithAudit(
+    record: CaseRecord,
+    event: AuditEvent,
+  ): Promise<CaseRecord> {
+    // Atomic pattern: check all preconditions and build the stamped event
+    // before mutating state, so a failure leaves nothing persisted.
     if (this.cases.has(record.caseId)) {
       throw new Error(`Case already exists: ${record.caseId}`);
     }
+    this.assertAuditMatchesCase(record, event);
+    const stamped: AuditEvent = { ...event, sequence: 1 };
     this.cases.set(record.caseId, { ...record });
     this.facts.set(record.caseId, []);
-    this.auditEvents.set(record.caseId, []);
+    this.auditEvents.set(record.caseId, [stamped]);
     return { ...record };
+  }
+
+  /** Fail closed unless the audit event belongs to the case being created. */
+  private assertAuditMatchesCase(record: CaseRecord, event: AuditEvent): void {
+    if (event.caseId !== record.caseId) {
+      throw new Error(
+        `createCaseWithAudit: audit event caseId (${event.caseId}) does not match case (${record.caseId})`,
+      );
+    }
+    if (event.eventType !== "case-created") {
+      throw new Error(
+        `createCaseWithAudit: expected a "case-created" audit event, got "${event.eventType}"`,
+      );
+    }
   }
 
   async updateCase(record: CaseRecord): Promise<CaseRecord> {

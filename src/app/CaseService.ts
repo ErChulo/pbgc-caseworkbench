@@ -43,8 +43,10 @@ export class CaseService {
       createdAt: now,
       updatedAt: now,
     };
-    await this.store.createCase(record);
-    await this.store.appendAuditEvent({
+    // The case record and its `case-created` audit event commit atomically in a
+    // single transaction, so a new case can never exist without its creation
+    // event (spec 001 atomic-writes edge case).
+    await this.store.createCaseWithAudit(record, {
       eventId: generateId(),
       caseId: record.caseId,
       eventType: "case-created",

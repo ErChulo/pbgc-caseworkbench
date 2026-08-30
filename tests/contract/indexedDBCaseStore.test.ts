@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from "vitest";
 import "fake-indexeddb/auto";
-import { runCaseStoreContractTests } from "./caseStoreContract";
+import { runCaseStoreContractTests, seedCase } from "./caseStoreContract";
 import { IndexedDBCaseStore } from "../../src/adapters/storage/IndexedDBCaseStore";
 
 // Give every store a unique database name so contract runs (and the "starts
@@ -29,13 +29,7 @@ runCaseStoreContractTests("IndexedDBCaseStore (fake-indexeddb)", createStore);
 describe("IndexedDBCaseStore", () => {
   it("rolls back the whole batch when a mid-batch write violates a constraint", async () => {
     const store = createStore();
-    await store.createCase({
-      caseId: "rollback-case",
-      alias: "CW-0901",
-      status: "active",
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    });
+    await seedCase(store, "rollback-case", "CW-0901");
 
     const base = {
       caseId: "rollback-case",
@@ -91,28 +85,71 @@ describe("IndexedDBCaseStore", () => {
       }),
     ).rejects.toThrow();
 
-    // No NO partial writes: the fresh fact must NOT exist, the event must NOT
-    // exist, and the case updatedAt must be unchanged.
+    // No partial writes: the fresh fact must NOT exist, the case-created event
+    // already written must be untouched, and the case updatedAt must be
+    // unchanged.
     const facts = await store.getPlanFacts("rollback-case");
     expect(facts.some((f) => f.factId === "rollback-f-new")).toBe(false);
     expect(facts.some((f) => f.factId === "rollback-f-1")).toBe(true);
     expect(facts).toHaveLength(1);
 
+    // Only the seed's case-created event remains; the batch's "rollback-e-1"
+    // event was rolled back (not written).
     const events = await store.getAuditEvents("rollback-case");
-    expect(events).toHaveLength(0);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.eventType).toBe("case-created");
+    expect(events.some((e) => e.eventId === "rollback-e-1")).toBe(false);
 
     const c = await store.getCase("rollback-case");
     expect(c?.updatedAt).toBe("2026-01-01T00:00:00.000Z");
   });
+
+  it("does not persist a new case when its case-created event write fails", async () => {
+    const store = createStore();
+    // Seed a case that also occupies eventId "dup-event", so a later
+    // createCaseWithAudit reusing that eventId will fail the event write.
+    await seedCase(store, "seed-case", "CW-0910");
+    await store.appendAuditEvent({
+      eventId: "dup-event",
+      caseId: "seed-case",
+      eventType: "case-created",
+      actor: "local-user",
+      component: "test",
+      at: "2026-01-01T00:00:00.000Z",
+      refs: {},
+    });
+
+    // The new case is written first in the transaction; its event write then
+    // fails on the duplicate eventId, so the WHOLE transaction must abort and
+    // the new case must not persist (a case can never exist without its event).
+    await expect(
+      store.createCaseWithAudit(
+        {
+          caseId: "new-case",
+          alias: "CW-0911",
+          status: "active",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          eventId: "dup-event",
+          caseId: "new-case",
+          eventType: "case-created",
+          actor: "local-user",
+          component: "CaseService.createCase",
+          at: "2026-01-01T00:00:00.000Z",
+          refs: {},
+        },
+      ),
+    ).rejects.toThrow();
+
+    expect(await store.getCase("new-case")).toBeNull();
+    // The seed case was untouched.
+    expect(await store.getCase("seed-case")).not.toBeNull();
+  });
   it("assigns a strictly increasing per-case sequence to saved facts", async () => {
     const store = createStore();
-    await store.createCase({
-      caseId: "c1",
-      alias: "CW-0001",
-      status: "active",
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    });
+    await seedCase(store, "c1", "CW-0001");
     const base = {
       caseId: "c1",
       value: "v",

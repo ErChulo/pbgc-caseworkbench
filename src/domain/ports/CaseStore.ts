@@ -23,8 +23,18 @@ export interface CaseStore {
   /** Get a single case by ID. Returns null if not found. */
   getCase(caseId: string): Promise<CaseRecord | null>;
 
-  /** Create a new case. Returns the created record. */
-  createCase(record: CaseRecord): Promise<CaseRecord>;
+  /**
+   * Atomically create a new case and append its initial (audit) event in one
+   * transaction. All-or-nothing: if either write fails, neither is persisted,
+   * so a case can never exist without its `case-created` audit event (spec 001
+   * atomic-writes edge case). The event is stamped with per-case sequence 1 and
+   * must target this case and be of type `case-created`; otherwise it fails
+   * closed without writing. Returns the created case.
+   */
+  createCaseWithAudit(
+    record: CaseRecord,
+    event: AuditEvent,
+  ): Promise<CaseRecord>;
 
   /** Update an existing case (e.g., updatedAt timestamp). */
   updateCase(record: CaseRecord): Promise<CaseRecord>;

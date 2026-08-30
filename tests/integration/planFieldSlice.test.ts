@@ -23,6 +23,7 @@ class SpyStore implements CaseStore {
   saveBatchCalls = 0;
   savePlanFactCalls = 0;
   updateCaseCalls = 0;
+  createCaseWithAuditCalls = 0;
   private appendAuditComponents: string[] = [];
 
   constructor(private readonly inner: CaseStore) {}
@@ -33,8 +34,12 @@ class SpyStore implements CaseStore {
   getCase(caseId: string): Promise<CaseRecord | null> {
     return this.inner.getCase(caseId);
   }
-  createCase(record: CaseRecord): Promise<CaseRecord> {
-    return this.inner.createCase(record);
+  createCaseWithAudit(
+    record: CaseRecord,
+    event: AuditEvent,
+  ): Promise<CaseRecord> {
+    this.createCaseWithAuditCalls += 1;
+    return this.inner.createCaseWithAudit(record, event);
   }
   updateCase(record: CaseRecord): Promise<CaseRecord> {
     this.updateCaseCalls += 1;
@@ -84,6 +89,19 @@ class FailingBatchStore extends SpyStore {
     },
   ): Promise<void> {
     return Promise.reject(new Error("storage failed"));
+  }
+}
+
+/**
+ * Test double: delegates to a CaseStore but fails createCaseWithAudit, so an
+ * integration test can assert fail-closed behavior (no case, no event).
+ */
+class FailingCreateStore extends SpyStore {
+  override createCaseWithAudit(
+    _record: CaseRecord,
+    _event: AuditEvent,
+  ): Promise<CaseRecord> {
+    return Promise.reject(new Error("create failed"));
   }
 }
 
@@ -338,6 +356,36 @@ describe("Plan-field vertical slice integration", () => {
     const events = await store.getAuditEvents(record.caseId);
     // Only the case-created event remains; none of the batch events were written.
     expect(events.filter((e) => e.eventType === "plan-fact-saved")).toHaveLength(0);
+  });
+
+  it("creates a case and its case-created event through one atomic call", async () => {
+    // lock down the createCase atomicity change: createCase must use a single
+    // createCaseWithAudit (all-or-nothing) and NOT separate createCase +
+    // appendAuditEvent calls.
+    const spy = new SpyStore(store);
+    const spiedService = new CaseService(spy, testCatalog);
+
+    const created = await spiedService.createCase();
+
+    expect(spy.createCaseWithAuditCalls).toBe(1);
+    expect(created.caseId).toBeTruthy();
+
+    const events = await spy.getAuditEvents(created.caseId);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.eventType).toBe("case-created");
+    expect(events[0]?.sequence).toBe(1);
+  });
+
+  it("leaves no case and no event when createCaseWithAudit fails", async () => {
+    // Fail-closed: a failed atomic create must leave NO case and NO case-created
+    // event (the two writes roll back together).
+    const failing = new FailingCreateStore(store);
+    const spiedService = new CaseService(failing, testCatalog);
+
+    await expect(spiedService.createCase()).rejects.toThrow(/create failed/);
+
+    expect(await store.listCases()).toHaveLength(0);
+    expect(await store.getAuditEvents("any")).toEqual([]);
   });
 
   it("orders audit events deterministically across same-millisecond saves", async () => {

@@ -11,6 +11,37 @@ import type {
   PlanFact,
 } from "../../src/domain/case/types";
 
+/**
+ * Seed a case through the ONLY atomic creation method on the port
+ * (createCaseWithAudit) so even test fixtures never exercise a non-atomic
+ * create. Keeps seeding concise while exercising the real atomic path.
+ */
+export async function seedCase(
+  store: CaseStore,
+  caseId: string,
+  alias: string,
+  at: string = "2026-01-01T00:00:00.000Z",
+): Promise<CaseRecord> {
+  const record: CaseRecord = {
+    caseId,
+    alias,
+    status: "active",
+    createdAt: at,
+    updatedAt: at,
+  };
+  const event: AuditEvent = {
+    eventId: `${caseId}-created`,
+    caseId,
+    eventType: "case-created",
+    actor: "local-user",
+    component: "test-seed",
+    at,
+    refs: {},
+  };
+  await store.createCaseWithAudit(record, event);
+  return record;
+}
+
 export function runCaseStoreContractTests(
   name: string,
   createStore: () => Promise<CaseStore> | CaseStore,
@@ -29,35 +60,14 @@ export function runCaseStoreContractTests(
     });
 
     it("creates and retrieves a case", async () => {
-      const record: CaseRecord = {
-        caseId: "test-case-1",
-        alias: "CW-0001",
-        status: "active",
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      };
-      await store.createCase(record);
+      const record = await seedCase(store, "test-case-1", "CW-0001");
       const fetched = await store.getCase("test-case-1");
       expect(fetched).toEqual(record);
     });
 
     it("lists cases ordered by creation date descending", async () => {
-      const r1: CaseRecord = {
-        caseId: "c1",
-        alias: "CW-0001",
-        status: "active",
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      };
-      const r2: CaseRecord = {
-        caseId: "c2",
-        alias: "CW-0002",
-        status: "active",
-        createdAt: "2026-01-02T00:00:00.000Z",
-        updatedAt: "2026-01-02T00:00:00.000Z",
-      };
-      await store.createCase(r1);
-      await store.createCase(r2);
+      await seedCase(store, "c1", "CW-0001", "2026-01-01T00:00:00.000Z");
+      await seedCase(store, "c2", "CW-0002", "2026-01-02T00:00:00.000Z");
       const cases = await store.listCases();
       // c2 has the latest createdAt, so it should be first
       const c2Index = cases.findIndex((c) => c.caseId === "c2");
@@ -67,26 +77,121 @@ export function runCaseStoreContractTests(
     });
 
     it("rejects duplicate case creation", async () => {
+      const record = await seedCase(store, "dup", "CW-0003");
+      await expect(
+        store.createCaseWithAudit(record, {
+          eventId: `${record.caseId}-created-again`,
+          caseId: record.caseId,
+          eventType: "case-created",
+          actor: "local-user",
+          component: "test-seed",
+          at: record.createdAt,
+          refs: {},
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("creates a case and its case-created event atomically with sequence 1", async () => {
       const record: CaseRecord = {
-        caseId: "dup",
-        alias: "CW-0003",
+        caseId: "audit-ok",
+        alias: "CW-0101",
         status: "active",
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
       };
-      await store.createCase(record);
-      await expect(store.createCase(record)).rejects.toThrow();
+      const event: AuditEvent = {
+        eventId: "audit-ok-e",
+        caseId: "audit-ok",
+        eventType: "case-created",
+        actor: "local-user",
+        component: "CaseService.createCase",
+        at: "2026-01-01T00:00:00.000Z",
+        refs: {},
+      };
+      const created = await store.createCaseWithAudit(record, event);
+      expect(created.caseId).toBe("audit-ok");
+
+      const events = await store.getAuditEvents("audit-ok");
+      expect(events).toHaveLength(1);
+      expect(events[0]?.eventId).toBe("audit-ok-e");
+      expect(events[0]?.sequence).toBe(1);
+    });
+
+    it("rolls back both writes when createCaseWithAudit hits a duplicate case", async () => {
+      // Seed the case through the atomic path (its single case-created event),
+      // then attempt a second createCaseWithAudit for the same caseId: the
+      // duplicate must abort and add NO additional event.
+      const record = await seedCase(store, "audit-dup", "CW-0102");
+      const seedEvents = await store.getAuditEvents("audit-dup");
+      expect(seedEvents).toHaveLength(1);
+
+      const event: AuditEvent = {
+        eventId: "audit-dup-e",
+        caseId: "audit-dup",
+        eventType: "case-created",
+        actor: "local-user",
+        component: "CaseService.createCase",
+        at: "2026-01-01T00:00:00.000Z",
+        refs: {},
+      };
+      await expect(store.createCaseWithAudit(record, event)).rejects.toThrow();
+
+      // No additional event was written — only the seed's case-created event.
+      expect(await store.getAuditEvents("audit-dup")).toHaveLength(1);
+      expect(await store.getAuditEvents("audit-dup")).toEqual(seedEvents);
+    });
+
+    it("rejects createCaseWithAudit when the event targets a different case", async () => {
+      const record: CaseRecord = {
+        caseId: "audit-mismatch",
+        alias: "CW-0103",
+        status: "active",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      };
+      const event: AuditEvent = {
+        eventId: "audit-mismatch-e",
+        caseId: "some-other-case", // mismatched
+        eventType: "case-created",
+        actor: "local-user",
+        component: "CaseService.createCase",
+        at: "2026-01-01T00:00:00.000Z",
+        refs: {},
+      };
+      await expect(store.createCaseWithAudit(record, event)).rejects.toThrow(
+        /does not match/,
+      );
+      // No case was created (fail closed before any write).
+      expect(await store.getCase("audit-mismatch")).toBeNull();
+      expect(await store.getAuditEvents("audit-mismatch")).toEqual([]);
+    });
+
+    it("rejects createCaseWithAudit when the event is not case-created", async () => {
+      const record: CaseRecord = {
+        caseId: "audit-wrongtype",
+        alias: "CW-0104",
+        status: "active",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      };
+      const event: AuditEvent = {
+        eventId: "audit-wrongtype-e",
+        caseId: "audit-wrongtype",
+        eventType: "plan-fact-saved", // wrong type
+        actor: "local-user",
+        component: "CaseService.createCase",
+        at: "2026-01-01T00:00:00.000Z",
+        refs: {},
+      };
+      await expect(store.createCaseWithAudit(record, event)).rejects.toThrow(
+        /case-created/,
+      );
+      expect(await store.getCase("audit-wrongtype")).toBeNull();
+      expect(await store.getAuditEvents("audit-wrongtype")).toEqual([]);
     });
 
     it("updates a case", async () => {
-      const record: CaseRecord = {
-        caseId: "upd",
-        alias: "CW-0004",
-        status: "active",
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      };
-      await store.createCase(record);
+      const record = await seedCase(store, "upd", "CW-0004");
       const updated = { ...record, updatedAt: "2026-02-01T00:00:00.000Z" };
       await store.updateCase(updated);
       const fetched = await store.getCase("upd");
@@ -189,9 +294,10 @@ export function runCaseStoreContractTests(
     });
 
     it("appends and retrieves audit events", async () => {
+      await seedCase(store, "appends-1", "CW-0201");
       const event: AuditEvent = {
         eventId: "e1",
-        caseId: "test-case-1",
+        caseId: "appends-1",
         eventType: "case-created",
         actor: "local-user",
         component: "test",
@@ -199,9 +305,12 @@ export function runCaseStoreContractTests(
         refs: {},
       };
       await store.appendAuditEvent(event);
-      const events = await store.getAuditEvents("test-case-1");
-      expect(events).toHaveLength(1);
-      expect(events[0]?.eventId).toBe("e1");
+      const events = await store.getAuditEvents("appends-1");
+      // The seed's case-created event plus the appended e1, ordered by sequence.
+      expect(events).toHaveLength(2);
+      expect(events[0]?.eventId).toBe("appends-1-created");
+      expect(events[1]?.eventId).toBe("e1");
+      expect(events[1]!.sequence!).toBeGreaterThan(events[0]!.sequence!);
     });
 
     it("assigns a strictly increasing per-case sequence on save", async () => {
@@ -234,14 +343,7 @@ export function runCaseStoreContractTests(
     });
 
     it("persists a batch atomically and stamps fact and event sequences", async () => {
-      const caseRecord: CaseRecord = {
-        caseId: "batch-case",
-        alias: "CW-0100",
-        status: "active",
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      };
-      await store.createCase(caseRecord);
+      const caseRecord = await seedCase(store, "batch-case", "CW-0100");
 
       const factBase: PlanFact = {
         factId: "id",
@@ -287,11 +389,14 @@ export function runCaseStoreContractTests(
       expect(facts[1]!.sequence!).toBeGreaterThan(facts[0]!.sequence!);
 
       const events = await store.getAuditEvents("batch-case");
-      expect(events).toHaveLength(2);
-      // Events share an `at` timestamp but must be deterministically ordered.
+      // 1 case-created (seed, sequence 1) + 2 batch events (sequences 2,3).
+      expect(events).toHaveLength(3);
+      expect(events[0]!.eventType).toBe("case-created");
+      // Events are deterministically ordered by sequence.
       expect(events[1]!.sequence!).toBeGreaterThan(events[0]!.sequence!);
-      expect(events[0]!.eventId).toBe("batch-e-1");
-      expect(events[1]!.eventId).toBe("batch-e-2");
+      expect(events[2]!.sequence!).toBeGreaterThan(events[1]!.sequence!);
+      expect(events[1]!.eventId).toBe("batch-e-1");
+      expect(events[2]!.eventId).toBe("batch-e-2");
 
       const updated = await store.getCase("batch-case");
       expect(updated?.updatedAt).toBe("2026-02-01T00:00:00.000Z");
