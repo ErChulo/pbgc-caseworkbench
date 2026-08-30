@@ -84,16 +84,61 @@ export class InMemoryCaseStore implements CaseStore {
     return { ...stamped };
   }
 
+  async saveBatch(
+    caseId: string,
+    batch: {
+      facts: PlanFact[];
+      events: AuditEvent[];
+      updatedCase: CaseRecord;
+    },
+  ): Promise<void> {
+    const facts = this.facts.get(caseId) ?? [];
+    const events = this.auditEvents.get(caseId) ?? [];
+
+    // Atomic pattern for the in-memory adapter: fully compute every stamped
+    // record and the new arrays BEFORE mutating state. If anything throws, no
+    // partial change has been applied. (The IndexedDB adapter achieves the same
+    // guarantee with a single readwrite transaction.)
+    let factSeq = facts.reduce((max, f) => Math.max(max, f.sequence ?? 0), 0);
+    let eventSeq = events.reduce((max, e) => Math.max(max, e.sequence ?? 0), 0);
+
+    const stampedFacts: PlanFact[] = batch.facts.map((fact) => {
+      factSeq += 1;
+      return { ...fact, sequence: factSeq };
+    });
+    const stampedEvents: AuditEvent[] = batch.events.map((event) => {
+      eventSeq += 1;
+      return { ...event, sequence: eventSeq };
+    });
+
+    const nextFacts = facts.concat(stampedFacts);
+    const nextEvents = events.concat(stampedEvents);
+
+    if (!this.cases.has(caseId)) {
+      throw new Error(`Case not found: ${caseId}`);
+    }
+
+    // Apply all changes together.
+    this.facts.set(caseId, nextFacts);
+    this.auditEvents.set(caseId, nextEvents);
+    this.cases.set(caseId, { ...batch.updatedCase });
+  }
+
   async appendAuditEvent(event: AuditEvent): Promise<AuditEvent> {
     const events = this.auditEvents.get(event.caseId) ?? [];
-    events.push({ ...event });
+    // Assign a per-case monotonic sequence so audit ordering is deterministic
+    // even for events sharing the same `at` timestamp.
+    const nextSeq = events.reduce((max, e) => Math.max(max, e.sequence ?? 0), 0) + 1;
+    const stamped: AuditEvent = { ...event, sequence: nextSeq };
+    events.push(stamped);
     this.auditEvents.set(event.caseId, events);
-    return { ...event };
+    return { ...stamped };
   }
 
   async getAuditEvents(caseId: string): Promise<AuditEvent[]> {
-    return [...(this.auditEvents.get(caseId) ?? [])].sort((a, b) =>
-      a.at.localeCompare(b.at),
+    // Order by per-case sequence so same-millisecond events are deterministic.
+    return [...(this.auditEvents.get(caseId) ?? [])].sort(
+      (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
     );
   }
 }

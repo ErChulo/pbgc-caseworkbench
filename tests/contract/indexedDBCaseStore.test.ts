@@ -27,6 +27,83 @@ function createStore(): IndexedDBCaseStore {
 runCaseStoreContractTests("IndexedDBCaseStore (fake-indexeddb)", createStore);
 
 describe("IndexedDBCaseStore", () => {
+  it("rolls back the whole batch when a mid-batch write violates a constraint", async () => {
+    const store = createStore();
+    await store.createCase({
+      caseId: "rollback-case",
+      alias: "CW-0901",
+      status: "active",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const base = {
+      caseId: "rollback-case",
+      value: "v",
+      status: "reviewed" as const,
+      source: {
+        workbook: "test.xlsm",
+        workbookSha256: "test",
+        sheet: "data_dictionary_complete",
+        row: 3,
+        range: "A3:G3",
+      },
+      catalogVersion: "0.1.0",
+    };
+
+    // Pre-existing fact under factId "rollback-f-1".
+    await store.savePlanFact({
+      ...base,
+      factId: "rollback-f-1",
+      fieldId: "case",
+      value: "00000001",
+      reviewedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const event = {
+      eventId: "rollback-e-1",
+      caseId: "rollback-case",
+      eventType: "plan-fact-saved" as const,
+      actor: "local-user",
+      component: "test",
+      at: "2026-01-01T00:00:00.000Z",
+      refs: {},
+    };
+
+    // The batch reuses the duplicate fact key ("rollback-f-1") on its SECOND
+    // fact, after a fresh fact and an event are already queued. A genuine single
+    // transaction must abort and roll back everything — including the earlier
+    // fresh writes — leaving no partial state.
+    await expect(
+      store.saveBatch("rollback-case", {
+        facts: [
+          { ...base, factId: "rollback-f-new", fieldId: "cust-plan-nm", value: "Plan", reviewedAt: "2026-01-01T00:00:00.000Z" },
+          { ...base, factId: "rollback-f-1", fieldId: "case", value: "DUP", reviewedAt: "2026-01-01T00:00:00.000Z" },
+        ],
+        events: [event],
+        updatedCase: {
+          caseId: "rollback-case",
+          alias: "CW-0901",
+          status: "active",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-02-01T00:00:00.000Z",
+        },
+      }),
+    ).rejects.toThrow();
+
+    // No NO partial writes: the fresh fact must NOT exist, the event must NOT
+    // exist, and the case updatedAt must be unchanged.
+    const facts = await store.getPlanFacts("rollback-case");
+    expect(facts.some((f) => f.factId === "rollback-f-new")).toBe(false);
+    expect(facts.some((f) => f.factId === "rollback-f-1")).toBe(true);
+    expect(facts).toHaveLength(1);
+
+    const events = await store.getAuditEvents("rollback-case");
+    expect(events).toHaveLength(0);
+
+    const c = await store.getCase("rollback-case");
+    expect(c?.updatedAt).toBe("2026-01-01T00:00:00.000Z");
+  });
   it("assigns a strictly increasing per-case sequence to saved facts", async () => {
     const store = createStore();
     await store.createCase({

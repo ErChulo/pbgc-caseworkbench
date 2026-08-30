@@ -187,11 +187,139 @@ export class IndexedDBCaseStore implements CaseStore {
   async appendAuditEvent(event: AuditEvent): Promise<AuditEvent> {
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
+      // One readwrite transaction for the read-modify-write so the per-case
+      // monotonic event sequence is assigned atomically (concurrent writes
+      // cannot produce duplicate sequences).
       const tx = db.transaction(STORE_AUDIT, "readwrite");
       const store = tx.objectStore(STORE_AUDIT);
-      const req = store.add(event);
-      req.onsuccess = () => resolve({ ...event });
-      req.onerror = () => reject(req.error);
+      const seqReq = store.index("caseId").getAll(event.caseId);
+      seqReq.onsuccess = () => {
+        const existing = (seqReq.result as AuditEvent[]) ?? [];
+        const nextSeq =
+          existing.reduce((max, e) => Math.max(max, e.sequence ?? 0), 0) + 1;
+        const stamped: AuditEvent = { ...event, sequence: nextSeq };
+        const addReq = store.add(stamped);
+        addReq.onsuccess = () => resolve({ ...stamped });
+        addReq.onerror = () => reject(addReq.error);
+      };
+      seqReq.onerror = () => reject(seqReq.error);
+      tx.onabort = () => reject(new Error("IndexedDB transaction aborted"));
+      tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction error"));
+    });
+  }
+
+  async saveBatch(
+    caseId: string,
+    batch: {
+      facts: PlanFact[];
+      events: AuditEvent[];
+      updatedCase: CaseRecord;
+    },
+  ): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      // ONE readwrite transaction spanning facts, audit, and cases. All reads
+      // (current max sequences, case existence) and all writes happen here, so
+      // the batch commits atomically: a failure on any write aborts the whole
+      // transaction and nothing is persisted (spec 001 atomic-writes rule).
+      const tx = db.transaction(
+        [STORE_FACTS, STORE_AUDIT, STORE_CASES],
+        "readwrite",
+      );
+      const factStore = tx.objectStore(STORE_FACTS);
+      const auditStore = tx.objectStore(STORE_AUDIT);
+      const caseStore = tx.objectStore(STORE_CASES);
+
+      const factSeqReq = factStore.index("caseId").getAll(caseId);
+      const eventSeqReq = auditStore.index("caseId").getAll(caseId);
+
+      let pending = 2;
+      let factBase = 0;
+      let eventBase = 0;
+      let abortReason: unknown = null;
+
+      const onDone = () => {
+        pending -= 1;
+        if (abortReason) return;
+        if (pending === 0) finalize();
+      };
+
+      factSeqReq.onerror = () => {
+        abortReason = factSeqReq.error;
+        if (pending === 1) reject(factSeqReq.error);
+      };
+      factSeqReq.onsuccess = () => {
+        factBase = (factSeqReq.result as PlanFact[]).reduce(
+          (m, f) => Math.max(m, f.sequence ?? 0),
+          0,
+        );
+        onDone();
+      };
+
+      eventSeqReq.onerror = () => {
+        abortReason = eventSeqReq.error;
+        if (pending === 1) reject(eventSeqReq.error);
+      };
+      eventSeqReq.onsuccess = () => {
+        eventBase = (eventSeqReq.result as AuditEvent[]).reduce(
+          (m, e) => Math.max(m, e.sequence ?? 0),
+          0,
+        );
+        onDone();
+      };
+
+      let finalizing = false;
+      const finalize = () => {
+        if (finalizing) return;
+        finalizing = true;
+
+        // Fail closed if the case does not exist. Check BEFORE writing anything
+        // so a missing case aborts the transaction with no partial state.
+        const existsReq = caseStore.get(caseId);
+        existsReq.onerror = () => {
+          abortReason = existsReq.error;
+          tx.abort();
+        };
+        existsReq.onsuccess = () => {
+          if (!existsReq.result) {
+            abortReason = new Error(`Case not found: ${caseId}`);
+            tx.abort();
+            return;
+          }
+
+          let factSeq = factBase;
+          for (const fact of batch.facts) {
+            factSeq += 1;
+            const req = factStore.add({ ...fact, sequence: factSeq });
+            req.onerror = () => {
+              abortReason = req.error;
+            };
+          }
+
+          let eventSeq = eventBase;
+          for (const event of batch.events) {
+            eventSeq += 1;
+            const req = auditStore.add({ ...event, sequence: eventSeq });
+            req.onerror = () => {
+              abortReason = req.error;
+            };
+          }
+
+          const caseReq = caseStore.put(batch.updatedCase);
+          caseReq.onerror = () => {
+            abortReason = caseReq.error;
+          };
+        };
+      };
+
+      tx.onabort = () =>
+        reject(abortReason ?? new Error("IndexedDB transaction aborted"));
+      tx.onerror = () =>
+        reject(tx.error ?? abortReason ?? new Error("IndexedDB transaction error"));
+      tx.oncomplete = () => {
+        if (abortReason) reject(abortReason);
+        else resolve();
+      };
     });
   }
 
@@ -203,8 +331,10 @@ export class IndexedDBCaseStore implements CaseStore {
       const index = store.index("caseId");
       const req = index.getAll(caseId);
       req.onsuccess = () => {
-        const events = (req.result as AuditEvent[]).sort((a, b) =>
-          a.at.localeCompare(b.at),
+        // Order by per-case sequence so same-millisecond events are
+        // deterministic (at is not a strict total order).
+        const events = (req.result as AuditEvent[]).sort(
+          (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
         );
         resolve(events);
       };

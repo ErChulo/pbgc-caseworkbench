@@ -100,6 +100,14 @@ export type AuditEvent = {
   after?: PlanFactValue;
   rawBefore?: string; // Original user input before normalization
   rawAfter?: string; // Original user input before normalization
+  /**
+   * Per-case monotonic sequence assigned by the storage adapter on write.
+   * Provides a strict total order over a case's audit events so chronological
+   * replay is deterministic even when events share an `at` timestamp (e.g. two
+   * saves within the same millisecond). Optional so synthetic fixtures and
+   * callers may omit it; adapters always stamp it.
+   */
+  sequence?: number;
 };
 
 /**

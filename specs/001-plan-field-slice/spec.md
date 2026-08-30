@@ -109,3 +109,5 @@ The workbench operates entirely offline. No network requests are made at runtime
 - The user has a local HTTP server running (Vite dev server) — `file://` execution is not supported per ADR 0001.
 - Synthetic test data uses reserved identifiers (e.g., `CW-0001`, `00000001`) to avoid confusion with real cases.
 - The first slice does not include evidence import, OCR, or calculations — those are separate features.
+- Calendar dates (e.g., `CUST_DOPT`) are validated explicitly against a Gregorian calendar: month 1–12, day valid for the month (leap-aware), and a year bound of 0001–9999. Year 0000 is not a real Gregorian year and is rejected. This year window is a **data-integrity bound**, not a PBGC plan-provision rule; both ends are chosen conservatively to reject impossible dates (see `src/domain/shared/calendar.ts`).
+- Whole-batch atomic writes are implemented: a plan-field save commits its facts, audit events, and the case `updatedAt` in a single storage transaction, so a reload mid-save leaves no partial state (edge case at line 61). Audit events carry a per-case monotonic `sequence` so the log is deterministic even for same-millisecond saves.

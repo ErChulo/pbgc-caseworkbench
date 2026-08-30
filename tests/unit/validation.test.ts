@@ -193,6 +193,34 @@ describe("validateFieldValue", () => {
       const result = validateFieldValue(dateField, "2026-13-99");
       expect(result.ok).toBe(false);
     });
+
+    it("rejects year 0000 (not a real Gregorian year)", () => {
+      const result = validateFieldValue(dateField, "0000-01-01");
+      expect(result.ok).toBe(false);
+    });
+
+    it("rejects February 30 in any year", () => {
+      const result = validateFieldValue(dateField, "2026-02-30");
+      expect(result.ok).toBe(false);
+    });
+
+    it("rejects Feb 29 in a non-leap year and accepts it in a leap year", () => {
+      expect(validateFieldValue(dateField, "2023-02-29").ok).toBe(false);
+      const leap = validateFieldValue(dateField, "2024-02-29");
+      expect(leap.ok).toBe(true);
+      if (leap.ok) expect(leap.normalized).toBe("2024-02-29");
+    });
+
+    it("rejects day 32 and month 13", () => {
+      expect(validateFieldValue(dateField, "2026-01-32").ok).toBe(false);
+      expect(validateFieldValue(dateField, "2026-13-01").ok).toBe(false);
+    });
+
+    it("rejects malformed time content after the T", () => {
+      expect(validateFieldValue(dateField, "2026-01-31Tabcd").ok).toBe(false);
+      expect(validateFieldValue(dateField, "2026-01-31T").ok).toBe(false);
+      expect(validateFieldValue(dateField, "2026-01-31T25:99:99Z").ok).toBe(false);
+    });
   });
 });
 

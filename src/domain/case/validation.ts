@@ -7,6 +7,7 @@
  */
 
 import type { CanonicalType, DerivedFieldEntry, PlanFactValue } from "./types";
+import { parseAndNormalizeIsoDate } from "../shared/calendar";
 
 /**
  * Result of validating a single field value.
@@ -114,22 +115,19 @@ function validateDate(
   if (trimmed.length === 0) {
     return { ok: false, error: `${entry.label} cannot be empty.` };
   }
-  // Accept YYYY-MM-DD or full ISO 8601
-  const dateOnly = /^\d{4}-\d{2}-\d{2}$/;
-  const fullIso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
-  if (!dateOnly.test(trimmed) && !fullIso.test(trimmed)) {
+  // Calendar-aware validation (architecture.md §9): parse explicit year/month/day
+  // and validate month and day bounds with leap-year handling, independent of the
+  // host engine's Date parser. Accepts YYYY-MM-DD or a full ISO 8601 datetime and
+  // normalizes to the literal YYYY-MM-DD date. Rejects impossible dates (month 13,
+  // day 32, Feb 30, non-leap Feb 29) and out-of-window years such as 0000.
+  const parsed = parseAndNormalizeIsoDate(trimmed);
+  if (!parsed) {
     return {
       ok: false,
-      error: `${entry.label} must be an ISO 8601 date (YYYY-MM-DD).`,
+      error: `${entry.label} must be a valid ISO 8601 date (YYYY-MM-DD).`,
     };
   }
-  const d = new Date(trimmed);
-  if (Number.isNaN(d.getTime())) {
-    return { ok: false, error: `${entry.label} is not a valid date.` };
-  }
-  // Normalize to YYYY-MM-DD
-  const normalized = trimmed.slice(0, 10);
-  return { ok: true, normalized };
+  return { ok: true, normalized: parsed.normalized };
 }
 
 /**

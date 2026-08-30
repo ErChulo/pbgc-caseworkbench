@@ -128,8 +128,11 @@ export class CaseService {
   }
 
   /**
-   * Save plan field values. Validates all values, then saves each as a
-   * plan fact. Records audit events for each save and supersession.
+   * Save plan field values. Validates all values, then persists the entire
+   * batch of plan facts, their audit events, and the case updatedAt in ONE
+   * atomic store transaction (spec 001: "Either the save completes or no
+   * partial state is persisted"). A validation failure fails closed before any
+   * write; a store failure in the middle aborts the whole batch.
    *
    * Returns the saved facts.
    */
@@ -137,7 +140,7 @@ export class CaseService {
     caseId: string,
     values: Record<string, unknown>,
   ): Promise<PlanFact[]> {
-    // Validate all values first
+    // Validate all values first — fail closed before any writes.
     const errors = validatePlanFields(this.catalog.fields, values);
     if (errors) {
       throw new Error(
@@ -145,21 +148,29 @@ export class CaseService {
       );
     }
 
-    // Normalize values
+    // Normalize values.
     const normalized = normalizePlanFields(this.catalog.fields, values);
 
-    const savedFacts: PlanFact[] = [];
+    // Read the current latest fact per field once, so supersession links are
+    // computed consistently across the whole batch.
+    const facts = await this.store.getPlanFacts(caseId);
+    const latestByField = new Map<string, PlanFact>();
+    for (const fact of facts) {
+      const prev = latestByField.get(fact.fieldId);
+      if (!prev || (fact.sequence ?? 0) >= (prev.sequence ?? 0)) {
+        latestByField.set(fact.fieldId, fact);
+      }
+    }
+
     const now = nowIso();
+    const savedFacts: PlanFact[] = [];
+    const events: AuditEvent[] = [];
 
     for (const entry of this.catalog.fields) {
       const value = normalized[entry.fieldId];
       if (value === undefined) continue;
 
-      // Check for existing fact (supersession)
-      const existing = await this.store.getLatestPlanFact(
-        caseId,
-        entry.fieldId,
-      );
+      const existing = latestByField.get(entry.fieldId);
 
       const rawValue = values[entry.fieldId];
       const rawString =
@@ -179,15 +190,13 @@ export class CaseService {
         reviewedAt: now,
         ...(existing?.factId ? { supersedes: existing.factId } : {}),
       };
-
-      await this.store.savePlanFact(fact);
       savedFacts.push(fact);
 
-      // Record audit event
+      // Record audit event (saved or superseded).
       const eventType = existing
         ? "plan-fact-superseded"
         : "plan-fact-saved";
-      const auditEvent: AuditEvent = {
+      events.push({
         eventId: generateId(),
         caseId,
         eventType,
@@ -205,18 +214,19 @@ export class CaseService {
           ? { rawBefore: existing.rawValue }
           : {}),
         ...(rawString !== undefined ? { rawAfter: rawString } : {}),
-      };
-      await this.store.appendAuditEvent(auditEvent);
-    }
-
-    // Update case updatedAt
-    const caseRecord = await this.store.getCase(caseId);
-    if (caseRecord) {
-      await this.store.updateCase({
-        ...caseRecord,
-        updatedAt: now,
       });
     }
+
+    // Commit the whole batch atomically.
+    const caseRecord = await this.store.getCase(caseId);
+    if (!caseRecord) {
+      throw new Error(`Case not found: ${caseId}`);
+    }
+    await this.store.saveBatch(caseId, {
+      facts: savedFacts,
+      events,
+      updatedCase: { ...caseRecord, updatedAt: now },
+    });
 
     return savedFacts;
   }

@@ -29,7 +29,7 @@ export interface CaseStore {
   /** Update an existing case (e.g., updatedAt timestamp). */
   updateCase(record: CaseRecord): Promise<CaseRecord>;
 
-  /** Get all plan facts for a case, ordered by reviewedAt ascending. */
+  /** Get all plan facts for a case, ordered by per-case sequence ascending. */
   getPlanFacts(caseId: string): Promise<PlanFact[]>;
 
   /** Get the latest plan fact for a specific field in a case. */
@@ -45,6 +45,23 @@ export interface CaseStore {
   /** Append an audit event. Events are append-only. */
   appendAuditEvent(event: AuditEvent): Promise<AuditEvent>;
 
-  /** Get all audit events for a case, ordered by timestamp ascending. */
+  /**
+   * Atomically persist a batch of plan facts and audit events and an updated
+   * case record in a single transaction. All-or-nothing: if any write fails,
+   * nothing is persisted (per spec 001 edge case "atomic writes"). The adapter
+   * stamps each fact and each event with a per-case monotonic sequence (facts
+   * and events use independent counters, each strict and total within its own
+   * record type). The updatedCase is written with the batch.
+   */
+  saveBatch(
+    caseId: string,
+    batch: {
+      facts: PlanFact[];
+      events: AuditEvent[];
+      updatedCase: CaseRecord;
+    },
+  ): Promise<void>;
+
+  /** Get all audit events for a case, ordered by per-case sequence ascending. */
   getAuditEvents(caseId: string): Promise<AuditEvent[]>;
 }

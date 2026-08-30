@@ -233,6 +233,115 @@ export function runCaseStoreContractTests(
       expect(latest?.factId).toBe("seq-2");
     });
 
+    it("persists a batch atomically and stamps fact and event sequences", async () => {
+      const caseRecord: CaseRecord = {
+        caseId: "batch-case",
+        alias: "CW-0100",
+        status: "active",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      };
+      await store.createCase(caseRecord);
+
+      const factBase: PlanFact = {
+        factId: "id",
+        caseId: "batch-case",
+        fieldId: "case",
+        value: "v",
+        status: "reviewed",
+        source: {
+          workbook: "test.xlsm",
+          workbookSha256: "test",
+          sheet: "data_dictionary_complete",
+          row: 3,
+          range: "A3:G3",
+        },
+        catalogVersion: "0.1.0",
+        reviewedAt: "2026-01-01T00:00:00.000Z",
+      };
+      const eventBase: AuditEvent = {
+        eventId: "event-id",
+        caseId: "batch-case",
+        eventType: "plan-fact-saved",
+        actor: "local-user",
+        component: "test",
+        at: "2026-01-01T00:00:00.000Z",
+        refs: {},
+      };
+
+      await store.saveBatch("batch-case", {
+        facts: [
+          { ...factBase, factId: "batch-f-1", fieldId: "case", value: "00000001" },
+          { ...factBase, factId: "batch-f-2", fieldId: "cust-plan-nm", value: "Plan" },
+        ],
+        events: [
+          { ...eventBase, eventId: "batch-e-1" },
+          { ...eventBase, eventId: "batch-e-2" },
+        ],
+        updatedCase: { ...caseRecord, updatedAt: "2026-02-01T00:00:00.000Z" },
+      });
+
+      const facts = await store.getPlanFacts("batch-case");
+      expect(facts).toHaveLength(2);
+      // Both facts share a reviewedAt but must get distinct, ordered sequences.
+      expect(facts[1]!.sequence!).toBeGreaterThan(facts[0]!.sequence!);
+
+      const events = await store.getAuditEvents("batch-case");
+      expect(events).toHaveLength(2);
+      // Events share an `at` timestamp but must be deterministically ordered.
+      expect(events[1]!.sequence!).toBeGreaterThan(events[0]!.sequence!);
+      expect(events[0]!.eventId).toBe("batch-e-1");
+      expect(events[1]!.eventId).toBe("batch-e-2");
+
+      const updated = await store.getCase("batch-case");
+      expect(updated?.updatedAt).toBe("2026-02-01T00:00:00.000Z");
+    });
+
+    it("leaves no partial state when a batch targets a missing case", async () => {
+      // saveBatch must fail closed without writing any facts or events.
+      const factBase: PlanFact = {
+        factId: "f-missing",
+        caseId: "does-not-exist",
+        fieldId: "case",
+        value: "v",
+        status: "reviewed",
+        source: {
+          workbook: "test.xlsm",
+          workbookSha256: "test",
+          sheet: "data_dictionary_complete",
+          row: 3,
+          range: "A3:G3",
+        },
+        catalogVersion: "0.1.0",
+        reviewedAt: "2026-01-01T00:00:00.000Z",
+      };
+      const eventBase: AuditEvent = {
+        eventId: "e-missing",
+        caseId: "does-not-exist",
+        eventType: "plan-fact-saved",
+        actor: "local-user",
+        component: "test",
+        at: "2026-01-01T00:00:00.000Z",
+        refs: {},
+      };
+      await expect(
+        store.saveBatch("does-not-exist", {
+          facts: [factBase],
+          events: [eventBase],
+          updatedCase: {
+            caseId: "does-not-exist",
+            alias: "CW-0001",
+            status: "active",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        }),
+      ).rejects.toThrow(/not found/i);
+
+      expect(await store.getPlanFacts("does-not-exist")).toEqual([]);
+      expect(await store.getAuditEvents("does-not-exist")).toEqual([]);
+    });
+
     it("returns null for non-existent case", async () => {
       const fetched = await store.getCase("nonexistent");
       expect(fetched).toBeNull();

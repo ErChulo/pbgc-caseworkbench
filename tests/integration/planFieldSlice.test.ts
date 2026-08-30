@@ -6,7 +6,87 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { CaseService } from "../../src/app/CaseService";
 import { InMemoryCaseStore } from "../../src/adapters/storage/InMemoryCaseStore";
-import type { DerivedCatalog } from "../../src/domain/case/types";
+import type { CaseStore } from "../../src/domain/ports/CaseStore";
+import type {
+  AuditEvent,
+  CaseRecord,
+  DerivedCatalog,
+  PlanFact,
+} from "../../src/domain/case/types";
+
+/**
+ * Test double: wraps a CaseStore and counts calls to the write methods so an
+ * integration test can assert that savePlanFields uses ONE atomic saveBatch and
+ * never falls back to per-record writes.
+ */
+class SpyStore implements CaseStore {
+  saveBatchCalls = 0;
+  savePlanFactCalls = 0;
+  updateCaseCalls = 0;
+  private appendAuditComponents: string[] = [];
+
+  constructor(private readonly inner: CaseStore) {}
+
+  listCases(): Promise<CaseRecord[]> {
+    return this.inner.listCases();
+  }
+  getCase(caseId: string): Promise<CaseRecord | null> {
+    return this.inner.getCase(caseId);
+  }
+  createCase(record: CaseRecord): Promise<CaseRecord> {
+    return this.inner.createCase(record);
+  }
+  updateCase(record: CaseRecord): Promise<CaseRecord> {
+    this.updateCaseCalls += 1;
+    return this.inner.updateCase(record);
+  }
+  getPlanFacts(caseId: string): Promise<PlanFact[]> {
+    return this.inner.getPlanFacts(caseId);
+  }
+  getLatestPlanFact(caseId: string, fieldId: string): Promise<PlanFact | null> {
+    return this.inner.getLatestPlanFact(caseId, fieldId);
+  }
+  savePlanFact(fact: PlanFact): Promise<PlanFact> {
+    this.savePlanFactCalls += 1;
+    return this.inner.savePlanFact(fact);
+  }
+  appendAuditEvent(event: AuditEvent): Promise<AuditEvent> {
+    this.appendAuditComponents.push(event.component);
+    return this.inner.appendAuditEvent(event);
+  }
+  saveBatch(
+    caseId: string,
+    batch: { facts: PlanFact[]; events: AuditEvent[]; updatedCase: CaseRecord },
+  ): Promise<void> {
+    this.saveBatchCalls += 1;
+    return this.inner.saveBatch(caseId, batch);
+  }
+  getAuditEvents(caseId: string): Promise<AuditEvent[]> {
+    return this.inner.getAuditEvents(caseId);
+  }
+
+  appendAuditEventCallsOf(component: string): number {
+    return this.appendAuditComponents.filter((c) => c === component).length;
+  }
+}
+
+/**
+ * Test double: delegates to a CaseStore but fails the atomic saveBatch, so an
+ * integration test can assert fail-closed behavior (nothing persisted).
+ */
+class FailingBatchStore extends SpyStore {
+  override saveBatch(
+    _caseId: string,
+    _batch: {
+      facts: PlanFact[];
+      events: AuditEvent[];
+      updatedCase: CaseRecord;
+    },
+  ): Promise<void> {
+    return Promise.reject(new Error("storage failed"));
+  }
+}
+
 
 const testCatalog: DerivedCatalog = {
   version: "0.1.0",
@@ -194,6 +274,108 @@ describe("Plan-field vertical slice integration", () => {
       "cust-plan-nm",
     );
     expect(latestFromStore?.value).toBe("Version 3");
+  });
+
+  it("commits a whole save batch atomically with facts, audit events, and updatedAt", async () => {
+    const record = await service.createCase();
+
+    await service.savePlanFields(record.caseId, {
+      case: "00000001",
+      "cust-case-nmbr": "1001",
+      "cust-dopt": "2026-01-31",
+      "cust-plan-nm": "Atomic Synthetic Plan",
+    });
+
+    const facts = await store.getPlanFacts(record.caseId);
+    expect(facts).toHaveLength(4); // all four fields written together
+
+    const events = await store.getAuditEvents(record.caseId);
+    // 1 case-created + 4 plan-fact-saved
+    expect(events.filter((e) => e.eventType === "plan-fact-saved")).toHaveLength(4);
+    expect(events).toHaveLength(5);
+  });
+
+  it("delegates a whole save to one atomic saveBatch, not per-record writes", async () => {
+    // lock down the atomicity change: savePlanFields must issue a single
+    // saveBatch (all-or-nothing) and MUST NOT fall back to per-record writes.
+    const record = await service.createCase();
+    const spy = new SpyStore(store);
+    const spiedService = new CaseService(spy, testCatalog);
+
+    await spiedService.savePlanFields(record.caseId, {
+      case: "00000001",
+      "cust-case-nmbr": "1001",
+      "cust-dopt": "2026-01-31",
+      "cust-plan-nm": "Spied Plan",
+    });
+
+    expect(spy.saveBatchCalls).toBe(1);
+    expect(spy.savePlanFactCalls).toBe(0);
+    expect(spy.appendAuditEventCallsOf("savePlanFields")).toBe(0);
+    expect(spy.updateCaseCalls).toBe(0);
+
+    // And the atomic batch produced a consistent, complete result.
+    expect((await store.getPlanFacts(record.caseId)).length).toBe(4);
+  });
+
+  it("leaves no partial state when the batch write fails", async () => {
+    // Fail-closed: if the single atomic batch is rejected (e.g. a storage
+    // error), NO facts or audit events are persisted.
+    const record = await service.createCase();
+    const failing = new FailingBatchStore(store);
+    const spiedService = new CaseService(failing, testCatalog);
+
+    await expect(
+      spiedService.savePlanFields(record.caseId, {
+        case: "00000001",
+        "cust-case-nmbr": "1001",
+        "cust-dopt": "2026-01-31",
+        "cust-plan-nm": "Should Not Persist",
+      }),
+    ).rejects.toThrow(/storage failed/);
+
+    expect(await store.getPlanFacts(record.caseId)).toEqual([]);
+    const events = await store.getAuditEvents(record.caseId);
+    // Only the case-created event remains; none of the batch events were written.
+    expect(events.filter((e) => e.eventType === "plan-fact-saved")).toHaveLength(0);
+  });
+
+  it("orders audit events deterministically across same-millisecond saves", async () => {
+    // Two saves within the same millisecond share an `at` timestamp. The audit
+    // log must still be deterministic (a strict total order via sequence), so
+    // supersession events sort after the original save events.
+    const record = await service.createCase();
+    await service.savePlanFields(record.caseId, {
+      case: "00000001",
+      "cust-case-nmbr": "1001",
+      "cust-dopt": "2026-01-31",
+      "cust-plan-nm": "Plan One",
+    });
+    await service.savePlanFields(record.caseId, {
+      case: "00000001",
+      "cust-case-nmbr": "1001",
+      "cust-dopt": "2026-01-31",
+      "cust-plan-nm": "Plan Two",
+    });
+
+    const events = await service.getAuditEvents(record.caseId);
+    // Events are strictly ordered by sequence.
+    for (let i = 1; i < events.length; i++) {
+      expect(events[i]!.sequence!).toBeGreaterThan(events[i - 1]!.sequence!);
+    }
+    // Plan-name events for both saves, in deterministic order. The first save
+    // records "Plan One" (saved); the second records "Plan Two" (superseded).
+    const planEvents = events.filter(
+      (e) =>
+        (e.eventType === "plan-fact-saved" ||
+          e.eventType === "plan-fact-superseded") &&
+        e.refs.fieldId === "cust-plan-nm",
+    );
+    expect(planEvents).toHaveLength(2);
+    expect(planEvents[0]?.after).toBe("Plan One");
+    expect(planEvents[0]?.eventType).toBe("plan-fact-saved");
+    expect(planEvents[1]?.after).toBe("Plan Two");
+    expect(planEvents[1]?.eventType).toBe("plan-fact-superseded");
   });
 
   it("rejects invalid values", async () => {
