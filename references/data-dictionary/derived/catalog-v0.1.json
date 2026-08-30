@@ -1,0 +1,109 @@
+{
+  "version": "0.1.0",
+  "generatedAt": "2026-08-30T04:32:37.426Z",
+  "workbookSha256": "d7b7c63a432ecc0e7e9e1371a65effeae552b13d8a53a952752bd206ee79bc96",
+  "fieldCount": 4,
+  "fields": [
+    {
+      "fieldId": "case",
+      "label": "Case Identification Number",
+      "source": {
+        "workbook": "data_dictionary_complete.xlsm",
+        "workbookSha256": "d7b7c63a432ecc0e7e9e1371a65effeae552b13d8a53a952752bd206ee79bc96",
+        "sheet": "data_dictionary_complete",
+        "row": 3,
+        "range": "A3:G3"
+      },
+      "dictionary": {
+        "tableName": "ALL",
+        "fieldName": "CASE",
+        "description": "Case Identification Number (include leading zeros)",
+        "dataType": "VARCHAR2",
+        "fieldSize": "8",
+        "categories": [
+          "Data Validation (M)",
+          "Valuation Load (M)",
+          "Input"
+        ]
+      },
+      "canonical": {
+        "type": "string",
+        "required": true,
+        "privacyClass": "synthetic-only",
+        "charClass": "alphanumeric"
+      }
+    },
+    {
+      "fieldId": "cust-case-nmbr",
+      "label": "Case Number of Customer Plan",
+      "source": {
+        "workbook": "data_dictionary_complete.xlsm",
+        "workbookSha256": "d7b7c63a432ecc0e7e9e1371a65effeae552b13d8a53a952752bd206ee79bc96",
+        "sheet": "data_dictionary_complete",
+        "row": 616,
+        "range": "A616:G616"
+      },
+      "dictionary": {
+        "tableName": "BCV3",
+        "fieldName": "CUST_CASE_NMBR",
+        "description": "Case Number of Customer Plan",
+        "dataType": "NUMBER",
+        "fieldSize": "N/A",
+        "categories": []
+      },
+      "canonical": {
+        "type": "number",
+        "required": true,
+        "privacyClass": "synthetic-only"
+      }
+    },
+    {
+      "fieldId": "cust-dopt",
+      "label": "Date of Plan Termination for Customer Plan",
+      "source": {
+        "workbook": "data_dictionary_complete.xlsm",
+        "workbookSha256": "d7b7c63a432ecc0e7e9e1371a65effeae552b13d8a53a952752bd206ee79bc96",
+        "sheet": "data_dictionary_complete",
+        "row": 618,
+        "range": "A618:G618"
+      },
+      "dictionary": {
+        "tableName": "BCV3",
+        "fieldName": "CUST_DOPT",
+        "description": "Date of Plan Termination for Customer Plan",
+        "dataType": "DATE",
+        "fieldSize": "N/A",
+        "categories": []
+      },
+      "canonical": {
+        "type": "date",
+        "required": true,
+        "privacyClass": "synthetic-only"
+      }
+    },
+    {
+      "fieldId": "cust-plan-nm",
+      "label": "Plan Name of Customer Plan",
+      "source": {
+        "workbook": "data_dictionary_complete.xlsm",
+        "workbookSha256": "d7b7c63a432ecc0e7e9e1371a65effeae552b13d8a53a952752bd206ee79bc96",
+        "sheet": "data_dictionary_complete",
+        "row": 621,
+        "range": "A621:G621"
+      },
+      "dictionary": {
+        "tableName": "BCV3",
+        "fieldName": "CUST_PLAN_NM",
+        "description": "Plan Name of Customer Plan",
+        "dataType": "VARCHAR2",
+        "fieldSize": "4000",
+        "categories": []
+      },
+      "canonical": {
+        "type": "string",
+        "required": true,
+        "privacyClass": "synthetic-only"
+      }
+    }
+  ]
+}
