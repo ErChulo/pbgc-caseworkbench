@@ -1,4 +1,4 @@
-# PBGC Case Workbench — OpenCode Starter
+# PBGC Case Workbench — OpenCode Starter [DELETE REPO LATER]
 
 A local-first, single-user workbench for PBGC actuarial casework. The browser is the application boundary: case evidence, extracted data, calculations, and work products stay on the workstation unless the user deliberately exports them.
 
