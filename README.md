@@ -114,10 +114,11 @@ Domain code has no React, storage, or parser imports. Adapters implement ports
 never compute policy. The audit log is append-only with a per-case monotonic sequence,
 so corrections supersede rather than erase.
 
-Bundles use schema `1.0.0`: case record, plan facts, full audit trail, and original
-evidence bytes in base64, with a SHA-256 manifest entry per part. A restore always
-creates a new case and a new alias, so importing a backup can never overwrite the case
-being reviewed.
+Bundles use schema `1.0.0`: case record, plan facts, evidence links, the full audit
+trail, and the original evidence bytes in base64, with a SHA-256 manifest entry per part.
+A restore re-identifies every artifact, link, fact, and audit reference so the evidence
+chain stays intact, and always creates a new case and alias — importing a backup can
+never overwrite the case being reviewed.
 
 ## Privacy boundary
 

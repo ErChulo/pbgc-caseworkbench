@@ -362,6 +362,7 @@ export function useWorkbench(): {
       const bundle = await buildCaseBundle({
         caseRecord: current.activeCase,
         planFacts: allFacts,
+        evidenceLinks: current.links,
         auditEvents: current.auditEvents,
         artifacts: withBytes,
       });
