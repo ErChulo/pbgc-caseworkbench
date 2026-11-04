@@ -33,7 +33,7 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Case workbench" })).toBeVisible();
   await expect(page.getByRole("img", { name: "PBGC" })).toBeVisible();
   await expect(page.getByText("Create or open a case to begin")).toBeVisible();
-  await expect(page.getByRole("button", { name: /Population/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Population/ })).toBeEnabled();
 
   await page.getByRole("button", { name: "Create new case" }).click();
   await expect(page.getByRole("heading", { name: "Plan-level fields" })).toBeVisible();
@@ -97,6 +97,27 @@ test("completes the plan-field slice end to end", async ({ page }) => {
       buffer: Buffer.from("Synthetic plan summary for the office test.\n"),
     });
   await expect(page.getByText(/already imported \(identical SHA-256\)/)).toBeVisible();
+
+  // Population: import participant records, see the age, keep benefits blocked.
+  await openStage(page, /Population/);
+  await page.getByLabel("Choose participant CSV to import").setInputFiles({
+    name: "synthetic-participants.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "participant_key,record_type,status,date_of_birth,date_of_hire,date_of_termination,date_of_death\n" +
+        "P-0001,participant,retired,1950-01-15,1975-01-15,2010-12-31,\n" +
+        "P-0002,participant,separated-vested,1960-01-15,1985-01-15,,\n",
+    ),
+  });
+  await expect(page.getByText(/Imported 2 participant records/)).toBeVisible();
+  await expect(page.locator(".data-table tbody tr")).toHaveCount(2);
+  await expect(page.locator(".data-table tbody tr").first()).toContainText("74");
+  await expect(page.locator(".data-table tbody tr").nth(1)).toContainText("64");
+  await expect(page.getByText("Blocked").first()).toBeVisible();
+  const registerDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download participant register" }).click();
+  expect((await registerDownload).suggestedFilename()).toMatch(/participant-register\.html$/);
+  await shot(page, "population");
 
   // Rules: the blocked provisions are visible and labelled.
   await openStage(page, /Rules & assumptions/);

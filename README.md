@@ -19,8 +19,8 @@ to produce one and says why.
 | Evidence intake (hash, duplicate detection, linking) | Working |
 | Calendar age and calendar interval identities | Working, 138 tests |
 | PBGC provisions (earliest retirement, §4022(c), aggregate limit, §4044 tiers) | Listed and **blocked** |
-| Population stage | Disabled, schema not authorized |
-| Work products | 9 contracts registered; review copy and R5 template coverage producible; R5 notice/V1/DEL/PF/BSRS/§436/memo blocked with reasons; reviewer decisions recordable per cell |
+| Population stage | Working: CSV import, per-record provenance, calendar age; benefit amounts **blocked** |
+| Work products | 9 contracts registered; review copy, R5 template coverage, and participant register producible; R5 notice/V1/DEL/PF/BSRS/§436/memo blocked with reasons; reviewer decisions recordable per cell |
 | Field dictionary | 1,172 records across 12 tables |
 | Bundle export / restore | Working, hashed manifest, restores as a new case |
 
@@ -52,16 +52,21 @@ fallback to unbranded text when the machine is offline.
    each value carries its Data Dictionary row, workbook hash, review status, and the
    catalog version that produced it. `Browse field dictionary` opens the full 1,172-record
    index with search and table/classification filters.
-4. **Rules & assumptions** — every rule the workbench may run, with its citation, and
+4. **Population** — import a participant CSV (one row per person, synthetic or
+   pseudonymous keys only). The file is stored as evidence first, every record keeps its
+   artifact hash and row number, and an invalid row rejects the whole file. Ages at the
+   DOPT are computed; every benefit amount is shown as blocked by the unresolved rules.
+   Download the participant register from here.
+5. **Rules & assumptions** — every rule the workbench may run, with its citation, and
    every provision that is blocked with the reason.
-5. **Calculations** — age at a date. The run records inputs, units, rule, intermediates,
+6. **Calculations** — age at a date. The run records inputs, units, rule, intermediates,
    engine version, and warnings, and appends an audit event. Values without evidence
    are labelled reviewer-entered.
-6. **Reconciliation** — required fields reviewed, evidence linked, facts with
+7. **Reconciliation** — required fields reviewed, evidence linked, facts with
    provenance, blocked provisions, control totals.
-7. **Work products** — generate the plan summary review copy (HTML) with its own
+8. **Work products** — generate the plan summary review copy (HTML) with its own
    SHA-256, and see which work products remain blocked.
-8. **Review & export** — the append-only audit trail, bundle export, and bundle restore.
+9. **Review & export** — the append-only audit trail, bundle export, and bundle restore.
 
 Reloading the page reopens the last case without writing audit events. Closing a case
 returns to the case list and deletes nothing.
@@ -71,8 +76,10 @@ returns to the case list and deletes nothing.
 Fail-closed is a feature here, not a gap. Each item below is visible in the product
 with its blocking reason:
 
-- **Population** — the participant schema and its source field mapping are not
-  authorized, so the stage is disabled rather than half-built.
+- **Participant benefit amounts** — the population can be imported and aged, but
+  earliest retirement, the aggregate limit, and the §4044 tiers have no recorded
+  citation, so no benefit, guarantee, or priority-category figure is computed. The
+  register says so on every row.
 - **`pbgc:earliest-retirement-date`** — no citation or effective-date analysis recorded.
 - **`pbgc:4022c-amounts`** — §4022(c) methodology and recovery-ratio periods not transcribed.
 - **`pbgc:aggregate-limit`** — guarantee-table version and phase-in rules not recorded.
@@ -113,7 +120,7 @@ template, and branding material; its real case files are never committed here.
 src/
   domain/        pure rules, types, validation, calendar arithmetic, calculations
   app/           services (case, evidence, calculation, bundle), container, stages
-  adapters/      IndexedDB stores, SHA-256, shared database schema (v2)
+  adapters/      IndexedDB stores, SHA-256, shared database schema (v4)
   features/      one folder per stage, plus the workbench state hook
   ui/            shared primitives and the visual system
 ```
@@ -124,10 +131,11 @@ never compute policy. The audit log is append-only with a per-case monotonic seq
 so corrections supersede rather than erase.
 
 Bundles use schema `1.0.0`: case record, plan facts, evidence links, the full audit
-trail, and the original evidence bytes in base64, with a SHA-256 manifest entry per part.
-A restore re-identifies every artifact, link, fact, and audit reference so the evidence
-chain stays intact, and always creates a new case and alias — importing a backup can
-never overwrite the case being reviewed.
+trail, reviewer decisions, participant records, and the original evidence bytes in
+base64, with a SHA-256 manifest entry per part. A restore re-identifies every artifact,
+link, fact, decision, participant record, and audit reference so the evidence chain
+stays intact, and always creates a new case and alias — importing a backup can never
+overwrite the case being reviewed.
 
 ## Privacy boundary
 
@@ -195,8 +203,10 @@ is finished.
 
 - `tests/unit` — calendar arithmetic, age and interval identities, validation, rule and
   predicate registry integrity, work-product contract/readiness/snapshot identity,
-  R5 manifest transcription and coverage, derived catalog integrity.
-- `tests/contract` — `CaseStore` behavior across the in-memory and IndexedDB adapters.
+  R5 manifest transcription and coverage, reviewer decisions, participant CSV parsing
+  and determination, derived catalog integrity.
+- `tests/contract` — `CaseStore` and `PopulationStore` behavior across the in-memory and
+  IndexedDB adapters.
 - `tests/integration` — the plan-field slice end to end, and bundle round trip.
 - `tests/e2e` — Playwright in real Chromium against the production build: create, validate,
   save, reload, import and link evidence, refuse a duplicate by hash, run a calculation,
@@ -229,7 +239,9 @@ artifacts; the audit log is append-only.
 
 ## Known limits
 
-- One plan per case; no participant-level records yet.
+- One plan per case. Participant records can be imported from a CSV in the
+  workbench's documented interchange format; the BCV column layout mapping is not
+  transcribed, and census reconciliation is not implemented.
 - No PDF, spreadsheet, or OCR extraction — intake and interpretation are separate steps
   by design, and no parser decision has been recorded.
 - Single browser profile: no multi-user access, no server-side share, no sync.

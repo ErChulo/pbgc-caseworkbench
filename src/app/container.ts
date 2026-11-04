@@ -8,13 +8,16 @@
 
 import { IndexedDBCaseStore } from "../adapters/storage/IndexedDBCaseStore";
 import { IndexedDBEvidenceStore } from "../adapters/storage/IndexedDBEvidenceStore";
+import { IndexedDBPopulationStore } from "../adapters/storage/IndexedDBPopulationStore";
 import { CalculationService } from "./CalculationService";
 import { CaseService } from "./CaseService";
 import { EvidenceService } from "./EvidenceService";
+import { PopulationService } from "./PopulationService";
 import { catalog } from "./catalog";
 
 const caseStore = new IndexedDBCaseStore();
 const artifactStore = new IndexedDBEvidenceStore();
+const populationStore = new IndexedDBPopulationStore();
 
 export const services = {
   caseStore,
@@ -22,6 +25,8 @@ export const services = {
   caseService: new CaseService(caseStore, catalog),
   evidenceService: new EvidenceService(artifactStore, caseStore),
   calculationService: new CalculationService(caseStore),
+  populationStore,
+  populationService: new PopulationService(populationStore, caseStore),
 } as const;
 
 export type Services = typeof services;

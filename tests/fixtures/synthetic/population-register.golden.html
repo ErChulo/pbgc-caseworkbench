@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Participant population register — CW-0001</title>
+<style>
+  body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 40px; color: #111; max-width: 1100px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 28px 0 8px; }
+  p, td, th, li { font-size: 13px; line-height: 1.5; }
+  .meta { color: #555; margin: 0; }
+  .mono { font-family: ui-monospace, monospace; font-size: 11px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f3f3f3; font-weight: 600; }
+  .blocked { color: #8a1f1f; }
+  .warn { color: #7a4b00; border-left: 3px solid #c28a00; padding-left: 10px; }
+  .footer { margin-top: 32px; border-top: 1px solid #ccc; padding-top: 10px; color: #555; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Participant population register</h1>
+<p class="meta">Case CW-0001 · case id <span class="mono">case-synthetic-0001</span></p>
+<p class="meta">Generated 2026-11-04T12:00:00.000Z · valuation date 2024-06-30 · 2 records</p>
+<p class="meta">Snapshot <span class="mono">snapshot-synthetic-0001</span> · SHA-256 <span class="mono">bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</span></p>
+<p class="warn"><strong>No benefit amount is determined by this register.</strong> Age is the implemented calendar identity. Every benefit, guarantee, and priority-category result remains blocked by the unresolved rules listed below.</p>
+<h2>Participants</h2>
+<table>
+<thead><tr><th scope="col">Key</th><th scope="col">Record type</th><th scope="col">Status</th><th scope="col">Date of birth</th><th scope="col">Date of hire</th><th scope="col">Date of termination</th><th scope="col">Age at valuation date</th><th scope="col">Benefit determination</th><th scope="col">Source</th></tr></thead>
+<tbody>
+<tr>
+  <th scope="row">P-0001</th>
+  <td>participant</td>
+  <td>retired</td>
+  <td>1950-01-15</td>
+  <td>1975-01-15</td>
+  <td>2010-12-31</td>
+  <td>74</td>
+  <td>Benefit blocked</td>
+  <td class="mono">artifact · row 2</td>
+</tr>
+<tr>
+  <th scope="row">P-0002</th>
+  <td>participant</td>
+  <td>separated-vested</td>
+  <td>1960-01-15</td>
+  <td>1985-01-15</td>
+  <td>—</td>
+  <td>64</td>
+  <td>Benefit blocked</td>
+  <td class="mono">artifact · row 3</td>
+</tr>
+</tbody>
+</table>
+<h2>Blocking rules</h2>
+<ul>
+<li><strong>pbgc:earliest-retirement-date</strong> — No citation or effective-date analysis recorded. Implementing this from memory would invent a PBGC rule.</li>
+<li><strong>pbgc:aggregate-limit</strong> — Guarantee table version and phase-in rules not recorded; the workbook mapping has not been reviewed.</li>
+<li><strong>pbgc:benefit-tiers-priority-categories</strong> — Allocation ordering and category tests not transcribed or reviewed.</li>
+</ul>
+<h2>Import statement</h2>
+<p>Records were imported from a CSV file retained unchanged as evidence; each row carries the artifact hash and its row number. The importer rejects the whole file when any row fails validation, so this register is either a complete accepted import or the previous population.</p>
+<p>This register does not certify that the population is complete against the plan's own census. That reconciliation is not implemented.</p>
+<p class="footer">Derived artifact. The canonical record is the structured, versioned case data plus its append-only audit trail.</p>
+</body>
+</html>

@@ -50,10 +50,10 @@ export const STAGES: readonly StageDefinition[] = [
   {
     id: "population",
     label: "Population",
-    purpose: "Participant-level records and data-quality exceptions.",
-    implemented: false,
-    blockedBy:
-      "The participant schema and the source field mapping are not yet authorized. Import plan-level evidence and capture plan fields first.",
+    purpose:
+      "Import participant records with source provenance and see which determinations remain blocked by unresolved rules.",
+    implemented: true,
+    blockedBy: null,
   },
   {
     id: "rules",

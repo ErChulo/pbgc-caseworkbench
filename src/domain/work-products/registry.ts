@@ -35,6 +35,7 @@ const PLAN_FIELDS: WorkProductSpec["dependencies"] = [
 export const REVIEW_COPY_SPEC_ID = "wp.plan-summary-review-copy";
 export const R5_COVERAGE_SPEC_ID = "wp.r5-plan-summary-coverage";
 export const R5_NOTICE_SPEC_ID = "wp.r5-plan-summary";
+export const POPULATION_REGISTER_SPEC_ID = "wp.population-register";
 
 export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
   {
@@ -142,6 +143,39 @@ export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
     },
   },
   {
+    specId: POPULATION_REGISTER_SPEC_ID,
+    version: "1.0.0",
+    title: "Participant population register",
+    family: "V1",
+    purpose:
+      "List every imported participant record with its source row, its population status, and its calendar age at the valuation date, and state which PBGC rules still block a benefit determination.",
+    whyNeeded:
+      "V1 cannot begin until the population is loaded, counted, and checked. The register is the reviewer's proof of what was imported and what remains undetermined.",
+    usedWhen:
+      "After the population file is imported and the plan termination date is reviewed; before any valuation run.",
+    determination:
+      "Rendered from the imported participant records and the case's reviewed DOPT. Age is the implemented calendar identity; every benefit amount is shown as blocked because the earliest-retirement, aggregate-limit, and priority-category rules are unresolved.",
+    status: "implemented",
+    blockingReason: null,
+    dependencies: [
+      { kind: "fact", fieldId: "cust-dopt", required: true },
+      { kind: "fact", fieldId: "cust-plan-nm", required: true },
+    ],
+    predicates: ["pred.required-plan-fields", "pred.population-records-present"],
+    template: null,
+    outputFormats: ["html"],
+    rendererVersion: "0.1.0",
+    authority: {
+      citations: [
+        "Data Dictionary Complete workbook, SHA-256 d7b7c63a432ecc0e7e9e1371a65effeae552b13d8a53a952752bd206ee79bc96 (BCV record type, participant status, and date fields)",
+        "Rule registry identity:calendar-completed-years (calendar age)",
+      ],
+      note:
+        "A register of imported records and calendar ages. It certifies no PBGC provision and produces no benefit amount, guarantee, or priority-category result.",
+      checkedOn: "2026-11-04",
+    },
+  },
+  {
     specId: "wp.v1-valuation-summary",
     version: "0.1.0",
     title: "V1 valuation summary",
@@ -156,7 +190,7 @@ export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
       "Deterministic calculation over the participant population using the authorized plan provisions, PBGC guarantee rules, assumption sets, and the calendar-date engine. Each participant result keeps its rule, assumption, and calculation-run identifiers.",
     status: "blocked",
     blockingReason:
-      "Two prerequisites are missing: no participant/population schema or import is authorized in this build, and the PBGC provisions needed for the summary (earliest retirement date, aggregate limit, §4044 tiers) have no recorded citations or effective dates.",
+      "The population schema and CSV import now exist (see the participant population register), but the PBGC provisions needed for a valuation (earliest retirement date, aggregate limit, §4044 tiers) still have no recorded citations or effective dates, and no benefit-amount or assumption model is authorized.",
     dependencies: [
       ...PLAN_FIELDS,
       { kind: "rule", ruleId: "pbgc:earliest-retirement-date", required: true },

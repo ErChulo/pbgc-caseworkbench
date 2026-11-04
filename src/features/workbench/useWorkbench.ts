@@ -30,6 +30,7 @@ import type {
   ReviewerDecision,
 } from "../../domain/case/types";
 import type { EvidenceLink, SourceArtifact } from "../../domain/evidence/types";
+import type { ParticipantRecord } from "../../domain/population/types";
 import { generateId, nowIso } from "../../domain/case/validation";
 import { isFileOrigin } from "../../app/environment";
 
@@ -45,6 +46,7 @@ export type WorkbenchState = {
   links: EvidenceLink[];
   auditEvents: AuditEvent[];
   decisions: ReviewerDecision[];
+  population: ParticipantRecord[];
   loading: boolean;
   error: string | null;
   notice: string | null;
@@ -59,6 +61,7 @@ export type WorkbenchActions = {
   closeCase: () => void;
   savePlanFields: (values: Record<string, unknown>) => Promise<void>;
   importFiles: (files: File[]) => Promise<void>;
+  importPopulation: (file: File) => Promise<void>;
   linkEvidence: (artifactId: string, fieldId: string) => Promise<void>;
   runAge: (dateOfBirth: string, asOfDate: string) => Promise<void>;
   exportBundle: () => Promise<void>;
@@ -87,6 +90,7 @@ const initialState: WorkbenchState = {
   links: [],
   auditEvents: [],
   decisions: [],
+  population: [],
   loading: true,
   error: null,
   notice: null,
@@ -127,18 +131,20 @@ export function useWorkbench(): {
         links: [],
         auditEvents: [],
         decisions: [],
+        population: [],
         lastRun: null,
         stage: "home",
       }));
       return;
     }
 
-    const [facts, artifacts, links, auditEvents, decisions] = await Promise.all([
+    const [facts, artifacts, links, auditEvents, decisions, population] = await Promise.all([
       services.caseService.getLatestPlanFacts(caseId),
       services.evidenceService.listArtifacts(caseId),
       services.evidenceService.listLinks(caseId),
       services.caseService.getAuditEvents(caseId),
       services.caseService.getDecisions(caseId),
+      services.populationService.list(caseId),
     ]);
 
     activeCaseIdRef.current = caseId;
@@ -156,6 +162,7 @@ export function useWorkbench(): {
       links,
       auditEvents,
       decisions,
+      population,
       saveStatus: "idle",
       stage: previous.stage === "home" ? "plan" : previous.stage,
     }));
@@ -345,6 +352,45 @@ export function useWorkbench(): {
     }
   }, []);
 
+  const importPopulation = useCallback(async (file: File) => {
+    const caseId = activeCaseIdRef.current;
+    if (!caseId) return;
+    setState((previous) => ({ ...previous, error: null, notice: null }));
+    try {
+      const bytes = await file.arrayBuffer();
+      // Import the file as evidence first so every participant record can cite
+      // an artifact hash and the CSV bytes are retained unchanged.
+      const evidence = await services.evidenceService.importFile(caseId, {
+        fileName: file.name,
+        mediaType: file.type || "text/csv",
+        bytes,
+      });
+      const outcome = await services.populationService.importCsv({
+        caseId,
+        artifactId: evidence.artifact.artifactId,
+        sha256: evidence.artifact.sha256,
+        text: new TextDecoder().decode(bytes),
+      });
+      const [population, artifacts, auditEvents] = await Promise.all([
+        services.populationService.list(caseId),
+        services.evidenceService.listArtifacts(caseId),
+        services.caseService.getAuditEvents(caseId),
+      ]);
+      setState((previous) => ({
+        ...previous,
+        population,
+        artifacts,
+        auditEvents,
+        error: null,
+        notice: `Imported ${outcome.imported} participant record${
+          outcome.imported === 1 ? "" : "s"
+        } from ${file.name}.`,
+      }));
+    } catch (error) {
+      setState((previous) => ({ ...previous, error: messageOf(error) }));
+    }
+  }, []);
+
   const runAge = useCallback(async (dateOfBirth: string, asOfDate: string) => {
     const caseId = activeCaseIdRef.current;
     if (!caseId) return;
@@ -394,6 +440,7 @@ export function useWorkbench(): {
         evidenceLinks: current.links,
         auditEvents: current.auditEvents,
         decisions: current.decisions,
+        population: current.population,
         artifacts: withBytes,
       });
       const fileName = `${current.activeCase.alias}-review-bundle-${nowIso().slice(0, 10)}.json`;
@@ -428,6 +475,7 @@ export function useWorkbench(): {
         const record = await applyCaseBundle(bundle, {
           cases: services.caseStore,
           artifacts: services.artifactStore,
+          population: services.populationStore,
         });
         const list = await services.caseService.listCases();
         setState((previous) => ({ ...previous, cases: list }));
@@ -526,6 +574,7 @@ export function useWorkbench(): {
       closeCase,
       savePlanFields,
       importFiles,
+      importPopulation,
       linkEvidence,
       runAge,
       exportBundle,

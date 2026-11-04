@@ -17,6 +17,8 @@ import type {
   ReviewerDecision,
 } from "../domain/case/types";
 import type { EvidenceLink, SourceArtifact } from "../domain/evidence/types";
+import type { PopulationStore } from "../domain/ports/PopulationStore";
+import type { ParticipantRecord } from "../domain/population/types";
 import { generateCaseAlias, generateId, nowIso } from "../domain/case/validation";
 import { sha256HexOfText } from "../adapters/hashing/sha256";
 
@@ -39,6 +41,8 @@ export type CaseBundle = {
   auditEvents: AuditEvent[];
   /** Reviewer decisions; absent in bundles exported before decision capture. */
   decisions?: ReviewerDecision[];
+  /** Participant population; absent in bundles exported before population import. */
+  population?: ParticipantRecord[];
   artifacts: { artifact: SourceArtifact; bytesBase64: string }[];
   manifest: BundleManifestEntry[];
 };
@@ -73,9 +77,12 @@ export async function buildCaseBundle(args: {
   auditEvents: AuditEvent[];
   /** Omitted by callers written before decision capture; treated as none. */
   decisions?: ReviewerDecision[];
+  /** Omitted by callers written before population import; treated as none. */
+  population?: ParticipantRecord[];
   artifacts: { artifact: SourceArtifact; bytes: ArrayBuffer }[];
 }): Promise<CaseBundle> {
   const decisions = args.decisions ?? [];
+  const population = args.population ?? [];
   const artifacts: CaseBundle["artifacts"] = args.artifacts.map((entry) => ({
     artifact: entry.artifact,
     bytesBase64: toBase64(entry.bytes),
@@ -91,6 +98,7 @@ export async function buildCaseBundle(args: {
     },
     { name: "auditEvents", payload: args.auditEvents, itemCount: args.auditEvents.length },
     { name: "decisions", payload: decisions, itemCount: decisions.length },
+    { name: "population", payload: population, itemCount: population.length },
     { name: "artifacts", payload: artifacts, itemCount: artifacts.length },
   ];
 
@@ -112,6 +120,7 @@ export async function buildCaseBundle(args: {
     evidenceLinks: args.evidenceLinks,
     auditEvents: args.auditEvents,
     decisions,
+    population,
     artifacts,
     manifest,
   };
@@ -160,7 +169,7 @@ export function parseCaseBundle(text: string): CaseBundle {
  */
 export async function applyCaseBundle(
   bundle: CaseBundle,
-  ports: { cases: CaseStore; artifacts: ArtifactStore },
+  ports: { cases: CaseStore; artifacts: ArtifactStore; population?: PopulationStore },
 ): Promise<CaseRecord> {
   const existing = await ports.cases.listCases();
   const now = nowIso();
@@ -221,6 +230,16 @@ export async function applyCaseBundle(
     };
   });
 
+  const population: ParticipantRecord[] = (bundle.population ?? []).map((record) => ({
+    ...record,
+    recordId: generateId(),
+    caseId: caseRecord.caseId,
+    source: {
+      ...record.source,
+      artifactId: artifactIdMap.get(record.source.artifactId) ?? record.source.artifactId,
+    },
+  }));
+
   const facts: PlanFact[] = bundle.planFacts.map((fact) => ({
     ...fact,
     factId: generateId(),
@@ -275,6 +294,15 @@ export async function applyCaseBundle(
 
   for (const decision of decisions) {
     await ports.cases.appendDecision(decision);
+  }
+
+  if (population.length > 0) {
+    if (!ports.population) {
+      throw new Error(
+        "This bundle contains participant records, but no population store was supplied for restore.",
+      );
+    }
+    await ports.population.appendPopulation(caseRecord.caseId, population);
   }
 
   for (const link of links) {

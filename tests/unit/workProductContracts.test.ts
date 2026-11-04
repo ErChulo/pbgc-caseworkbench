@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  POPULATION_REGISTER_SPEC_ID,
   R5_COVERAGE_SPEC_ID,
   REVIEW_COPY_SPEC_ID,
   WORK_PRODUCTS,
@@ -57,6 +58,7 @@ describe("work-product registry", () => {
     expect(implementedWorkProducts().map((spec) => spec.specId)).toEqual([
       REVIEW_COPY_SPEC_ID,
       R5_COVERAGE_SPEC_ID,
+      POPULATION_REGISTER_SPEC_ID,
     ]);
     for (const spec of implementedWorkProducts()) {
       expect(spec.authority.citations.length).toBeGreaterThan(0);

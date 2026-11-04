@@ -10,12 +10,21 @@ engine and predicates.
 | 1 | Plan summary review copy | review-copy | `wp.plan-summary-review-copy` | **Implemented** | — | Keep in step with the plan-field catalog |
 | 2 | R5 template coverage report | R5 | `wp.r5-plan-summary-coverage` | **Implemented** | — | Keep the manifest in step with the shell; extend as decisions become recordable |
 | 3 | R5 notice and plan summary | R5 | `wp.r5-plan-summary` | Blocked | 78 of 81 shell placeholders unresolved: 71 await recorded reviewer decisions (capture is implemented), 7 need unauthorized calculations or absent fields | Record the provisions in the coverage panel, then cite the header-rate and benefit rules |
-| 4 | V1 valuation summary | V1 | `wp.v1-valuation-summary` | Blocked | No participant/population schema; three PBGC provisions unresolved | Population spec (Phase 3), then V1 rules |
-| 5 | DEL determination letter | DEL | `wp.del-determination-letter` | Blocked | DEL field-inclusion rules and template mapping not transcribed; no valuation record | DEL extractor specification, then renderer |
-| 6 | PF plan financial work product | PF | `wp.pf-plan-financial` | Blocked | §4044 allocation rules unresolved; no asset field mapping | Allocation rule transcription; asset import |
-| 7 | BSRS configuration/reporting | BSRS | `wp.bsrs-configuration` | Blocked | Benefit-structure definitions and field mapping not recorded | Structure definitions from corpus; depends on V1 |
-| 8 | §436 evaluation | 436 | `wp.section-436-evaluation` | Blocked | §436 guidance not transcribed; funding figures absent | Transcribe the dated guidance and its thresholds |
-| 9 | Actuarial case memo | MEMO | `wp.case-memo` | Blocked | No approval workflow or reviewer decisions to narrate | Review workflow (Phase 2), then compose from the snapshot |
+| 4 | Participant population register | V1 | `wp.population-register` | **Implemented** | — | Keep the CSV contract in step with the BCV mapping once transcribed |
+| 5 | V1 valuation summary | V1 | `wp.v1-valuation-summary` | Blocked | Population import exists; three PBGC provisions and a benefit model unresolved | V1 rules and an authorized assumption set |
+| 6 | DEL determination letter | DEL | `wp.del-determination-letter` | Blocked | DEL field-inclusion rules and template mapping not transcribed; no valuation record | DEL extractor specification, then renderer |
+| 7 | PF plan financial work product | PF | `wp.pf-plan-financial` | Blocked | §4044 allocation rules unresolved; no asset field mapping | Allocation rule transcription; asset import |
+| 8 | BSRS configuration/reporting | BSRS | `wp.bsrs-configuration` | Blocked | Benefit-structure definitions and field mapping not recorded | Structure definitions from corpus; depends on V1 |
+| 9 | §436 evaluation | 436 | `wp.section-436-evaluation` | Blocked | §436 guidance not transcribed; funding figures absent | Transcribe the dated guidance and its thresholds |
+| 10 | Actuarial case memo | MEMO | `wp.case-memo` | Blocked | No approval workflow or reviewer decisions to narrate | Review workflow (Phase 2), then compose from the snapshot |
+
+## Participant population (implemented)
+
+`wp.population-register` is not a PBGC deliverable; it is the pre-valuation register that
+makes V1 possible. It is producible once a participant CSV is imported and the plan
+fields are reviewed. It reports each record's source artifact hash and row, the calendar
+age at the DOPT, and the unresolved rules that block every benefit amount. It does not
+certify that the population is complete against the plan's census.
 
 ## Lifecycle
 

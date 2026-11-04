@@ -86,6 +86,23 @@ export const PREDICATES: readonly PredicateRecord[] = [
     implementedBy: "src/domain/work-products/r5/coverage.ts",
     blockingReason: null,
   },
+  {
+    predicateId: "pred.population-records-present",
+    title: "Participant population is imported",
+    severity: "blocking",
+    summary:
+      "At least one normalized participant record is stored for the case, and every record carries its source artifact hash and row number. It checks presence and provenance only; it never certifies that the population is complete.",
+    status: "implemented",
+    authority: {
+      citation:
+        "Data Dictionary Complete workbook, SHA-256 d7b7c63a432ecc0e7e9e1371a65effeae552b13d8a53a952752bd206ee79bc96 (BCV participant record definitions)",
+      note:
+        "Presence and provenance of imported records. Completeness against the plan's own census is a reconciliation step that is not implemented.",
+      checkedOn: "2026-11-04",
+    },
+    implementedBy: "src/domain/work-products/readiness.ts",
+    blockingReason: null,
+  },
 ];
 
 export function getPredicate(predicateId: string): PredicateRecord | undefined {

@@ -9,6 +9,7 @@
 import { CaseHome } from "../features/case-home/CaseHome";
 import { EvidenceStage } from "../features/evidence/EvidenceStage";
 import { PlanSummary } from "../features/plan-summary/PlanSummary";
+import { PopulationStage } from "../features/population/PopulationStage";
 import { RulesStage } from "../features/rules/RulesStage";
 import { CalculationsStage } from "../features/calculations/CalculationsStage";
 import { ReconciliationStage } from "../features/reconciliation/ReconciliationStage";
@@ -72,6 +73,14 @@ export function App() {
             saveStatus={state.saveStatus}
             dictionaryIndex={dictionaryIndex}
             onSave={actions.savePlanFields}
+          />
+        );
+      case "population":
+        return (
+          <PopulationStage
+            state={state}
+            actions={actions}
+            onWorkProductCreated={actions.recordWorkProduct}
           />
         );
       case "rules":

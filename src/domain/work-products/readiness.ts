@@ -34,6 +34,8 @@ export type ReadinessContext = {
   implementedPredicateIds: ReadonlySet<string>;
   /** Template coverage by template id; absent coverage blocks, never passes. */
   templateCoverage?: Readonly<Record<string, R5CoverageSummary | undefined>>;
+  /** Imported participant population; absent means no records, not unknown. */
+  population?: { readonly recordCount: number };
 };
 
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -82,6 +84,23 @@ function checkTemplatePlaceholders(
   return {
     status: "fail",
     detail: `${coverage.unresolved} of ${coverage.total} placeholders are unresolved (missing ${coverage.missing}, pending reviewer decisions ${coverage.pending}, blocked ${coverage.blocked}).`,
+  };
+}
+
+function checkPopulationRecords(context: ReadinessContext): {
+  status: ReadinessStatus;
+  detail: string;
+} {
+  const count = context.population?.recordCount ?? 0;
+  if (count === 0) {
+    return {
+      status: "fail",
+      detail: "No participant records are imported for this case.",
+    };
+  }
+  return {
+    status: "pass",
+    detail: `${count} participant record${count === 1 ? " is" : "s are"} imported with source provenance.`,
   };
 }
 
@@ -164,6 +183,9 @@ export function checkWorkProductReadiness(
         break;
       case "pred.template-placeholders-resolved":
         result = checkTemplatePlaceholders(spec, context);
+        break;
+      case "pred.population-records-present":
+        result = checkPopulationRecords(context);
         break;
       default:
         result = {

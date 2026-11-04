@@ -95,6 +95,7 @@ export type AuditEventType =
   | "calculation-run"
   | "work-product-created"
   | "reviewer-decision-recorded"
+  | "population-imported"
   | "export-created"
   | "bundle-imported";
 

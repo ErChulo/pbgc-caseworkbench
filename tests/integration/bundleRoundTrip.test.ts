@@ -125,6 +125,7 @@ describe("case bundle round trip", () => {
       "decisions",
       "evidenceLinks",
       "planFacts",
+      "population",
     ]);
     expect(bundle.manifest.find((entry) => entry.part === "decisions")?.itemCount).toBe(0);
     for (const entry of bundle.manifest) {
