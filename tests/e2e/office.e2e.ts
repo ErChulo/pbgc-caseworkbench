@@ -186,7 +186,7 @@ test("runs a realistic plan offline with zero external requests", async ({ page,
 
   await openStage(page, /Work products/);
   await page.getByRole("button", { name: "Generate review copy" }).click();
-  await expect(page.getByText(/^[0-9a-f]{64}$/)).toBeVisible();
+  await expect(page.getByText(/^[0-9a-f]{64}$/).first()).toBeVisible();
   await shotOf(page, "office-work-product", "#work-product-generate");
 
   // Export: the bundle must be complete and restorable.

@@ -121,8 +121,8 @@ test("completes the plan-field slice end to end", async ({ page }) => {
 
   await openStage(page, /Work products/);
   await page.getByRole("button", { name: "Generate review copy" }).click();
-  await expect(page.getByText(/^[0-9a-f]{64}$/)).toBeVisible();
-  await expect(page.getByText(/plan-summary-review-copy\.html/)).toBeVisible();
+  await expect(page.getByText(/^[0-9a-f]{64}$/).first()).toBeVisible();
+  await expect(page.getByText(/plan-summary-review-copy\.html/).first()).toBeVisible();
 
   // Review: export downloads a bundle.
   await openStage(page, /Review & export/);

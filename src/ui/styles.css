@@ -1133,6 +1133,95 @@ button.secondary:hover:not(:disabled) {
 
 /* ------------------------------------------------------- work products ---- */
 
+.spec-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.spec-card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.spec-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.spec-head h3 {
+  margin: 2px 0 0;
+  font-size: 15px;
+}
+
+.spec-family {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.spec-questions {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.spec-questions dt {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.spec-questions dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.spec-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.spec-blocker {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--color-warning);
+  background: rgba(247, 201, 72, 0.06);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.checklist.compact {
+  margin: 12px 0 0;
+}
+
+.checklist.compact .checklist-row {
+  padding: 8px 0;
+}
+
 .planned-list {
   margin: var(--space-4) 0 0;
   padding-left: var(--space-6);

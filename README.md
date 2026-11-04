@@ -20,7 +20,7 @@ to produce one and says why.
 | Calendar age and calendar interval identities | Working, 138 tests |
 | PBGC provisions (earliest retirement, §4022(c), aggregate limit, §4044 tiers) | Listed and **blocked** |
 | Population stage | Disabled, schema not authorized |
-| Work products | Plan summary review copy; R5, DEL, §436, memo blocked |
+| Work products | 8 contracts registered; review copy producible; R5/V1/DEL/PF/BSRS/§436/memo blocked with reasons |
 | Field dictionary | 1,172 records across 12 tables |
 | Bundle export / restore | Working, hashed manifest, restores as a new case |
 
@@ -77,8 +77,11 @@ with its blocking reason:
 - **`pbgc:4022c-amounts`** — §4022(c) methodology and recovery-ratio periods not transcribed.
 - **`pbgc:aggregate-limit`** — guarantee-table version and phase-in rules not recorded.
 - **`pbgc:benefit-tiers-priority-categories`** — §4044 allocation ordering not reviewed.
-- **Work product templates** — R5 workbook, DEL, §436 evaluation, and the case memo need
-  a template contract and golden synthetic render before they can be produced.
+- **Work product engines** — every deliverable is registered as a contract with its
+  purpose, lifecycle position, dependencies, and blocking reason. R5, V1, DEL, PF,
+  BSRS, §436, and the case memo are listed and blocked; only the review copy is
+  producible. See `docs/work-products/inventory.md`, `specs/002-work-product-contract`,
+  and `specs/003-r5-plan-summary`.
 - **Assumption sets** — no mortality, interest, timing, or rounding set is registered.
 
 `assertRuleImplemented` rejects anything unknown, unimplemented, or uncited at run time,
@@ -186,8 +189,9 @@ is finished.
 
 ## Tests
 
-- `tests/unit` — calendar arithmetic, age and interval identities, validation, rule
-  registry integrity, derived catalog integrity.
+- `tests/unit` — calendar arithmetic, age and interval identities, validation, rule and
+  predicate registry integrity, work-product contract/readiness/snapshot identity,
+  derived catalog integrity.
 - `tests/contract` — `CaseStore` behavior across the in-memory and IndexedDB adapters.
 - `tests/integration` — the plan-field slice end to end, and bundle round trip.
 - `tests/e2e` — Playwright in real Chromium against the production build: create, validate,
