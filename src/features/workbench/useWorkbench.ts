@@ -57,6 +57,11 @@ export type WorkbenchActions = {
   runAge: (dateOfBirth: string, asOfDate: string) => Promise<void>;
   exportBundle: () => Promise<void>;
   importBundle: (file: File) => Promise<void>;
+  recordWorkProduct: (info: {
+    specId: string;
+    fileName: string;
+    snapshotSha256: string;
+  }) => Promise<void>;
   setStage: (stage: StageId) => void;
   clearError: () => void;
   clearNotice: () => void;
@@ -420,10 +425,37 @@ export function useWorkbench(): {
     [loadCase],
   );
 
+  const recordWorkProduct = useCallback(
+    async (info: { specId: string; fileName: string; snapshotSha256: string }) => {
+      const caseId = activeCaseIdRef.current;
+      if (!caseId) return;
+      try {
+        await services.caseStore.appendAuditEvent({
+          eventId: generateId(),
+          caseId,
+          eventType: "work-product-created",
+          actor: "local-user",
+          component: "WorkProductService.render",
+          at: nowIso(),
+          refs: {},
+          after: `${info.specId} ${info.fileName} ${info.snapshotSha256.slice(0, 12)}`,
+        });
+        const auditEvents = await services.caseService.getAuditEvents(caseId);
+        setState((previous) => ({
+          ...previous,
+          auditEvents,
+          notice: `Generated ${info.fileName} from snapshot ${info.snapshotSha256.slice(0, 12)}.`,
+        }));
+      } catch (error) {
+        setState((previous) => ({ ...previous, error: messageOf(error) }));
+      }
+    },
+    [],
+  );
+
   const setStage = useCallback((stage: StageId) => {
     setState((previous) => ({ ...previous, stage }));
   }, []);
-
   const clearError = useCallback(
     () => setState((previous) => ({ ...previous, error: null })),
     [],
@@ -447,6 +479,7 @@ export function useWorkbench(): {
       runAge,
       exportBundle,
       importBundle,
+      recordWorkProduct,
       setStage,
       clearError,
       clearNotice,

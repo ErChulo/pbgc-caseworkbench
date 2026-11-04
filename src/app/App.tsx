@@ -88,7 +88,12 @@ export function App() {
       case "reconciliation":
         return <ReconciliationStage state={state} fields={catalog.fields} />;
       case "work-products":
-        return <WorkProductsStage state={state} />;
+        return (
+          <WorkProductsStage
+            state={state}
+            onWorkProductCreated={actions.recordWorkProduct}
+          />
+        );
       case "review":
         return <ReviewStage state={state} actions={actions} />;
       default:

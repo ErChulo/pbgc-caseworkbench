@@ -1,21 +1,44 @@
 /**
- * Work products — a review copy generated from the current case snapshot.
+ * Work products — the registry-driven workspace.
  *
- * The review copy is a derived artifact. The canonical record stays the
- * structured case data plus its audit trail, and the copy records its own hash
- * so a reviewer can tell two generations apart.
+ * Every deliverable the workbench knows about is shown with its discovery
+ * answers (purpose, why, when, how determined), its dependencies, and either its
+ * readiness checks or the reason it cannot be produced. The review copy is the
+ * one product this build can produce; it is rendered from a frozen snapshot and
+ * every generation is recorded in the audit trail.
+ *
+ * Nothing here computes policy: readiness comes from the domain, and a blocked
+ * spec is displayed as blocked rather than silently omitted.
  */
 
 import { useState } from "react";
 import { catalog } from "../../app/catalog";
 import { downloadTextFile, openHtmlInNewTab } from "../../app/download";
 import { sha256HexOfText } from "../../adapters/hashing/sha256";
+import { buildCaseSnapshot, freezeCaseSnapshot } from "../../app/WorkProductService";
 import { nowIso } from "../../domain/case/validation";
+import {
+  REVIEW_COPY_SPEC_ID,
+  WORK_PRODUCTS,
+  getWorkProduct,
+} from "../../domain/work-products/registry";
+import { checkWorkProductReadiness } from "../../domain/work-products/readiness";
+import { implementedPredicates } from "../../domain/validation/predicates";
+import type {
+  WorkProductDependency,
+  WorkProductSpec,
+} from "../../domain/work-products/spec";
+import type { ReadinessCheck } from "../../domain/work-products/readiness";
 import type { WorkbenchState } from "../workbench/useWorkbench";
-import { EmptyState, Panel, StatusPill } from "../../ui/components";
+import { Panel, StatusPill, type StatusTone } from "../../ui/components";
 
 type Props = {
   state: WorkbenchState;
+  onWorkProductCreated?: (info: {
+    specId: string;
+    fileName: string;
+    snapshotSha256: string;
+  }) => Promise<void>;
 };
 
 type GeneratedCopy = {
@@ -23,6 +46,8 @@ type GeneratedCopy = {
   sha256: string;
   fileName: string;
   generatedAt: string;
+  snapshotId: string;
+  snapshotSha256: string;
 };
 
 function escapeHtml(value: string): string {
@@ -33,7 +58,66 @@ function escapeHtml(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-function buildReviewCopyHtml(state: WorkbenchState, generatedAt: string): string {
+function dependencyLabel(dependency: WorkProductDependency): string {
+  switch (dependency.kind) {
+    case "fact":
+      return `Fact ${dependency.fieldId}`;
+    case "rule":
+      return `Rule ${dependency.ruleId}`;
+    case "calculation":
+      return `Calculation ${dependency.calculationId}`;
+    case "template":
+      return `Template ${dependency.templateId}`;
+    case "assumption-set":
+      return `Assumptions ${dependency.assumptionSetId}`;
+  }
+}
+
+const specTone: Record<WorkProductSpec["status"], StatusTone> = {
+  implemented: "success",
+  draft: "warning",
+  blocked: "warning",
+};
+
+const specLabel: Record<WorkProductSpec["status"], string> = {
+  implemented: "Implemented",
+  draft: "Draft",
+  blocked: "Blocked",
+};
+
+const checkTone: Record<ReadinessCheck["status"], StatusTone> = {
+  pass: "success",
+  fail: "danger",
+  blocked: "warning",
+};
+
+const checkLabel: Record<ReadinessCheck["status"], string> = {
+  pass: "Pass",
+  fail: "Blocking",
+  blocked: "Blocked",
+};
+
+function ReadinessList({ checks }: { checks: ReadinessCheck[] }) {
+  return (
+    <ul className="checklist compact">
+      {checks.map((check) => (
+        <li key={check.predicateId} className="checklist-row">
+          <div className="checklist-text">
+            <p className="checklist-label">{check.title}</p>
+            <p className="checklist-detail">{check.detail}</p>
+          </div>
+          <StatusPill tone={checkTone[check.status]}>{checkLabel[check.status]}</StatusPill>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function buildReviewCopyHtml(
+  state: WorkbenchState,
+  generatedAt: string,
+  snapshot: { snapshotId: string; sha256: string },
+): string {
   const caseRecord = state.activeCase;
   if (!caseRecord) throw new Error("No active case.");
 
@@ -98,7 +182,8 @@ function buildReviewCopyHtml(state: WorkbenchState, generatedAt: string): string
 <body>
 <h1>Plan summary review copy</h1>
 <p class="meta">Case ${escapeHtml(caseRecord.alias)} · case id <span class="mono">${escapeHtml(caseRecord.caseId)}</span></p>
-<p class="meta">Generated ${escapeHtml(generatedAt)} · catalog ${escapeHtml(catalog.version)} · derived artifact, not the canonical record</p>
+<p class="meta">Generated ${escapeHtml(generatedAt)} · catalog ${escapeHtml(catalog.version)} · snapshot <span class="mono">${escapeHtml(snapshot.snapshotId)}</span></p>
+<p class="meta">Snapshot SHA-256 <span class="mono">${escapeHtml(snapshot.sha256)}</span></p>
 ${missingNote}
 <h2>Plan-level fields</h2>
 <table>
@@ -125,45 +210,195 @@ ${artifacts}
 </html>`;
 }
 
-export function WorkProductsStage({ state }: Props) {
+export function WorkProductsStage({ state, onWorkProductCreated }: Props) {
   const [copy, setCopy] = useState<GeneratedCopy | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const implementedPredicateIds = new Set(
+    implementedPredicates().map((predicate) => predicate.predicateId),
+  );
+  const readinessContext = {
+    facts: state.planFacts,
+    evidence: state.artifacts,
+    implementedPredicateIds,
+  };
+
+  const readinessBySpec = new Map(
+    WORK_PRODUCTS.map((spec) => [spec.specId, checkWorkProductReadiness(spec, readinessContext)]),
+  );
+  const reviewCopySpec = getWorkProduct(REVIEW_COPY_SPEC_ID);
+  const reviewCopyReadiness = readinessBySpec.get(REVIEW_COPY_SPEC_ID);
+  const canGenerate = reviewCopySpec !== undefined && reviewCopyReadiness?.ready === true;
 
   async function generate() {
+    const caseRecord = state.activeCase;
+    if (!caseRecord || !canGenerate) return;
     setBusy(true);
+    setError(null);
     try {
       const generatedAt = nowIso();
-      const html = buildReviewCopyHtml(state, generatedAt);
+      const snapshot = buildCaseSnapshot({
+        caseId: caseRecord.caseId,
+        alias: caseRecord.alias,
+        catalogVersion: catalog.version,
+        specId: REVIEW_COPY_SPEC_ID,
+        facts: Object.values(state.planFacts).flatMap((fact) =>
+          fact
+            ? [
+                {
+                  fieldId: fact.fieldId,
+                  factId: fact.factId,
+                  value: fact.value,
+                  status: fact.status,
+                },
+              ]
+            : [],
+        ),
+        evidence: state.artifacts.map((artifact) => ({
+          artifactId: artifact.artifactId,
+          sha256: artifact.sha256,
+        })),
+        ruleIds: [],
+        calculationRunIds: state.lastRun ? [state.lastRun.runId] : [],
+      });
+      const frozen = await freezeCaseSnapshot(snapshot);
+      const html = buildReviewCopyHtml(state, generatedAt, {
+        snapshotId: frozen.snapshot.snapshotId,
+        sha256: frozen.sha256,
+      });
       const sha256 = await sha256HexOfText(html);
-      const alias = state.activeCase?.alias ?? "case";
+      const fileName = `${caseRecord.alias}-plan-summary-review-copy.html`;
       setCopy({
         html,
         sha256,
         generatedAt,
-        fileName: `${alias}-plan-summary-review-copy.html`,
+        fileName,
+        snapshotId: frozen.snapshot.snapshotId,
+        snapshotSha256: frozen.sha256,
       });
+      if (onWorkProductCreated) {
+        await onWorkProductCreated({
+          specId: REVIEW_COPY_SPEC_ID,
+          fileName,
+          snapshotSha256: frozen.sha256,
+        });
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setBusy(false);
     }
   }
 
-  const missing = catalog.fields.filter((field) => !state.planFacts[field.fieldId]);
-
   return (
     <>
       <Panel
-        id="work-product-generate"
+        id="work-product-registry"
         eyebrow="Stage 8 · Work products"
-        title="Plan summary review copy"
-        description="Generated from the values recorded now. The copy lists every field, its status, its dictionary row, and how many evidence links support it."
+        title="Work-product contracts"
+        description="Every deliverable this workbench knows about, with what it is for, when it is used, how it is determined, and what still blocks it."
         aside={
-          <StatusPill tone={missing.length === 0 ? "success" : "warning"}>
-            {missing.length === 0 ? "Complete" : `${missing.length} missing`}
+          <StatusPill tone="info">
+            {WORK_PRODUCTS.filter((spec) => spec.status === "implemented").length} of{" "}
+            {WORK_PRODUCTS.length} producible
           </StatusPill>
         }
       >
+        <ul className="spec-list">
+          {WORK_PRODUCTS.map((spec) => {
+            const readiness = readinessBySpec.get(spec.specId);
+            return (
+              <li key={spec.specId} className="spec-card">
+                <div className="spec-head">
+                  <div>
+                    <p className="spec-family mono">
+                      {spec.family} · {spec.specId} · v{spec.version}
+                    </p>
+                    <h3>{spec.title}</h3>
+                  </div>
+                  <StatusPill tone={specTone[spec.status]}>{specLabel[spec.status]}</StatusPill>
+                </div>
+
+                <dl className="spec-questions">
+                  <div>
+                    <dt>Purpose</dt>
+                    <dd>{spec.purpose}</dd>
+                  </div>
+                  <div>
+                    <dt>Why the case needs it</dt>
+                    <dd>{spec.whyNeeded}</dd>
+                  </div>
+                  <div>
+                    <dt>When it is produced</dt>
+                    <dd>{spec.usedWhen}</dd>
+                  </div>
+                  <div>
+                    <dt>How it is determined</dt>
+                    <dd>{spec.determination}</dd>
+                  </div>
+                </dl>
+
+                <p className="spec-meta">
+                  {spec.dependencies.map((dependency) => (
+                    <span key={dependencyLabel(dependency)} className="chip">
+                      {dependencyLabel(dependency)}
+                    </span>
+                  ))}
+                  {spec.outputFormats.map((format) => (
+                    <span key={format} className="chip mono">
+                      {format.toUpperCase()}
+                    </span>
+                  ))}
+                  {spec.template ? (
+                    <span className="chip">
+                      Template {spec.template.fileName} · v{spec.template.version}
+                    </span>
+                  ) : null}
+                </p>
+
+                {spec.blockingReason ? (
+                  <p className="spec-blocker">
+                    <strong>Blocked.</strong> {spec.blockingReason}
+                  </p>
+                ) : null}
+
+                {spec.status === "implemented" && readiness && spec.specId !== REVIEW_COPY_SPEC_ID ? (
+                  <ReadinessList checks={readiness.checks} />
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      </Panel>
+
+      <Panel
+        id="work-product-generate"
+        eyebrow="Producer"
+        title="Plan summary review copy"
+        description="Generated from a frozen snapshot of the values recorded now. The copy lists every field, its status, its dictionary row, and how many evidence links support it."
+        aside={
+          <StatusPill tone={canGenerate ? "success" : "warning"}>
+            {canGenerate ? "Ready" : "Blocked"}
+          </StatusPill>
+        }
+      >
+        {reviewCopyReadiness ? <ReadinessList checks={reviewCopyReadiness.checks} /> : null}
+
+        {!canGenerate ? (
+          <p className="spec-blocker">
+            <strong>Not producible yet.</strong> Satisfy the checks above. Missing
+            plan fields are never filled by plausibility.
+          </p>
+        ) : null}
+
         <div className="button-row">
-          <button className="primary" type="button" onClick={() => void generate()} disabled={busy}>
+          <button
+            className="primary"
+            type="button"
+            onClick={() => void generate()}
+            disabled={busy || !canGenerate}
+          >
             {busy ? "Generating…" : "Generate review copy"}
           </button>
           {copy ? (
@@ -191,6 +426,12 @@ export function WorkProductsStage({ state }: Props) {
           ) : null}
         </div>
 
+        {error ? (
+          <p className="spec-blocker" role="alert">
+            <strong>Generation failed.</strong> {error}
+          </p>
+        ) : null}
+
         {copy ? (
           <dl className="key-value-list">
             <div className="key-value">
@@ -206,42 +447,18 @@ export function WorkProductsStage({ state }: Props) {
               <dd className="mono">{copy.sha256}</dd>
             </div>
             <div className="key-value">
+              <dt>Snapshot</dt>
+              <dd className="mono">{copy.snapshotSha256}</dd>
+            </div>
+            <div className="key-value">
               <dt>Included</dt>
               <dd>
-                {catalog.fields.length - missing.length} of {catalog.fields.length} plan
-                fields · {state.artifacts.length} evidence artifact(s)
+                {catalog.fields.filter((field) => state.planFacts[field.fieldId]).length} of{" "}
+                {catalog.fields.length} plan fields · {state.artifacts.length} evidence artifact(s)
               </dd>
             </div>
           </dl>
         ) : null}
-      </Panel>
-
-      <Panel
-        id="work-product-planned"
-        eyebrow="Not generated"
-        title="Work products that remain blocked"
-        description="Listed so the gap is explicit. Each needs its template contract and rule set recorded before it can be produced."
-      >
-        <ul className="planned-list">
-          <li>
-            <strong>R5 / Plan Summary workbook</strong> — the source template is a
-            binary working file in the casework corpus; the template contract,
-            placeholder manifest, and golden synthetic render are not yet recorded.
-          </li>
-          <li>
-            <strong>DEL (Data Element Listing)</strong> — requires the input-field
-            universe selection rules and a review workflow for included and
-            excluded fields.
-          </li>
-          <li>
-            <strong>§436 evaluation</strong> — the source document is dated November
-            2025; its provisions have not been transcribed or cited.
-          </li>
-          <li>
-            <strong>Actuarial case memo</strong> — depends on completed
-            calculations and reviewer conclusions, neither of which exists yet.
-          </li>
-        </ul>
       </Panel>
     </>
   );

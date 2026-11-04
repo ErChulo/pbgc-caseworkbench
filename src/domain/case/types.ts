@@ -93,6 +93,7 @@ export type AuditEventType =
   | "artifact-imported"
   | "evidence-linked"
   | "calculation-run"
+  | "work-product-created"
   | "export-created"
   | "bundle-imported";
 
