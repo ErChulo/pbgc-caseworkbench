@@ -1,0 +1,235 @@
+/**
+ * R5 template coverage panel.
+ *
+ * The reviewer-facing worklist for the Plan Summary Shell: what can be filled
+ * from reviewed facts, what still needs a decision, and what is blocked outright.
+ * The coverage report is a derived artifact; the notice itself stays blocked
+ * until the unresolved count reaches zero.
+ */
+
+import { useState } from "react";
+import { catalog } from "../../app/catalog";
+import { downloadTextFile } from "../../app/download";
+import { sha256HexOfText } from "../../adapters/hashing/sha256";
+import { nowIso } from "../../domain/case/validation";
+import {
+  R5_TEMPLATE_ID,
+  R5_TEMPLATE_MANIFEST,
+} from "../../domain/work-products/r5/manifest";
+import {
+  evaluateR5Coverage,
+  type R5CoverageRow,
+  type R5CoverageStatus,
+} from "../../domain/work-products/r5/coverage";
+import { R5_COVERAGE_SPEC_ID } from "../../domain/work-products/registry";
+import type { WorkbenchState } from "../workbench/useWorkbench";
+import { Panel, StatusPill, type StatusTone } from "../../ui/components";
+
+type Props = {
+  state: WorkbenchState;
+  onWorkProductCreated: ((info: {
+    specId: string;
+    fileName: string;
+    snapshotSha256: string;
+  }) => Promise<void>) | undefined;
+};
+
+const statusTone: Record<R5CoverageStatus, StatusTone> = {
+  resolved: "success",
+  missing: "danger",
+  pending: "warning",
+  blocked: "warning",
+};
+
+const statusLabel: Record<R5CoverageStatus, string> = {
+  resolved: "Resolved",
+  missing: "Missing",
+  pending: "Pending decision",
+  blocked: "Blocked",
+};
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function buildCoverageHtml(rows: readonly R5CoverageRow[], alias: string, generatedAt: string): string {
+  const body = rows
+    .map(
+      (row) => `<tr class="${row.status}">
+  <th scope="row">${escapeHtml(row.label)}</th>
+  <td>${escapeHtml(row.section)}</td>
+  <td>${escapeHtml(statusLabel[row.status])}</td>
+  <td>${escapeHtml(row.detail)}</td>
+</tr>`,
+    )
+    .join("\n");
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>R5 template coverage — ${escapeHtml(alias)}</title>
+<style>
+  body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 40px; color: #111; max-width: 1000px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { font-size: 13px; line-height: 1.5; color: #444; }
+  table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; font-size: 12px; }
+  th { background: #f3f3f3; }
+  tr.missing td, tr.blocked td { color: #7a1f1f; }
+  tr.pending td { color: #6b4a00; }
+  .footer { margin-top: 28px; font-size: 12px; color: #555; border-top: 1px solid #ccc; padding-top: 10px; }
+</style>
+</head>
+<body>
+<h1>R5 Plan Summary Shell — placeholder coverage</h1>
+<p>Case ${escapeHtml(alias)} · generated ${escapeHtml(generatedAt)}</p>
+<p>Template ${escapeHtml(R5_TEMPLATE_MANIFEST.fileName)} v${escapeHtml(R5_TEMPLATE_MANIFEST.version)}, document SHA-256
+<span>${escapeHtml(R5_TEMPLATE_MANIFEST.documentSha256)}</span>. Item list SHA-256
+<span>${escapeHtml(R5_TEMPLATE_MANIFEST.itemListSha256)}</span>.</p>
+<p>This is a coverage worksheet, not the notice. Cells marked Pending decision or Blocked must not be filled with plausible content.</p>
+<table>
+<thead><tr><th scope="col">Shell label</th><th scope="col">Section</th><th scope="col">Status</th><th scope="col">Why</th></tr></thead>
+<tbody>
+${body}
+</tbody>
+</table>
+<p class="footer">Derived artifact from the transcribed template manifest. The canonical record is the manifest plus the case's reviewed facts and decisions.</p>
+</body>
+</html>`;
+}
+
+export function R5CoveragePanel({ state, onWorkProductCreated }: Props) {
+  const [report, setReport] = useState<{ fileName: string; sha256: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const coverage = evaluateR5Coverage(state.planFacts);
+  const headerRows = coverage.rows.filter((row) => row.section === "Header");
+
+  async function generate() {
+    const caseRecord = state.activeCase;
+    if (!caseRecord) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const generatedAt = nowIso();
+      const html = buildCoverageHtml(coverage.rows, caseRecord.alias, generatedAt);
+      const sha256 = await sha256HexOfText(html);
+      const fileName = `${caseRecord.alias}-r5-template-coverage.html`;
+      downloadTextFile(fileName, html, "text/html");
+      setReport({ fileName, sha256 });
+      if (onWorkProductCreated) {
+        await onWorkProductCreated({
+          specId: R5_COVERAGE_SPEC_ID,
+          fileName,
+          snapshotSha256: sha256,
+        });
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel
+      id="work-product-r5-coverage"
+      eyebrow="R5 · Template coverage"
+      title="Plan Summary Shell coverage"
+      description={`Every placeholder in the transcribed shell (${R5_TEMPLATE_MANIFEST.fileName} v${R5_TEMPLATE_MANIFEST.version}), mapped to a reviewed fact, a reviewer decision, or a cited calculation.`}
+      aside={
+        <StatusPill tone={coverage.ready ? "success" : "warning"}>
+          {coverage.resolved} of {coverage.total} resolved
+        </StatusPill>
+      }
+    >
+      <ul className="spec-meta" aria-label="Coverage by section">
+        {coverage.sections.map((section) => (
+          <li key={section.section} className="chip">
+            {section.section}: {section.resolved}/{section.total}
+          </li>
+        ))}
+      </ul>
+
+      <table className="coverage-table" aria-label="Header placeholders and their resolution status">
+        <thead>
+          <tr>
+            <th scope="col">Shell label</th>
+            <th scope="col">Status</th>
+            <th scope="col">Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          {headerRows.map((row) => (
+            <tr key={row.placeholderId}>
+              <th scope="row">{row.label}</th>
+              <td>
+                <StatusPill tone={statusTone[row.status]}>{statusLabel[row.status]}</StatusPill>
+              </td>
+              <td className="coverage-why">{row.detail}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <p className="spec-meta">
+        <span className="chip">
+          Plan-provision questionnaire: {coverage.rows.filter((row) => row.placeholderId.startsWith("r5.item.") && row.status === "resolved").length} of{" "}
+          {coverage.rows.filter((row) => row.placeholderId.startsWith("r5.item.")).length} resolved
+        </span>
+        <span className="chip">
+          Header rates: routing recorded, values not computable in this build
+        </span>
+      </p>
+
+      <p className="spec-blocker">
+        <strong>The notice is not producible.</strong> {coverage.unresolved} placeholders are
+        unresolved: {coverage.missing} missing fact(s), {coverage.pending} pending reviewer
+        decision(s), {coverage.blocked} blocked by an unauthorized calculation or absent
+        field. The coverage report below exists so this worklist is explicit.
+      </p>
+
+      <div className="button-row">
+        <button className="secondary" type="button" onClick={() => void generate()} disabled={busy}>
+          {busy ? "Generating…" : "Download coverage report"}
+        </button>
+      </div>
+
+      {error ? (
+        <p className="spec-blocker" role="alert">
+          <strong>Report failed.</strong> {error}
+        </p>
+      ) : null}
+
+      {report ? (
+        <dl className="key-value-list">
+          <div className="key-value">
+            <dt>Report</dt>
+            <dd className="mono">{report.fileName}</dd>
+          </div>
+          <div className="key-value">
+            <dt>SHA-256</dt>
+            <dd className="mono">{report.sha256}</dd>
+          </div>
+          <div className="key-value">
+            <dt>Plan fields known</dt>
+            <dd>
+              {catalog.fields.filter((field) => state.planFacts[field.fieldId]).length} of{" "}
+              {catalog.fields.length}
+            </dd>
+          </div>
+        </dl>
+      ) : null}
+
+      <p className="spec-meta">
+        <span className="mono">{R5_TEMPLATE_ID}</span>
+      </p>
+    </Panel>
+  );
+}

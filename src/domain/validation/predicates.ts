@@ -74,16 +74,17 @@ export const PREDICATES: readonly PredicateRecord[] = [
     title: "Template placeholders are fully resolved",
     severity: "blocking",
     summary:
-      "Every placeholder in the versioned template maps to a reviewed fact, an authorized calculation, or an explicit reviewer decision. Unmapped placeholders fail the predicate.",
-    status: "draft",
+      "Every placeholder in the versioned template maps to a reviewed fact, an authorized calculation, or an explicit reviewer decision, and every one of those is recorded for the case.",
+    status: "implemented",
     authority: {
-      citation: null,
-      note: "Requires the template placeholder manifest and the template-compliance check for each work-product family.",
-      checkedOn: null,
+      citation:
+        "Plan Summary Shell.docx (SHA-256 e3164f6ea2a90d2e1ab0b3b7b11486e8a41be169b30f7997a0abb4059aeae2f1) and the 60-item plan-provision list (SHA-256 a81dec39edc769210b40a1028215becd678d6f962ee643251db83207cf4638a6)",
+      note:
+        "The manifest maps each shell placeholder to a fact, a reviewer decision, or a cited calculation. The predicate fails while any placeholder is unrecorded.",
+      checkedOn: "2026-11-04",
     },
-    implementedBy: null,
-    blockingReason:
-      "No template manifest or placeholder map is recorded yet; without it a renderer cannot prove that a cell was filled from an authorized value.",
+    implementedBy: "src/domain/work-products/r5/coverage.ts",
+    blockingReason: null,
   },
 ];
 

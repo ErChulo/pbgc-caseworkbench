@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  R5_COVERAGE_SPEC_ID,
   REVIEW_COPY_SPEC_ID,
   WORK_PRODUCTS,
   WorkProductNotReadyError,
@@ -52,11 +53,15 @@ describe("work-product registry", () => {
     }
   });
 
-  it("keeps exactly one producible product in this build, with a citation", () => {
-    expect(implementedWorkProducts().map((spec) => spec.specId)).toEqual([REVIEW_COPY_SPEC_ID]);
-    const spec = implementedWorkProducts()[0]!;
-    expect(spec.authority.citations.length).toBeGreaterThan(0);
-    expect(spec.rendererVersion).not.toBeNull();
+  it("keeps only cited, rendered products producible", () => {
+    expect(implementedWorkProducts().map((spec) => spec.specId)).toEqual([
+      REVIEW_COPY_SPEC_ID,
+      R5_COVERAGE_SPEC_ID,
+    ]);
+    for (const spec of implementedWorkProducts()) {
+      expect(spec.authority.citations.length).toBeGreaterThan(0);
+      expect(spec.rendererVersion).not.toBeNull();
+    }
   });
 
   it("gives every blocked product a reason and no renderer", () => {

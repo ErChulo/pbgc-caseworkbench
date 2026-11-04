@@ -8,18 +8,19 @@ engine and predicates.
 | # | Product | Family | Registry id | Status | What blocks it | Next action |
 |---|---|---|---|---|---|---|
 | 1 | Plan summary review copy | review-copy | `wp.plan-summary-review-copy` | **Implemented** | — | Keep in step with the plan-field catalog |
-| 2 | R5 notice and plan summary | R5 | `wp.r5-plan-summary` | Blocked | No placeholder map, no cited header-rate rule, benefit provisions unresolved | Transcribe `Plan Summary Shell.docx` + `r5-items.txt`; cite the rate determination (spec 003) |
-| 3 | V1 valuation summary | V1 | `wp.v1-valuation-summary` | Blocked | No participant/population schema; three PBGC provisions unresolved | Population spec (Phase 3), then V1 rules |
-| 4 | DEL determination letter | DEL | `wp.del-determination-letter` | Blocked | DEL field-inclusion rules and template mapping not transcribed; no valuation record | DEL extractor specification, then renderer |
-| 5 | PF plan financial work product | PF | `wp.pf-plan-financial` | Blocked | §4044 allocation rules unresolved; no asset field mapping | Allocation rule transcription; asset import |
-| 6 | BSRS configuration/reporting | BSRS | `wp.bsrs-configuration` | Blocked | Benefit-structure definitions and field mapping not recorded | Structure definitions from corpus; depends on V1 |
-| 7 | §436 evaluation | 436 | `wp.section-436-evaluation` | Blocked | §436 guidance not transcribed; funding figures absent | Transcribe the dated guidance and its thresholds |
-| 8 | Actuarial case memo | MEMO | `wp.case-memo` | Blocked | No approval workflow or reviewer decisions to narrate | Review workflow (Phase 2), then compose from the snapshot |
+| 2 | R5 template coverage report | R5 | `wp.r5-plan-summary-coverage` | **Implemented** | — | Keep the manifest in step with the shell; extend as decisions become recordable |
+| 3 | R5 notice and plan summary | R5 | `wp.r5-plan-summary` | Blocked | 78 of 81 shell placeholders unresolved: 71 need reviewer decisions, 7 need unauthorized calculations or absent fields | Record provisions and decisions, then cite the header-rate and benefit rules |
+| 4 | V1 valuation summary | V1 | `wp.v1-valuation-summary` | Blocked | No participant/population schema; three PBGC provisions unresolved | Population spec (Phase 3), then V1 rules |
+| 5 | DEL determination letter | DEL | `wp.del-determination-letter` | Blocked | DEL field-inclusion rules and template mapping not transcribed; no valuation record | DEL extractor specification, then renderer |
+| 6 | PF plan financial work product | PF | `wp.pf-plan-financial` | Blocked | §4044 allocation rules unresolved; no asset field mapping | Allocation rule transcription; asset import |
+| 7 | BSRS configuration/reporting | BSRS | `wp.bsrs-configuration` | Blocked | Benefit-structure definitions and field mapping not recorded | Structure definitions from corpus; depends on V1 |
+| 8 | §436 evaluation | 436 | `wp.section-436-evaluation` | Blocked | §436 guidance not transcribed; funding figures absent | Transcribe the dated guidance and its thresholds |
+| 9 | Actuarial case memo | MEMO | `wp.case-memo` | Blocked | No approval workflow or reviewer decisions to narrate | Review workflow (Phase 2), then compose from the snapshot |
 
 ## Lifecycle
 
 ```
-plan fields → review copy → R5 notice → V1 valuation → PF / BSRS / §436 → DEL → case memo
+plan fields → review copy → R5 template coverage → R5 notice → V1 valuation → PF / BSRS / §436 → DEL → case memo
 ```
 
 The review copy is deliberately first: it is the reviewer's own check of the plan

@@ -29,6 +29,9 @@ import type {
   WorkProductSpec,
 } from "../../domain/work-products/spec";
 import type { ReadinessCheck } from "../../domain/work-products/readiness";
+import { evaluateR5Coverage } from "../../domain/work-products/r5/coverage";
+import { R5_TEMPLATE_ID } from "../../domain/work-products/r5/manifest";
+import { R5CoveragePanel } from "./R5CoveragePanel";
 import type { WorkbenchState } from "../workbench/useWorkbench";
 import { Panel, StatusPill, type StatusTone } from "../../ui/components";
 
@@ -218,10 +221,12 @@ export function WorkProductsStage({ state, onWorkProductCreated }: Props) {
   const implementedPredicateIds = new Set(
     implementedPredicates().map((predicate) => predicate.predicateId),
   );
+  const r5Coverage = evaluateR5Coverage(state.planFacts);
   const readinessContext = {
     facts: state.planFacts,
     evidence: state.artifacts,
     implementedPredicateIds,
+    templateCoverage: { [R5_TEMPLATE_ID]: r5Coverage },
   };
 
   const readinessBySpec = new Map(
@@ -371,6 +376,8 @@ export function WorkProductsStage({ state, onWorkProductCreated }: Props) {
           })}
         </ul>
       </Panel>
+
+      <R5CoveragePanel state={state} onWorkProductCreated={onWorkProductCreated} />
 
       <Panel
         id="work-product-generate"

@@ -8,6 +8,7 @@
  */
 
 import { getPredicate } from "../validation/predicates";
+import type { R5CoverageSummary } from "./r5/coverage";
 import type { WorkProductSpec } from "./spec";
 
 export type ReadinessStatus = "pass" | "fail" | "blocked";
@@ -31,6 +32,8 @@ export type ReadinessContext = {
   evidence: readonly { sha256: string }[];
   /** Predicates with a recorded evaluator; anything else is blocked. */
   implementedPredicateIds: ReadonlySet<string>;
+  /** Template coverage by template id; absent coverage blocks, never passes. */
+  templateCoverage?: Readonly<Record<string, R5CoverageSummary | undefined>>;
 };
 
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -52,6 +55,33 @@ function checkRequiredPlanFields(
   return {
     status: "fail",
     detail: `Missing required plan fields: ${missing.join(", ")}.`,
+  };
+}
+
+function checkTemplatePlaceholders(
+  spec: WorkProductSpec,
+  context: ReadinessContext,
+): { status: ReadinessStatus; detail: string } {
+  const templateId = spec.template?.templateId;
+  if (!templateId) {
+    return { status: "blocked", detail: "The spec declares no template to check." };
+  }
+  const coverage = context.templateCoverage?.[templateId];
+  if (!coverage) {
+    return {
+      status: "blocked",
+      detail: `No placeholder coverage was supplied for ${templateId}; unresolved placeholders cannot be assumed resolved.`,
+    };
+  }
+  if (coverage.ready) {
+    return {
+      status: "pass",
+      detail: `All ${coverage.total} placeholders in ${templateId} v${coverage.templateVersion} resolve to recorded values.`,
+    };
+  }
+  return {
+    status: "fail",
+    detail: `${coverage.unresolved} of ${coverage.total} placeholders are unresolved (missing ${coverage.missing}, pending reviewer decisions ${coverage.pending}, blocked ${coverage.blocked}).`,
   };
 }
 
@@ -131,6 +161,9 @@ export function checkWorkProductReadiness(
         break;
       case "pred.evidence-hash-present":
         result = checkEvidenceHashes(context);
+        break;
+      case "pred.template-placeholders-resolved":
+        result = checkTemplatePlaceholders(spec, context);
         break;
       default:
         result = {

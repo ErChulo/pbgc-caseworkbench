@@ -33,6 +33,7 @@ const PLAN_FIELDS: WorkProductSpec["dependencies"] = [
 ];
 
 export const REVIEW_COPY_SPEC_ID = "wp.plan-summary-review-copy";
+export const R5_COVERAGE_SPEC_ID = "wp.r5-plan-summary-coverage";
 
 export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
   {
@@ -64,6 +65,42 @@ export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
     },
   },
   {
+    specId: R5_COVERAGE_SPEC_ID,
+    version: "1.0.0",
+    title: "R5 template coverage report",
+    family: "R5",
+    purpose:
+      "Show, placeholder by placeholder, which cells of the R5 Plan Summary Shell can be filled from reviewed facts and which still depend on a reviewer decision or a cited calculation.",
+    whyNeeded:
+      "The shell cannot be filled honestly until its placeholders are mapped and the unresolved ones are visible. The coverage report is the reviewer's worklist and the evidence that the notice is not being produced with guessed cells.",
+    usedWhen:
+      "Before the R5 notice: whenever plan facts change, and again before the notice is attempted.",
+    determination:
+      "Evaluated from the transcribed template manifest v1.0.0 and the case's reviewed plan facts. Placeholders map to a fact, a reviewer decision, or a calculation; the report counts resolved, missing, pending, and blocked cells and marks the notice not producible while any remain.",
+    status: "implemented",
+    blockingReason: null,
+    dependencies: [...PLAN_FIELDS, { kind: "template", templateId: "template.r5-plan-summary-shell", required: true }],
+    predicates: ["pred.required-plan-fields"],
+    template: {
+      templateId: "template.r5-plan-summary-shell",
+      version: "1.0.0",
+      fileName: "Plan Summary Shell.docx",
+      source: "pbgc-the-book-of-job / 02_R5_Plan_Summary",
+    },
+    outputFormats: ["html"],
+    rendererVersion: "0.1.0",
+    authority: {
+      citations: [
+        "Plan Summary Shell.docx, SHA-256 e3164f6ea2a90d2e1ab0b3b7b11486e8a41be169b30f7997a0abb4059aeae2f1",
+        "r5-items.txt (60-item plan-provision list), SHA-256 a81dec39edc769210b40a1028215becd678d6f962ee643251db83207cf4638a6",
+        "note-r5-header-rates-determination.txt, SHA-256 7370d80176c14f253e3bb06bb7cd89e3e77c7dcf5d315d342123aca55e0f7a45",
+      ],
+      note:
+        "A coverage report over the transcription. It reports the shell's own labels and the mapping status; it does not fill, interpret, or certify any cell.",
+      checkedOn: "2026-11-04",
+    },
+  },
+  {
     specId: "wp.r5-plan-summary",
     version: "0.1.0",
     title: "R5 notice and plan summary",
@@ -91,7 +128,7 @@ export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
     ],
     template: {
       templateId: "template.r5-plan-summary-shell",
-      version: "0.0.0",
+      version: "1.0.0",
       fileName: "Plan Summary Shell.docx",
       source: "pbgc-the-book-of-job / 02_R5_Plan_Summary",
     },
