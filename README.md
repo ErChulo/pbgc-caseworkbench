@@ -20,6 +20,7 @@ to produce one and says why.
 | Calendar age and calendar interval identities | Working, 138 tests |
 | BCV add-in functions | 9 of 54 implemented (ANB, ATT, NRD, NRDA, RETDATE, COMPM, COMPYM, COMPAYM, G515V), each tested against the source's examples |
 | Synthetic demo case pack | `demo/synthetic-plan/`: fictional plan (PP-01 to PP-10), 12-record census, financials, metadata; validated and refused for real cases |
+| BCV add-in tool | Working in Calculations: run any of the nine transcribed functions and see value, formula, source page, rules, intermediates, warnings; audited |
 | Earliest PBGC retirement date (EPRD) | Implemented: cited age-55 rule; facts-and-circumstances remains a reviewer decision |
 | Aggregate limit on PBGC funds | Implemented: cited §4022B arithmetic; the guarantee table itself is a required, provenanced input |
 | Other PBGC provisions (§4022(c), guarantee table, §4044 tiers) | Listed and **blocked** |
@@ -63,7 +64,7 @@ fallback to unbranded text when the machine is offline.
    Download the participant register from here.
 5. **Rules & assumptions** — every rule the workbench may run, with its citation, and
    every provision that is blocked with the reason.
-6. **Calculations** — three runnable runs. Age at a date is a calendar identity. The
+6. **Calculations** — three runnable provision runs plus a BCV add-in tool. Age at a date is a calendar identity. The
    Earliest PBGC Retirement Date applies the cited age-55 floor: the earlier of the plan's
    Earliest Annuity Date and age 55, with the facts-and-circumstances exception left as a
    reviewer decision. The Aggregate Limit applies ERISA §4022B to a payee with two or more
@@ -72,7 +73,11 @@ fallback to unbranded text when the machine is offline.
    not transcribed — and a single-plan payee is refused as not applicable. Each run records
    inputs, units, rule, intermediates, engine version, and warnings, and appends an audit
    event. Values without evidence are labelled reviewer-entered. A DOPT before 2002-06-01 is
-   refused by the EPRD rather than valued under a rule that does not apply.
+   refused by the EPRD rather than valued under a rule that does not apply. The add-in
+   tool runs any of the nine transcribed ATPBGC functions (ANB, ATT, NRD, NRDA,
+   RETDATE, COMPM, COMPYM, COMPAYM, G515V) and shows the source page, formula, rule
+   ids, intermediates and warnings; refusals carry the add-in's own error code where
+   the page documents one, and every run is audited.
 7. **Reconciliation** — required fields reviewed, evidence linked, facts with
    provenance, blocked provisions, control totals.
 8. **Work products** — generate the plan summary review copy (HTML) with its own
@@ -242,7 +247,8 @@ is finished.
   IndexedDB adapters.
 - `tests/integration` — the plan-field slice end to end, and bundle round trip.
 - `tests/e2e` — Playwright in real Chromium against the production build: create, validate,
-  save, reload, import and link evidence, refuse a duplicate by hash, run a calculation,
+  save, reload, import and link evidence, refuse a duplicate by hash, run a calculation
+  and a BCV add-in function,
   generate a review copy, export a bundle, restore it as a new case, and confirm that a
   reload writes no audit events.
 - `tests/e2e/office.e2e.ts` — the handover conditions: every request outside the app's

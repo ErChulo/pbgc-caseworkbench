@@ -11,6 +11,11 @@ import { useState } from "react";
 import type { PlanFact } from "../../domain/case/types";
 import type { EvidenceLink } from "../../domain/evidence/types";
 import type { WorkbenchActions, WorkbenchState } from "../workbench/useWorkbench";
+import {
+  BCV_ADDIN_FUNCTIONS,
+  type BcvAddInFunction,
+  type BcvAddInInput,
+} from "../../domain/calculations/bcv";
 import { EmptyState, KeyValue, Panel, StatusPill } from "../../ui/components";
 
 type Props = {
@@ -20,10 +25,28 @@ type Props = {
   onRun: (dateOfBirth: string, asOfDate: string) => Promise<void>;
   onRunEprd: WorkbenchActions["runEarliestRetirement"];
   onRunAggregate: WorkbenchActions["runAggregateLimit"];
+  onRunAddIn: WorkbenchActions["runBcvAddIn"];
 };
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+const ADDIN_SUMMARY: Record<BcvAddInFunction, string> = {
+  ANB: "Age nearest birthday at a date (page 3).",
+  ATT: "Attained age: completed calendar years (page 4).",
+  NRD: "First of the month on or after the nra-th birthday (page 4).",
+  NRDA: "Plan anniversary nearest attainment of nra (page 4).",
+  RETDATE: "Retirement date with the documented first-of-month rules (page 5).",
+  COMPM: "Completed months between two dates (page 8).",
+  COMPYM: "Completed years plus the month fraction (page 8).",
+  COMPAYM: "Completed whole years between two dates (page 9).",
+  G515V: "5-15 graded vesting percentage (page 15).",
+};
+
+function formatAddInValue(value: number | string): string {
+  if (typeof value === "string") return value;
+  return Number.isInteger(value) ? String(value) : value.toFixed(4);
 }
 
 export function CalculationsStage({
@@ -33,6 +56,7 @@ export function CalculationsStage({
   onRun,
   onRunEprd,
   onRunAggregate,
+  onRunAddIn,
 }: Props) {
   const planDopt = facts["cust-dopt"]?.value;
   const [dateOfBirth, setDateOfBirth] = useState("");
@@ -82,6 +106,30 @@ export function CalculationsStage({
   ]);
   const [aggBusy, setAggBusy] = useState(false);
   const aggregateRun = state.lastAggregateRun;
+
+  const [addInFunction, setAddInFunction] = useState<BcvAddInFunction>("ANB");
+  const [addInDob, setAddInDob] = useState("");
+  const [addInStart, setAddInStart] = useState("");
+  const [addInThru, setAddInThru] = useState("");
+  const [addInNra, setAddInNra] = useState("");
+  const [addInRa, setAddInRa] = useState("");
+  const [addInAnnivDate, setAddInAnnivDate] = useState("");
+  const [addInFoma, setAddInFoma] = useState("0");
+  const [addInAnniv, setAddInAnniv] = useState("");
+  const [addInService, setAddInService] = useState("");
+  const [addInBusy, setAddInBusy] = useState(false);
+  const addInRun = state.lastAddInRun;
+
+  const needsDob = ["ANB", "ATT", "NRD", "NRDA", "RETDATE"].includes(addInFunction);
+  const needsStart = ["COMPM", "COMPYM", "COMPAYM"].includes(addInFunction);
+  const needsThru = ["ANB", "ATT", "COMPM", "COMPYM", "COMPAYM"].includes(
+    addInFunction,
+  );
+  const needsNra = ["NRD", "NRDA"].includes(addInFunction);
+  const needsRa = addInFunction === "RETDATE";
+  const needsAnnivDate = addInFunction === "NRDA";
+  const needsService = addInFunction === "G515V";
+  const showFoma = addInFunction === "RETDATE";
 
   function updatePrior(
     index: number,
@@ -134,6 +182,28 @@ export function CalculationsStage({
       await onRun(dateOfBirth, asOfDate);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleAddIn(event: React.FormEvent) {
+    event.preventDefault();
+    const input: BcvAddInInput = { function: addInFunction };
+    if (needsDob) input.dateOfBirth = addInDob;
+    if (needsStart) input.startDate = addInStart;
+    if (needsThru) input.thruDate = addInThru;
+    if (needsNra) input.normalRetirementAge = Number(addInNra);
+    if (needsRa) input.retirementAge = Number(addInRa);
+    if (needsAnnivDate) input.planAnniversaryDate = addInAnnivDate;
+    if (showFoma) {
+      input.firstOfMonthAfter = Number(addInFoma);
+      if (addInAnniv.trim() !== "") input.anniversaryMonthDay = addInAnniv;
+    }
+    if (needsService) input.serviceYears = Number(addInService);
+    setAddInBusy(true);
+    try {
+      await onRunAddIn(input);
+    } finally {
+      setAddInBusy(false);
     }
   }
 
@@ -561,6 +631,225 @@ export function CalculationsStage({
               The rule refuses a payee with only one plan, and refuses amounts
               where assets plus recovery funding exceed the guaranteed benefit.
               It never supplies a guarantee amount on its own.
+            </p>
+          </EmptyState>
+        )}
+      </Panel>
+
+      <Panel
+        id="addin-input"
+        eyebrow="BCV add-in"
+        title="ATPBGC add-in functions"
+        description="Nine functions transcribed from the BCV add-in reference, each with the source page on its result. These are the functions the V1 valuation is required to use; a refusal names the add-in error code where the page documents one."
+        aside={<StatusPill tone="success">Rules implemented</StatusPill>}
+      >
+        <form className="calc-form" onSubmit={handleAddIn}>
+          <div className="calc-inputs">
+            <label className="stacked-field">
+              <span>BCV function</span>
+              <select
+                value={addInFunction}
+                onChange={(event) =>
+                  setAddInFunction(event.target.value as BcvAddInFunction)
+                }
+              >
+                {BCV_ADDIN_FUNCTIONS.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <small>{ADDIN_SUMMARY[addInFunction]}</small>
+            </label>
+
+            {needsDob ? (
+              <label className="stacked-field">
+                <span>Add-in date of birth</span>
+                <input
+                  type="date"
+                  value={addInDob}
+                  onChange={(event) => setAddInDob(event.target.value)}
+                  required
+                />
+              </label>
+            ) : null}
+
+            {needsStart ? (
+              <label className="stacked-field">
+                <span>Add-in start date</span>
+                <input
+                  type="date"
+                  value={addInStart}
+                  onChange={(event) => setAddInStart(event.target.value)}
+                  required
+                />
+              </label>
+            ) : null}
+
+            {needsThru ? (
+              <label className="stacked-field">
+                <span>Add-in thru date</span>
+                <input
+                  type="date"
+                  value={addInThru}
+                  onChange={(event) => setAddInThru(event.target.value)}
+                  required
+                />
+              </label>
+            ) : null}
+
+            {needsNra ? (
+              <label className="stacked-field">
+                <span>Add-in normal retirement age</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="75"
+                  step="0.25"
+                  value={addInNra}
+                  onChange={(event) => setAddInNra(event.target.value)}
+                  required
+                />
+                <small>The add-in accepts 0 through 75 (error 2155 otherwise).</small>
+              </label>
+            ) : null}
+
+            {needsRa ? (
+              <label className="stacked-field">
+                <span>Add-in retirement age</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="75"
+                  step="0.25"
+                  value={addInRa}
+                  onChange={(event) => setAddInRa(event.target.value)}
+                  required
+                />
+                <small>Fractions must resolve to whole months, e.g. 70.5 is 70 years 6 months.</small>
+              </label>
+            ) : null}
+
+            {needsAnnivDate ? (
+              <label className="stacked-field">
+                <span>Add-in plan anniversary date</span>
+                <input
+                  type="date"
+                  value={addInAnnivDate}
+                  onChange={(event) => setAddInAnnivDate(event.target.value)}
+                  required
+                />
+                <small>Only the month and day are used, as NRDA documents.</small>
+              </label>
+            ) : null}
+
+            {showFoma ? (
+              <label className="stacked-field">
+                <span>Add-in first-of-month rule</span>
+                <select
+                  value={addInFoma}
+                  onChange={(event) => setAddInFoma(event.target.value)}
+                >
+                  <option value="0">0 · first of month on or following</option>
+                  <option value="1">1 · first of month following</option>
+                  <option value="2">2 · first of month on or before</option>
+                  <option value="3">3 · plan anniversary nearest</option>
+                  <option value="4">4 · first of month nearest</option>
+                </select>
+              </label>
+            ) : null}
+
+            {showFoma && addInFoma === "3" ? (
+              <label className="stacked-field">
+                <span>Add-in plan anniversary (MMDD)</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]{4}"
+                  maxLength={4}
+                  placeholder="0301"
+                  value={addInAnniv}
+                  onChange={(event) => setAddInAnniv(event.target.value)}
+                  required
+                />
+                <small>Required when the rule is 3; an invalid MMDD entry is refused.</small>
+              </label>
+            ) : null}
+
+            {needsService ? (
+              <label className="stacked-field">
+                <span>Add-in vesting service years</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={addInService}
+                  onChange={(event) => setAddInService(event.target.value)}
+                  required
+                />
+              </label>
+            ) : null}
+          </div>
+
+          <div className="button-row">
+            <button className="primary" type="submit" disabled={addInBusy}>
+              {addInBusy ? "Running…" : "Run add-in calculation"}
+            </button>
+          </div>
+        </form>
+
+        {addInRun ? (
+          <>
+            <div className="result-hero">
+              <p className="addin-result-value">
+                {formatAddInValue(addInRun.result.value)}
+              </p>
+              <p className="result-units">
+                {addInRun.result.functionName} · {addInRun.result.units}
+              </p>
+            </div>
+            <dl className="key-value-list">
+              <KeyValue label="Formula">
+                <span className="mono">{addInRun.result.formula}</span>
+              </KeyValue>
+              <KeyValue label="Rules">
+                <span className="mono">{addInRun.result.ruleIds.join(", ")}</span>
+              </KeyValue>
+              <KeyValue label="Source page">
+                {String(addInRun.result.intermediates.bcvPage ?? "")} of BCV ATPBGC
+                (Add-ins).pdf
+              </KeyValue>
+              <KeyValue label="Engine">{addInRun.result.engineVersion}</KeyValue>
+              <KeyValue label="Run id">
+                <span className="mono">{addInRun.runId}</span>
+              </KeyValue>
+            </dl>
+            <h3 className="subhead">Intermediates</h3>
+            <ul className="trace-list">
+              {Object.entries(addInRun.result.intermediates).map(([key, value]) => (
+                <li key={key}>
+                  <span className="mono">{key}</span> = {String(value)}
+                </li>
+              ))}
+            </ul>
+            {addInRun.result.warnings.length > 0 ? (
+              <div className="warning-block" role="note">
+                <strong>Warnings</strong>
+                <ul>
+                  {addInRun.result.warnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <EmptyState title="No add-in run yet">
+            <p>
+              Each result shows the page it was transcribed from, the rule ids it
+              runs under, and any recorded assumption. Missing inputs fail closed
+              with the add-in's own error code where the page documents one.
             </p>
           </EmptyState>
         )}

@@ -166,6 +166,15 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await expect(page.locator("#aggregate-input .result-value")).toHaveText("1766.61");
   await expect(page.getByText(/Appendix D/).first()).toBeVisible();
 
+  // BCV add-in: a documented example runs with its page citation and rule.
+  await page.getByLabel("BCV function").selectOption("ANB");
+  await page.getByLabel("Add-in date of birth").fill("1935-09-01");
+  await page.getByLabel("Add-in thru date").fill("1989-04-01");
+  await page.getByRole("button", { name: "Run add-in calculation" }).click();
+  await expect(page.locator(".addin-result-value")).toHaveText("54");
+  await expect(page.getByText(/bcv:anb/).first()).toBeVisible();
+  await shot(page, "addin");
+
   await openStage(page, /Reconciliation/);
   await expect(page.getByRole("heading", { name: "Readiness for a work product" })).toBeVisible();
   await expect(page.locator(".checklist-row")).toHaveCount(5);

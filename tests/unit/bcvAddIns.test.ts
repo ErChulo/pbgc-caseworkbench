@@ -23,6 +23,9 @@ import {
   computeNearestPlanAnniversaryDate,
   computeNormalRetirementDate,
   computeRetirementDate,
+  BCV_ADDIN_FUNCTIONS,
+  BCV_ADDIN_RULE_IDS,
+  runBcvAddIn,
 } from "../../src/domain/calculations/bcv";
 import { getRule, implementedRules } from "../../src/domain/rules/registry";
 
@@ -293,6 +296,73 @@ describe("G515V", () => {
     expect(() =>
       computeGradedVestingPercent({ serviceYears: 101 }),
     ).toThrowError(/outside the documented range/i);
+  });
+});
+
+describe("runBcvAddIn", () => {
+  it("routes every function to its documented example", () => {
+    expect(
+      runBcvAddIn({ function: "ANB", dateOfBirth: "1935-09-01", thruDate: "1989-04-01" })
+        .value,
+    ).toBe(54);
+    expect(
+      runBcvAddIn({ function: "ATT", dateOfBirth: "1935-09-01", thruDate: "1989-04-01" })
+        .value,
+    ).toBe(53);
+    expect(
+      runBcvAddIn({ function: "NRD", dateOfBirth: "1935-09-01", normalRetirementAge: 65 })
+        .value,
+    ).toBe("2000-09-01");
+    expect(
+      runBcvAddIn({
+        function: "NRDA",
+        dateOfBirth: "1935-09-01",
+        planAnniversaryDate: "1980-01-31",
+        normalRetirementAge: 65,
+      }).value,
+    ).toBe("2001-01-31");
+    expect(
+      runBcvAddIn({ function: "RETDATE", dateOfBirth: "1950-04-01", retirementAge: 70.5 })
+        .value,
+    ).toBe("2020-10-01");
+    expect(
+      runBcvAddIn({ function: "COMPM", startDate: "1980-01-15", thruDate: "1980-03-28" })
+        .value,
+    ).toBe(2);
+    expect(
+      runBcvAddIn({ function: "COMPYM", startDate: "1980-06-15", thruDate: "1985-07-20" })
+        .value,
+    ).toBeCloseTo(5.0833, 4);
+    expect(
+      runBcvAddIn({ function: "COMPAYM", startDate: "1980-06-15", thruDate: "1985-07-20" })
+        .value,
+    ).toBe(5);
+    expect(runBcvAddIn({ function: "G515V", serviceYears: 7 }).value).toBeCloseTo(0.35, 10);
+  });
+
+  it("names the function and maps it to a registered rule", () => {
+    const result = runBcvAddIn({ function: "G515V", serviceYears: 7 });
+    expect(result.functionName).toBe("G515V");
+    expect(result.intermediates.bcvPage).toBe(15);
+    const ids = new Set(implementedRules().map((rule) => rule.ruleId));
+    for (const name of BCV_ADDIN_FUNCTIONS) {
+      expect(ids.has(BCV_ADDIN_RULE_IDS[name]), name).toBe(true);
+    }
+  });
+
+  it("fails closed when a required input is missing", () => {
+    expect(() =>
+      runBcvAddIn({ function: "ANB", thruDate: "1989-04-01" }),
+    ).toThrowError(/date of birth is missing/i);
+    expect(() =>
+      runBcvAddIn({ function: "NRD", dateOfBirth: "1935-09-01" }),
+    ).toThrowError(/retirement age is missing/i);
+    expect(() =>
+      runBcvAddIn({ function: "COMPM", startDate: "1980-01-15" }),
+    ).toThrowError(/thru date is missing/i);
+    expect(() => runBcvAddIn({ function: "G515V" })).toThrowError(
+      /service years is missing/i,
+    );
   });
 });
 

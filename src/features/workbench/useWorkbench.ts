@@ -23,9 +23,11 @@ import {
 import { downloadTextFile } from "../../app/download";
 import type {
   AggregateLimitCalculationRun,
+  BcvAddInCalculationRun,
   CalculationRun,
   EprdCalculationRun,
 } from "../../app/CalculationService";
+import type { BcvAddInInput } from "../../domain/calculations/bcv";
 import type { StageId } from "../../app/stages";
 import type {
   AuditEvent,
@@ -59,6 +61,7 @@ export type WorkbenchState = {
   lastRun: CalculationRun | null;
   lastEprdRun: EprdCalculationRun | null;
   lastAggregateRun: AggregateLimitCalculationRun | null;
+  lastAddInRun: BcvAddInCalculationRun | null;
 };
 
 export type WorkbenchActions = {
@@ -95,6 +98,7 @@ export type WorkbenchActions = {
       basis: string;
     };
   }) => Promise<void>;
+  runBcvAddIn: (input: BcvAddInInput) => Promise<void>;
   exportBundle: () => Promise<void>;
   importBundle: (file: File) => Promise<void>;
   recordWorkProduct: (info: {
@@ -130,6 +134,7 @@ const initialState: WorkbenchState = {
   lastRun: null,
   lastEprdRun: null,
   lastAggregateRun: null,
+  lastAddInRun: null,
 };
 
 function messageOf(error: unknown): string {
@@ -168,6 +173,7 @@ export function useWorkbench(): {
         lastRun: null,
         lastEprdRun: null,
         lastAggregateRun: null,
+        lastAddInRun: null,
         stage: "home",
       }));
       return;
@@ -289,6 +295,7 @@ export function useWorkbench(): {
       lastRun: null,
       lastEprdRun: null,
       lastAggregateRun: null,
+      lastAddInRun: null,
       stage: "home",
       saveStatus: "idle",
       notice: null,
@@ -540,6 +547,36 @@ export function useWorkbench(): {
     [],
   );
 
+  const runBcvAddIn = useCallback(async (input: BcvAddInInput) => {
+    const caseId = activeCaseIdRef.current;
+    if (!caseId) return;
+    const provenanceIds = input.dateOfBirth
+      ? stateRef.current.links
+          .filter((link) => link.fieldId === "participant-dob")
+          .map((link) => link.linkId)
+      : [];
+    try {
+      const run = await services.calculationService.runBcvAddIn({
+        caseId,
+        input,
+        provenanceIds,
+      });
+      const auditEvents = await services.caseService.getAuditEvents(caseId);
+      setState((previous) => ({
+        ...previous,
+        lastAddInRun: run,
+        auditEvents,
+        error: null,
+      }));
+    } catch (error) {
+      setState((previous) => ({
+        ...previous,
+        lastAddInRun: null,
+        error: messageOf(error),
+      }));
+    }
+  }, []);
+
   const exportBundle = useCallback(async () => {
     const current = stateRef.current;
     if (!current.activeCase) return;
@@ -699,6 +736,7 @@ export function useWorkbench(): {
       runAge,
       runEarliestRetirement,
       runAggregateLimit,
+      runBcvAddIn,
       exportBundle,
       importBundle,
       recordWorkProduct,

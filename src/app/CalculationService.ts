@@ -28,6 +28,12 @@ import {
   type PriorPlanAmounts,
 } from "../domain/calculations/aggregateLimit";
 import { assertRuleImplemented } from "../domain/rules/registry";
+import {
+  BCV_ADDIN_RULE_IDS,
+  runBcvAddIn,
+  type BcvAddInInput,
+  type BcvAddInResult,
+} from "../domain/calculations/bcv";
 import { generateId, nowIso } from "../domain/case/validation";
 
 export type CalculationRun<T = number> = {
@@ -51,6 +57,14 @@ export type AggregateLimitCalculationRun = {
   caseId: string;
   createdAt: string;
   result: AggregateLimitResult;
+};
+
+/** BCV add-in runs name the function and keep its own trace. */
+export type BcvAddInCalculationRun = {
+  runId: string;
+  caseId: string;
+  createdAt: string;
+  result: BcvAddInResult;
 };
 
 export class CalculationService {
@@ -174,6 +188,37 @@ export class CalculationService {
       eventType: "calculation-run",
       actor: "local-user",
       component: `CalculationService.runAggregateLimit (${rule.ruleId})`,
+      at: createdAt,
+      refs: { runId },
+      after: result.value,
+    });
+
+    return { runId, caseId: args.caseId, createdAt, result };
+  }
+
+  /**
+   * One implemented BCV add-in function, run under its registered rule and
+   * audited like every other calculation. The service adds no arithmetic and no
+   * defaults: the dispatcher fails closed on a missing required input.
+   */
+  async runBcvAddIn(args: {
+    caseId: string;
+    input: BcvAddInInput;
+    provenanceIds?: string[];
+  }): Promise<BcvAddInCalculationRun> {
+    const rule = assertRuleImplemented(BCV_ADDIN_RULE_IDS[args.input.function]);
+
+    const result = runBcvAddIn(args.input, args.provenanceIds ?? []);
+
+    const runId = generateId();
+    const createdAt = nowIso();
+
+    await this.cases.appendAuditEvent({
+      eventId: generateId(),
+      caseId: args.caseId,
+      eventType: "calculation-run",
+      actor: "local-user",
+      component: `CalculationService.runBcvAddIn (${rule.ruleId})`,
       at: createdAt,
       refs: { runId },
       after: result.value,
