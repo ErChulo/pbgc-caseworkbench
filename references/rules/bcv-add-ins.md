@@ -12,15 +12,63 @@
 This is the calculation authority the V1 valuation is expected to use. The workbench
 does not derive its own benefit formulas where an add-in function exists.
 
-## Status: indexed, not implemented
+## Status: indexed; nine functions implemented
 
 Every function below is transcribed to its name, signature, one-line return, and page.
-**None is implemented in the workbench yet.** A function may be used in a calculation only
-after all three of these hold:
+Nine are implemented and tested against the source's own examples. A function may be
+used in a calculation only after all three of these hold:
 
 1. its full semantics, parameter validation, and error codes are transcribed from the page cited;
 2. the documented example reproduces in a unit test against the implementation;
 3. any database dependency is sourced and cited (see below).
+
+## Implemented functions
+
+| Function | Page | Module | Documented examples reproduced |
+| --- | --- | --- | --- |
+| `ANB` | 3 | `src/domain/calculations/bcv/age.ts` | 54 at 1989-04-01 for a 1935-09-01 birth |
+| `ATT` | 4 | `src/domain/calculations/bcv/age.ts` | 53 at 1989-04-01 |
+| `NRD` | 4 | `src/domain/calculations/bcv/dates.ts` | 2000-09-01 at age 65 |
+| `NRDA` | 4 | `src/domain/calculations/bcv/dates.ts` | 2001-01-31 for a 01-31 plan anniversary |
+| `RETDATE` | 5 | `src/domain/calculations/bcv/dates.ts` | 05/01/2015, 04/01/2015, 05/01/2015 (foma 1), 10/01/2020 (age 70.5) |
+| `COMPM` | 8 | `src/domain/calculations/bcv/service.ts` | 2 for 1980-01-15 to 1980-03-28 |
+| `COMPYM` | 8 | `src/domain/calculations/bcv/service.ts` | 5.0833 for 1980-06-15 to 1985-07-20 |
+| `COMPAYM` | 9 | `src/domain/calculations/bcv/service.ts` | 5 for the same interval |
+| `G515V` | 15 | `src/domain/calculations/bcv/vesting.ts` | .35 at 7 years, .70 at 12 years |
+
+Every implementation returns the standard calculation envelope (inputs, units, rule
+ids, formula, intermediates, rounding, warnings, engine version) and fails closed on
+the conditions its page documents. Error codes 2155 (retirement age outside 0-75) and
+2186 (foma outside 0-4) are reproduced on the thrown error.
+
+### Recorded assumptions and refusals
+
+- **ANB half-birthday.** The page gives the nearest-birthday result but not the
+direction at an exact half-birthday. The workbench rounds up, registers
+`assumption:bcv-anb-half-birthday`, and warns on every ANB result. A reviewer must
+confirm the convention before ANB feeds a benefit calculation.
+- **RETDATE duplicate example.** Page 5 prints both `10/01/2020` and `11/01/2020` for
+`RETDATE(DATE(1950,04,01), 70.5)`. Only one reading is consistent with foma 0; the
+second line is treated as a typographical duplicate of the foma 1 case. The tests
+assert the four unambiguous results only.
+- **Fractional retirement ages.** Only fractions that resolve to whole months are
+accepted (70.5 means 70 years 6 months). Anything else is refused as
+`BCV_FRACTIONAL_AGE_UNSUPPORTED` because the source states no rounding rule.
+- **Nearest-date ties.** NRDA and foma 3/4 refuse an exactly equidistant pair
+(`BCV_AMBIGUOUS_NEAREST`) instead of silently choosing.
+- **G515V scope.** The rule records the schedule the add-in implements. Applying it to
+a plan also requires that plan's adoption provision, recorded separately.
+
+## Functions deliberately not implemented yet, and why
+
+| Function(s) | Page | Blocking reason |
+| --- | --- | --- |
+| `COMPAM` | 8 | Returns 1 where COMPM returns 2 for the same interval, and the page never states how partial boundary months are treated. One example cannot fix the rule. |
+| `SERV`, `SERVBA`, `SERVBW`, `SERVYCA`, `SERVYCP`, `SERVYCW`, `SERVYPA`, `SERVYPP`, `SERVYPW` | 9-15 | The hour-crediting algorithm (plan years, averaged months and days, partial service arrays) is described across several pages, and a candidate implementation did not reproduce both of the documented one-day-apart examples. Not transcribed until the algorithm is read end to end. |
+| `RULE45` | 16 | The seven documented results are not reproducible by any single consistent reading of the stated rule; at least one example appears inconsistent with the others. |
+| `PBGCERF`, `PBGCML`, `PBGCME`, `CCF`, `PBGCJSF`, `WAM`, `PHASEIN` | 16-61 | Factor tables and the Actuarial Technical Manual sections they cite are absent from the corpus. |
+| `IIR`, `IIRL`, `IIF`, `PACSIIR`, `PACSIIRL`, `PACSIIF` | 23-26 | Read interest rates from the `BCVATPBGC` schema; no source for the table values. |
+| `XRD2`, `XRA2`, `SSACALC`, `SSAVAL`, `SSASAMPLE`, `SEST_2`, `SESTAVG_2`, `HAVG`, `HCAVG`, `BFCFAEQ`, `NPVF*`, `NXY`, `NNX*`, `NEX`, `INTCODE`, `RATETIER`, `VERSION` | 31-173 | Signature indexed only; semantics and the tables they depend on are not transcribed. |
 
 ### Data dependency gap
 

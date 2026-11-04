@@ -150,6 +150,43 @@ export function addYears(date: CalendarDate, years: number): CalendarDate {
 }
 
 /**
+ * Add whole calendar months, clamping the day to the target month's length so
+ * 2024-01-31 + 1 month is 2024-02-29 (not March 2) and 2023-01-31 + 1 month is
+ * 2023-02-28.
+ */
+export function addMonths(date: CalendarDate, months: number): CalendarDate {
+  if (!Number.isInteger(months)) {
+    throw new RangeError("months must be an integer");
+  }
+  const absoluteMonth = date.year * 12 + (date.month - 1) + months;
+  const year = Math.floor(absoluteMonth / 12);
+  const month = ((absoluteMonth % 12) + 12) % 12 + 1;
+  const maxDay = daysInMonth(year, month);
+  return { year, month, day: Math.min(date.day, maxDay) };
+}
+
+/**
+ * Days from 1970-01-01 in the proleptic Gregorian calendar, using integer
+ * arithmetic only. This is a count of calendar days, not an elapsed-time
+ * measure, so it never depends on a time zone or a host Date implementation.
+ */
+export function toEpochDay(date: CalendarDate): number {
+  const year = date.month <= 2 ? date.year - 1 : date.year;
+  const era = Math.floor(year / 400);
+  const yearOfEra = year - era * 400;
+  const monthIndex = (date.month + 9) % 12; // March = 0
+  const dayOfYear = Math.floor((153 * monthIndex + 2) / 5) + date.day - 1;
+  const dayOfEra =
+    yearOfEra * 365 + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100) + dayOfYear;
+  return era * 146097 + dayOfEra - 719468;
+}
+
+/** Signed number of calendar days from `from` to `to` (positive when later). */
+export function daysBetween(from: CalendarDate, to: CalendarDate): number {
+  return toEpochDay(to) - toEpochDay(from);
+}
+
+/**
  * Whole calendar years, months, and residual days between `from` and `to`,
  * using the completed-interval convention (the residual days never reach a
  * full month, and months never reach 12).

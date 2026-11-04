@@ -180,6 +180,193 @@ export const RULES: readonly RuleRecord[] = [
     blockingReason:
       "Allocation ordering and category tests not transcribed or reviewed.",
   },
+  {
+    ruleId: "bcv:anb",
+    title: "Age nearest birthday (BCV ANB)",
+    kind: "identity",
+    status: "implemented",
+    summary:
+      "Nearest-birthday age at a date: the exact age increased by one when the date is closer to the next birthday than to the last one.",
+    formula:
+      "ANB = exactAge + 1 when daysSinceBirthday >= daysUntilNextBirthday",
+    units: "years",
+    authority: {
+      citation:
+        "BCV ATPBGC (Add-ins).pdf, ANB, pages 3-4, SHA-256 92d409b29c299bd50dde17502e019a7abdae00a48710890bcc08eb1a521929d5",
+      note:
+        "Documented example ANB(1935-09-01, 1989-04-01) = 54 is reproduced in tests/unit/bcvAddIns.test.ts. The page does not state which way an exact half-birthday rounds; that choice is the separate assumption `assumption:bcv-anb-half-birthday`.",
+      checkedOn: "2026-11-04",
+    },
+    implementedBy: "src/domain/calculations/bcv/age.ts",
+    blockingReason: null,
+  },
+  {
+    ruleId: "bcv:att",
+    title: "Attained age (BCV ATT)",
+    kind: "identity",
+    status: "implemented",
+    summary: "Attained age at a date: completed calendar years, the same identity the workbench already uses for age.",
+    formula: "ATT = completed calendar years from dateOfBirth to thruDate",
+    units: "years",
+    authority: {
+      citation:
+        "BCV ATPBGC (Add-ins).pdf, ATT, page 4, SHA-256 92d409b29c299bd50dde17502e019a7abdae00a48710890bcc08eb1a521929d5",
+      note: "Documented example ATT(1935-09-01, 1989-04-01) = 53 is reproduced in tests/unit/bcvAddIns.test.ts.",
+      checkedOn: "2026-11-04",
+    },
+    implementedBy: "src/domain/calculations/bcv/age.ts",
+    blockingReason: null,
+  },
+  {
+    ruleId: "bcv:nrd",
+    title: "Normal retirement date (BCV NRD)",
+    kind: "identity",
+    status: "implemented",
+    summary:
+      "The first of the month coincident with or next following the nra-th birthday.",
+    formula: "NRD = first of the month on or following (dateOfBirth + nra years)",
+    units: "ISO 8601 date",
+    authority: {
+      citation:
+        "BCV ATPBGC (Add-ins).pdf, NRD, page 4, SHA-256 92d409b29c299bd50dde17502e019a7abdae00a48710890bcc08eb1a521929d5",
+      note:
+        "Documented example NRD(1935-09-01, 65) = 2000-09-01 is reproduced in tests/unit/bcvAddIns.test.ts. The retirement age range 0-75 and error 2155 come from the RETDATE page.",
+      checkedOn: "2026-11-04",
+    },
+    implementedBy: "src/domain/calculations/bcv/dates.ts",
+    blockingReason: null,
+  },
+  {
+    ruleId: "bcv:nrda",
+    title: "Plan-anniversary normal retirement date (BCV NRDA)",
+    kind: "identity",
+    status: "implemented",
+    summary:
+      "The plan anniversary date nearest attainment of the normal retirement age.",
+    formula:
+      "NRDA = occurrence of the plan anniversary (MMDD) nearest (dateOfBirth + nra years)",
+    units: "ISO 8601 date",
+    authority: {
+      citation:
+        "BCV ATPBGC (Add-ins).pdf, NRDA, page 4, SHA-256 92d409b29c299bd50dde17502e019a7abdae00a48710890bcc08eb1a521929d5",
+      note:
+        "Documented example NRDA(1935-09-01, 1980-01-31, 65) = 2001-01-31 is reproduced in tests/unit/bcvAddIns.test.ts. An exact tie between two anniversary occurrences is refused (BCV_AMBIGUOUS_NEAREST) because the source records no tie rule.",
+      checkedOn: "2026-11-04",
+    },
+    implementedBy: "src/domain/calculations/bcv/dates.ts",
+    blockingReason: null,
+  },
+  {
+    ruleId: "bcv:retdate",
+    title: "Retirement date with first-of-month adjustment (BCV RETDATE)",
+    kind: "identity",
+    status: "implemented",
+    summary:
+      "A retirement date for an age, adjusted by the documented foma rule: on or following, following, on or before, nearest plan anniversary, or nearest first of month.",
+    formula:
+      "RETDATE = foma(dateOfBirth + retirementAge), where retirementAge may carry a whole number of months",
+    units: "ISO 8601 date",
+    authority: {
+      citation:
+        "BCV ATPBGC (Add-ins).pdf, RETDATE, page 5, SHA-256 92d409b29c299bd50dde17502e019a7abdae00a48710890bcc08eb1a521929d5",
+      note:
+        "Four unambiguous documented examples are reproduced in tests/unit/bcvAddIns.test.ts. The page prints both 10/01/2020 and 11/01/2020 for RETDATE(1950-04-01, 70.5); the second is treated as a typographical duplicate of the foma = 1 case, as recorded in references/rules/bcv-add-ins.md. Retirement ages must resolve to whole months; other fractions are refused.",
+      checkedOn: "2026-11-04",
+    },
+    implementedBy: "src/domain/calculations/bcv/dates.ts",
+    blockingReason: null,
+  },
+  {
+    ruleId: "bcv:compm",
+    title: "Completed months between two dates (BCV COMPM)",
+    kind: "identity",
+    status: "implemented",
+    summary: "Completed months between two dates, from completed years and remaining months.",
+    formula: "COMPM = 12 * completedYears + completedMonths",
+    units: "months",
+    authority: {
+      citation:
+        "BCV ATPBGC (Add-ins).pdf, COMPM, page 8, SHA-256 92d409b29c299bd50dde17502e019a7abdae00a48710890bcc08eb1a521929d5",
+      note: "Documented example COMPM(1980-01-15, 1980-03-28) = 2 is reproduced in tests/unit/bcvAddIns.test.ts.",
+      checkedOn: "2026-11-04",
+    },
+    implementedBy: "src/domain/calculations/bcv/service.ts",
+    blockingReason: null,
+  },
+  {
+    ruleId: "bcv:compym",
+    title: "Completed years and months (BCV COMPYM)",
+    kind: "identity",
+    status: "implemented",
+    summary:
+      "Completed years plus completed months as a fraction of a year. The source's example is displayed to four decimals.",
+    formula: "COMPYM = completedYears + completedMonths / 12",
+    units: "years",
+    authority: {
+      citation:
+        "BCV ATPBGC (Add-ins).pdf, COMPYM, page 8, SHA-256 92d409b29c299bd50dde17502e019a7abdae00a48710890bcc08eb1a521929d5",
+      note: "Documented example COMPYM(1980-06-15, 1985-07-20) = 5.0833 is reproduced in tests/unit/bcvAddIns.test.ts.",
+      checkedOn: "2026-11-04",
+    },
+    implementedBy: "src/domain/calculations/bcv/service.ts",
+    blockingReason: null,
+  },
+  {
+    ruleId: "bcv:compaym",
+    title: "Completed whole years (BCV COMPAYM)",
+    kind: "identity",
+    status: "implemented",
+    summary: "Completed whole calendar years between two dates.",
+    formula: "COMPAYM = completed calendar years between startDate and thruDate",
+    units: "years",
+    authority: {
+      citation:
+        "BCV ATPBGC (Add-ins).pdf, COMPAYM, page 9, SHA-256 92d409b29c299bd50dde17502e019a7abdae00a48710890bcc08eb1a521929d5",
+      note: "Documented example COMPAYM(1980-06-15, 1985-07-20) = 5 is reproduced in tests/unit/bcvAddIns.test.ts. COMPAM is not implemented: its single example is not enough to fix the partial-month treatment.",
+      checkedOn: "2026-11-04",
+    },
+    implementedBy: "src/domain/calculations/bcv/service.ts",
+    blockingReason: null,
+  },
+  {
+    ruleId: "bcv:g515v",
+    title: "5-15 graded vesting schedule (BCV G515V)",
+    kind: "pbgc-rule",
+    status: "implemented",
+    summary:
+      "The add-in's 5-15 graded vesting schedule: 0 before 5 years, 25% at 5, plus 5 points per year through 10, then plus 10 points per year through 15.",
+    formula:
+      "G515V = 0 for service < 5; 25 + 5*(service-5) percent for 5 <= service <= 10; 50 + 10*(service-10) percent for 10 < service <= 15; 100 percent thereafter",
+    units: "vesting fraction",
+    authority: {
+      citation:
+        "BCV ATPBGC (Add-ins).pdf, G515V, page 15, SHA-256 92d409b29c299bd50dde17502e019a7abdae00a48710890bcc08eb1a521929d5",
+      note:
+        "Both documented examples, G515V(7) = .35 and G515V(12) = .7, are reproduced in tests/unit/bcvAddIns.test.ts. This rule records the schedule the add-in implements; applying it to a plan still requires that plan's adoption provision, recorded separately.",
+      checkedOn: "2026-11-04",
+    },
+    implementedBy: "src/domain/calculations/bcv/vesting.ts",
+    blockingReason: null,
+  },
+  {
+    ruleId: "assumption:bcv-anb-half-birthday",
+    title: "ANB half-birthday rounding direction",
+    kind: "assumption",
+    status: "implemented",
+    summary:
+      "The ANB page states the nearest-birthday result but not the direction at an exact half-birthday. This workbench rounds up at the tie and flags the assumption on every ANB result.",
+    formula: "at daysSinceBirthday == daysUntilNextBirthday: ANB = exactAge + 1",
+    units: "not applicable",
+    authority: {
+      citation:
+        "Gap in BCV ATPBGC (Add-ins).pdf, ANB, page 3; recorded rather than resolved",
+      note:
+        "A reviewer must confirm the convention before ANB feeds a benefit calculation. The tie is rare and the result carries a warning whenever it occurs.",
+      checkedOn: "2026-11-04",
+    },
+    implementedBy: "src/domain/calculations/bcv/age.ts",
+    blockingReason: null,
+  },
 ];
 
 export function getRule(ruleId: string): RuleRecord | undefined {
