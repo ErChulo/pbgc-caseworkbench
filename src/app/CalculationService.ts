@@ -19,6 +19,14 @@ import {
   computeEarliestPbgcRetirementDate,
   type EarliestRetirementResult,
 } from "../domain/calculations/earliestRetirement";
+import {
+  AGGREGATE_LIMIT_RULE_ID,
+  computeAggregateLimit,
+  type AggregateLimitResult,
+  type MaximumGuaranteeInput,
+  type PlanBenefitAmounts,
+  type PriorPlanAmounts,
+} from "../domain/calculations/aggregateLimit";
 import { assertRuleImplemented } from "../domain/rules/registry";
 import { generateId, nowIso } from "../domain/case/validation";
 
@@ -35,6 +43,14 @@ export type EprdCalculationRun = {
   caseId: string;
   createdAt: string;
   result: EarliestRetirementResult;
+};
+
+/** Aggregate-limit runs carry the cap and the guaranteed amounts. */
+export type AggregateLimitCalculationRun = {
+  runId: string;
+  caseId: string;
+  createdAt: string;
+  result: AggregateLimitResult;
 };
 
 export class CalculationService {
@@ -119,6 +135,45 @@ export class CalculationService {
       eventType: "calculation-run",
       actor: "local-user",
       component: `CalculationService.runEarliestPbgcRetirementDate (${rule.ruleId})`,
+      at: createdAt,
+      refs: { runId },
+      after: result.value,
+    });
+
+    return { runId, caseId: args.caseId, createdAt, result };
+  }
+
+  /**
+   * Aggregate Limit on Benefits Payable from PBGC Funds. The maximum
+   * guaranteeable benefit is a provenanced input: the guarantee table and its
+   * age/form factors are not implemented, so this service never looks it up.
+   * A payee with a single plan is refused as not applicable.
+   */
+  async runAggregateLimit(args: {
+    caseId: string;
+    currentPlan: PlanBenefitAmounts;
+    priorPlans: PriorPlanAmounts[];
+    maximumGuaranteeableBenefit: MaximumGuaranteeInput;
+    provenanceIds?: string[];
+  }): Promise<AggregateLimitCalculationRun> {
+    const rule = assertRuleImplemented(AGGREGATE_LIMIT_RULE_ID);
+
+    const result = computeAggregateLimit({
+      currentPlan: args.currentPlan,
+      priorPlans: args.priorPlans,
+      maximumGuaranteeableBenefit: args.maximumGuaranteeableBenefit,
+      provenanceIds: args.provenanceIds ?? [],
+    });
+
+    const runId = generateId();
+    const createdAt = nowIso();
+
+    await this.cases.appendAuditEvent({
+      eventId: generateId(),
+      caseId: args.caseId,
+      eventType: "calculation-run",
+      actor: "local-user",
+      component: `CalculationService.runAggregateLimit (${rule.ruleId})`,
       at: createdAt,
       refs: { runId },
       after: result.value,

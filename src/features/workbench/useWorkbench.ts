@@ -21,7 +21,11 @@ import {
   serializeBundle,
 } from "../../app/BundleService";
 import { downloadTextFile } from "../../app/download";
-import type { CalculationRun, EprdCalculationRun } from "../../app/CalculationService";
+import type {
+  AggregateLimitCalculationRun,
+  CalculationRun,
+  EprdCalculationRun,
+} from "../../app/CalculationService";
 import type { StageId } from "../../app/stages";
 import type {
   AuditEvent,
@@ -54,6 +58,7 @@ export type WorkbenchState = {
   stage: StageId;
   lastRun: CalculationRun | null;
   lastEprdRun: EprdCalculationRun | null;
+  lastAggregateRun: AggregateLimitCalculationRun | null;
 };
 
 export type WorkbenchActions = {
@@ -70,6 +75,25 @@ export type WorkbenchActions = {
     earliestAnnuityDate: string;
     dopt: string;
     earlierRetirementDate?: string;
+  }) => Promise<void>;
+  runAggregateLimit: (input: {
+    currentPlan: {
+      planId: string;
+      dopt: string;
+      guaranteedBenefit: number;
+      fundedByAssets: number;
+      recoveryPortion: number;
+    };
+    priorPlans: {
+      planId: string;
+      dopt: string;
+      benefitPayableFromPbgcFunds: number;
+    }[];
+    maximumGuaranteeableBenefit: {
+      monthlyAmount: number;
+      determinationDate: string;
+      basis: string;
+    };
   }) => Promise<void>;
   exportBundle: () => Promise<void>;
   importBundle: (file: File) => Promise<void>;
@@ -105,6 +129,7 @@ const initialState: WorkbenchState = {
   stage: "home",
   lastRun: null,
   lastEprdRun: null,
+  lastAggregateRun: null,
 };
 
 function messageOf(error: unknown): string {
@@ -142,6 +167,7 @@ export function useWorkbench(): {
         population: [],
         lastRun: null,
         lastEprdRun: null,
+        lastAggregateRun: null,
         stage: "home",
       }));
       return;
@@ -262,6 +288,7 @@ export function useWorkbench(): {
       population: [],
       lastRun: null,
       lastEprdRun: null,
+      lastAggregateRun: null,
       stage: "home",
       saveStatus: "idle",
       notice: null,
@@ -468,6 +495,51 @@ export function useWorkbench(): {
     [],
   );
 
+  const runAggregateLimit = useCallback(
+    async (input: {
+      currentPlan: {
+        planId: string;
+        dopt: string;
+        guaranteedBenefit: number;
+        fundedByAssets: number;
+        recoveryPortion: number;
+      };
+      priorPlans: {
+        planId: string;
+        dopt: string;
+        benefitPayableFromPbgcFunds: number;
+      }[];
+      maximumGuaranteeableBenefit: {
+        monthlyAmount: number;
+        determinationDate: string;
+        basis: string;
+      };
+    }) => {
+      const caseId = activeCaseIdRef.current;
+      if (!caseId) return;
+      try {
+        const run = await services.calculationService.runAggregateLimit({
+          caseId,
+          ...input,
+        });
+        const auditEvents = await services.caseService.getAuditEvents(caseId);
+        setState((previous) => ({
+          ...previous,
+          lastAggregateRun: run,
+          auditEvents,
+          error: null,
+        }));
+      } catch (error) {
+        setState((previous) => ({
+          ...previous,
+          lastAggregateRun: null,
+          error: messageOf(error),
+        }));
+      }
+    },
+    [],
+  );
+
   const exportBundle = useCallback(async () => {
     const current = stateRef.current;
     if (!current.activeCase) return;
@@ -626,6 +698,7 @@ export function useWorkbench(): {
       linkEvidence,
       runAge,
       runEarliestRetirement,
+      runAggregateLimit,
       exportBundle,
       importBundle,
       recordWorkProduct,

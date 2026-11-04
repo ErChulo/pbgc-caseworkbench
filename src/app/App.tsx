@@ -91,6 +91,7 @@ export function App() {
             state={state}
             onRun={actions.runAge}
             onRunEprd={actions.runEarliestRetirement}
+            onRunAggregate={actions.runAggregateLimit}
             facts={state.planFacts}
             links={state.links}
           />

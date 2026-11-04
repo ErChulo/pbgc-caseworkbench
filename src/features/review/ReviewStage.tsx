@@ -188,6 +188,9 @@ export function ReviewStage({ state, actions }: Props) {
               {state.lastEprdRun
                 ? ` · EPRD ${state.lastEprdRun.result.value} (run ${state.lastEprdRun.runId.slice(0, 8)})`
                 : ""}
+              {state.lastAggregateRun
+                ? ` · Aggregate limit ${state.lastAggregateRun.result.value.toFixed(2)} (run ${state.lastAggregateRun.runId.slice(0, 8)})`
+                : ""}
             </dd>
           </div>
         </dl>

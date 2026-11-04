@@ -145,6 +145,27 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await expect(page.getByText(/PBGC determination could move this date/)).toBeVisible();
   await expect(page.getByText("pbgc:earliest-retirement-date").first()).toBeVisible();
 
+  // Aggregate limit: the guidance's Example 1 arithmetic, with the guarantee
+  // amount as a required input rather than a table lookup.
+  await page.getByLabel("Current plan identifier").fill("Plan XYZ");
+  await page.getByLabel("Current plan DOPT").fill("2001-04-05");
+  await page.getByLabel("Current plan guaranteed benefit (monthly)").fill("2500");
+  await page.getByLabel("Current plan funded by plan assets (monthly)").fill("264");
+  await page.getByLabel("Current plan funded by recovery (monthly)").fill("110.46");
+  await page.getByLabel("Maximum guaranteeable benefit (monthly)").fill("3035.88");
+  await page.getByLabel("Guarantee determination date").fill("2001-04-05");
+  await page
+    .getByLabel("Guarantee basis (table year, age, annuity form)")
+    .fill("2001 table, age 62, straight life annuity");
+  await page.getByLabel("Prior plan 1 identifier").fill("Plan ABC");
+  await page.getByLabel("Prior plan 1 DOPT").fill("1997-06-16");
+  await page
+    .getByLabel("Prior plan 1 benefit payable from PBGC funds (monthly)")
+    .fill("1269.27");
+  await page.getByRole("button", { name: "Run aggregate limit calculation" }).click();
+  await expect(page.locator("#aggregate-input .result-value")).toHaveText("1766.61");
+  await expect(page.getByText(/Appendix D/).first()).toBeVisible();
+
   await openStage(page, /Reconciliation/);
   await expect(page.getByRole("heading", { name: "Readiness for a work product" })).toBeVisible();
   await expect(page.locator(".checklist-row")).toHaveCount(5);

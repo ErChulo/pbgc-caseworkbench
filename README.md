@@ -19,7 +19,8 @@ to produce one and says why.
 | Evidence intake (hash, duplicate detection, linking) | Working |
 | Calendar age and calendar interval identities | Working, 138 tests |
 | Earliest PBGC retirement date (EPRD) | Implemented: cited age-55 rule; facts-and-circumstances remains a reviewer decision |
-| Other PBGC provisions (§4022(c), aggregate limit, §4044 tiers) | Listed and **blocked** |
+| Aggregate limit on PBGC funds | Implemented: cited §4022B arithmetic; the guarantee table itself is a required, provenanced input |
+| Other PBGC provisions (§4022(c), guarantee table, §4044 tiers) | Listed and **blocked** |
 | Population stage | Working: CSV import, per-record provenance, calendar age; benefit amounts **blocked** |
 | Work products | 9 contracts registered; review copy, R5 template coverage, and participant register producible; R5 notice/V1/DEL/PF/BSRS/§436/memo blocked with reasons; reviewer decisions recordable per cell |
 | Field dictionary | 1,172 records across 12 tables |
@@ -60,13 +61,16 @@ fallback to unbranded text when the machine is offline.
    Download the participant register from here.
 5. **Rules & assumptions** — every rule the workbench may run, with its citation, and
    every provision that is blocked with the reason.
-6. **Calculations** — two runnable runs. Age at a date is a calendar identity. The
+6. **Calculations** — three runnable runs. Age at a date is a calendar identity. The
    Earliest PBGC Retirement Date applies the cited age-55 floor: the earlier of the plan's
    Earliest Annuity Date and age 55, with the facts-and-circumstances exception left as a
-   reviewer decision. Each run records inputs, units, rule, intermediates, engine version,
-   and warnings, and appends an audit event. Values without evidence are labelled
-   reviewer-entered. A DOPT before 2002-06-01 is refused rather than valued under a rule
-   that does not apply.
+   reviewer decision. The Aggregate Limit applies ERISA §4022B to a payee with two or more
+   plans: the subject amount is capped at the maximum guaranteeable benefit less prior-plan
+   benefits payable. The guarantee amount is a provenanced input — the Appendix D table is
+   not transcribed — and a single-plan payee is refused as not applicable. Each run records
+   inputs, units, rule, intermediates, engine version, and warnings, and appends an audit
+   event. Values without evidence are labelled reviewer-entered. A DOPT before 2002-06-01 is
+   refused by the EPRD rather than valued under a rule that does not apply.
 7. **Reconciliation** — required fields reviewed, evidence linked, facts with
    provenance, blocked provisions, control totals.
 8. **Work products** — generate the plan summary review copy (HTML) with its own
@@ -81,12 +85,14 @@ returns to the case list and deletes nothing.
 Fail-closed is a feature here, not a gap. Each item below is visible in the product
 with its blocking reason:
 
-- **Participant benefit amounts** — the population can be imported and aged, but
-  earliest retirement, the aggregate limit, and the §4044 tiers have no recorded
-  citation, so no benefit, guarantee, or priority-category figure is computed. The
-  register says so on every row.
+- **Participant benefit amounts** — the population can be imported and aged, and the
+  earliest retirement and aggregate-limit rules are cited, but the guarantee table and
+  the §4044 tiers have no recorded citation, so no benefit, guarantee, or
+  priority-category figure is computed. The register says so on every row.
 - **`pbgc:4022c-amounts`** — §4022(c) methodology and recovery-ratio periods not transcribed.
-- **`pbgc:aggregate-limit`** — guarantee-table version and phase-in rules not recorded.
+- **`pbgc:maximum-guaranteeable-benefit`** — the Appendix D table, its service
+  phase-in, and the §4022.23 age/form factors are not transcribed, so the aggregate
+  limit requires the amount as a provenanced input.
 - **`pbgc:benefit-tiers-priority-categories`** — §4044 allocation ordering not reviewed.
 - **Work product engines** — every deliverable is registered as a contract with its
   purpose, lifecycle position, dependencies, and blocking reason. R5, V1, DEL, PF,
@@ -205,7 +211,8 @@ is finished.
 
 ## Tests
 
-- `tests/unit` — calendar arithmetic, age, EPRD, and interval identities, validation, rule and
+- `tests/unit` — calendar arithmetic, age, EPRD, aggregate limit, and interval identities,
+  validation, rule and
   predicate registry integrity, work-product contract/readiness/snapshot identity,
   R5 manifest transcription and coverage, reviewer decisions, participant CSV parsing
   and determination, derived catalog integrity.
@@ -254,6 +261,10 @@ artifacts; the audit log is append-only.
 - The EPRD facts-and-circumstances determination is a PBGC judgment; the workbench only
   computes and validates the age-55 floor and accepts a reviewer-recorded earlier date.
   Pre-2002 DOPTs and plan-specific trusteed-date distinctions are refused, not valued.
+- The aggregate limit is implemented only for a supplied maximum guaranteeable benefit.
+  The guarantee table, its phase-in, and the §4022.23 age/form adjustments are not
+  transcribed; prior-plan amounts must arrive already normalized; and the de minimis
+  lump-sum exclusion is not modeled. A payee with one plan is refused.
 - The authorized plan-level dictionary exposes four fields (case, case number, plan
   name, date of plan termination). Employer identification numbers, plan numbers, plan
   effective dates, and normal retirement age are not plan-level fields in that dictionary

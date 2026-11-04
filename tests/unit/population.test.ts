@@ -105,10 +105,10 @@ describe("participant determination", () => {
     expect(result.asOfDate).toBe("2024-03-01");
     expect(result.records[0]?.ageAtAsOf).toBe(74);
     expect(result.records[1]?.ageAtAsOf).toBe(64);
-    // The EPRD rule is implemented, so only the two still-unresolved provisions
-    // block a benefit amount.
+    // The EPRD and aggregate-limit rules are implemented; the guarantee table
+    // and the §4044 tiers still block a benefit amount.
     expect(result.records[0]?.blockers.map((blocker) => blocker.ruleId)).toEqual([
-      "pbgc:aggregate-limit",
+      "pbgc:maximum-guaranteeable-benefit",
       "pbgc:benefit-tiers-priority-categories",
     ]);
     expect(result.benefitsDeterminable).toBe(false);

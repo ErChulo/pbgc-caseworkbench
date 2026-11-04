@@ -1,9 +1,10 @@
 /**
  * Calculations — deterministic runs with a full trace.
  *
- * Two calculations are runnable: the calendar-age identity and the EPRD age-55
- * floor, which is cited to the corpus guidance. The facts-and-circumstances
- * determination is never made here; it stays a reviewer decision.
+ * Three calculations are runnable: the calendar-age identity, the EPRD age-55
+ * floor, and the aggregate limit. The facts-and-circumstances determination is
+ * never made here, and the maximum guaranteeable benefit is never looked up:
+ * both stay reviewer inputs with recorded provenance.
  */
 
 import { useState } from "react";
@@ -18,13 +19,21 @@ type Props = {
   links: EvidenceLink[];
   onRun: (dateOfBirth: string, asOfDate: string) => Promise<void>;
   onRunEprd: WorkbenchActions["runEarliestRetirement"];
+  onRunAggregate: WorkbenchActions["runAggregateLimit"];
 };
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function CalculationsStage({ state, facts, links, onRun, onRunEprd }: Props) {
+export function CalculationsStage({
+  state,
+  facts,
+  links,
+  onRun,
+  onRunEprd,
+  onRunAggregate,
+}: Props) {
   const planDopt = facts["cust-dopt"]?.value;
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [asOfDate, setAsOfDate] = useState(
@@ -53,6 +62,65 @@ export function CalculationsStage({ state, facts, links, onRun, onRunEprd }: Pro
       });
     } finally {
       setEprdBusy(false);
+    }
+  }
+
+  const [aggPlanId, setAggPlanId] = useState("");
+  const [aggDopt, setAggDopt] = useState(
+    typeof planDopt === "string" ? planDopt : "",
+  );
+  const [aggGuaranteed, setAggGuaranteed] = useState("");
+  const [aggAssets, setAggAssets] = useState("");
+  const [aggRecovery, setAggRecovery] = useState("");
+  const [aggMgb, setAggMgb] = useState("");
+  const [aggDeterminationDate, setAggDeterminationDate] = useState(
+    typeof planDopt === "string" ? planDopt : "",
+  );
+  const [aggBasis, setAggBasis] = useState("");
+  const [priorRows, setPriorRows] = useState([
+    { planId: "", dopt: "", amount: "" },
+  ]);
+  const [aggBusy, setAggBusy] = useState(false);
+  const aggregateRun = state.lastAggregateRun;
+
+  function updatePrior(
+    index: number,
+    patch: Partial<{ planId: string; dopt: string; amount: string }>,
+  ) {
+    setPriorRows((rows) =>
+      rows.map((row, position) =>
+        position === index ? { ...row, ...patch } : row,
+      ),
+    );
+  }
+
+  async function handleAggregate(event: React.FormEvent) {
+    event.preventDefault();
+    setAggBusy(true);
+    try {
+      await onRunAggregate({
+        currentPlan: {
+          planId: aggPlanId,
+          dopt: aggDopt,
+          guaranteedBenefit: Number(aggGuaranteed),
+          fundedByAssets: Number(aggAssets === "" ? 0 : aggAssets),
+          recoveryPortion: Number(aggRecovery === "" ? 0 : aggRecovery),
+        },
+        priorPlans: priorRows
+          .filter((row) => row.planId.trim() !== "" || row.amount.trim() !== "")
+          .map((row) => ({
+            planId: row.planId,
+            dopt: row.dopt,
+            benefitPayableFromPbgcFunds: Number(row.amount),
+          })),
+        maximumGuaranteeableBenefit: {
+          monthlyAmount: Number(aggMgb),
+          determinationDate: aggDeterminationDate,
+          basis: aggBasis,
+        },
+      });
+    } finally {
+      setAggBusy(false);
     }
   }
 
@@ -232,6 +300,267 @@ export function CalculationsStage({ state, facts, links, onRun, onRunEprd }: Pro
               The rule refuses a DOPT before 2002-06-01, and refuses an earlier
               reviewer date that precedes the Earliest Annuity Date. Failures are
               shown as errors, never replaced by a default date.
+            </p>
+          </EmptyState>
+        )}
+      </Panel>
+
+      <Panel
+        id="aggregate-input"
+        eyebrow="PBGC provision"
+        title="Aggregate Limit on Benefits Payable from PBGC Funds"
+        description="ERISA §4022B and 29 CFR §4022B.1, from the guidance issued 2024-08-29. The maximum guaranteeable benefit is a required input: the Appendix D table and its age/form factors are not transcribed, so this run never looks the amount up."
+        aside={<StatusPill tone="success">Rule implemented</StatusPill>}
+      >
+        <form className="calc-form" onSubmit={handleAggregate}>
+          <div className="calc-inputs">
+            <label className="stacked-field">
+              <span>Current plan identifier</span>
+              <input
+                type="text"
+                value={aggPlanId}
+                onChange={(event) => setAggPlanId(event.target.value)}
+                required
+              />
+              <small>A case label for the plan, not a plan number.</small>
+            </label>
+
+            <label className="stacked-field">
+              <span>Current plan DOPT</span>
+              <input
+                type="date"
+                value={aggDopt}
+                onChange={(event) => setAggDopt(event.target.value)}
+                required
+              />
+            </label>
+
+            <label className="stacked-field">
+              <span>Current plan guaranteed benefit (monthly)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={aggGuaranteed}
+                onChange={(event) => setAggGuaranteed(event.target.value)}
+                required
+              />
+              <small>Before any aggregate-limit reduction.</small>
+            </label>
+
+            <label className="stacked-field">
+              <span>Current plan funded by plan assets (monthly)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={aggAssets}
+                onChange={(event) => setAggAssets(event.target.value)}
+              />
+            </label>
+
+            <label className="stacked-field">
+              <span>Current plan funded by recovery (monthly)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={aggRecovery}
+                onChange={(event) => setAggRecovery(event.target.value)}
+              />
+            </label>
+
+            <label className="stacked-field">
+              <span>Maximum guaranteeable benefit (monthly)</span>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={aggMgb}
+                onChange={(event) => setAggMgb(event.target.value)}
+                required
+              />
+              <small>
+                Reviewer input with a recorded basis. The guarantee table is not
+                implemented, so this value is never looked up here.
+              </small>
+            </label>
+
+            <label className="stacked-field">
+              <span>Guarantee determination date</span>
+              <input
+                type="date"
+                value={aggDeterminationDate}
+                onChange={(event) => setAggDeterminationDate(event.target.value)}
+                required
+              />
+              <small>Latest of the current and prior plans' DOPTs.</small>
+            </label>
+
+            <label className="stacked-field">
+              <span>Guarantee basis (table year, age, annuity form)</span>
+              <input
+                type="text"
+                value={aggBasis}
+                onChange={(event) => setAggBasis(event.target.value)}
+                required
+              />
+            </label>
+          </div>
+
+          <fieldset>
+            <legend>Prior plans</legend>
+            <p>
+              Amounts must already be payable from PBGC funds and normalized to
+              the current plan's annuity form. §4022.8(c)(7) conversion is not
+              applied here, and the list is applied as one total.
+            </p>
+            {priorRows.map((row, index) => (
+              <div className="calc-inputs" key={index}>
+                <label className="stacked-field">
+                  <span>{`Prior plan ${index + 1} identifier`}</span>
+                  <input
+                    type="text"
+                    value={row.planId}
+                    onChange={(event) =>
+                      updatePrior(index, { planId: event.target.value })
+                    }
+                    required
+                  />
+                </label>
+                <label className="stacked-field">
+                  <span>{`Prior plan ${index + 1} DOPT`}</span>
+                  <input
+                    type="date"
+                    value={row.dopt}
+                    onChange={(event) =>
+                      updatePrior(index, { dopt: event.target.value })
+                    }
+                    required
+                  />
+                </label>
+                <label className="stacked-field">
+                  <span>{`Prior plan ${index + 1} benefit payable from PBGC funds (monthly)`}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={row.amount}
+                    onChange={(event) =>
+                      updatePrior(index, { amount: event.target.value })
+                    }
+                    required
+                  />
+                </label>
+                <div className="button-row">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPriorRows((rows) =>
+                        rows.filter((_, position) => position !== index),
+                      )
+                    }
+                    disabled={priorRows.length === 1}
+                  >
+                    Remove prior plan {index + 1}
+                  </button>
+                </div>
+              </div>
+            ))}
+            <div className="button-row">
+              <button
+                type="button"
+                onClick={() =>
+                  setPriorRows((rows) => [
+                    ...rows,
+                    { planId: "", dopt: "", amount: "" },
+                  ])
+                }
+              >
+                Add prior plan
+              </button>
+            </div>
+          </fieldset>
+
+          <div className="button-row">
+            <button className="primary" type="submit" disabled={aggBusy}>
+              {aggBusy ? "Running…" : "Run aggregate limit calculation"}
+            </button>
+          </div>
+        </form>
+
+        {aggregateRun ? (
+          <>
+            <div className="result-hero">
+              <p className="result-value">
+                {aggregateRun.result.value.toFixed(2)}
+              </p>
+              <p className="result-units">{aggregateRun.result.units}</p>
+            </div>
+            <dl className="key-value-list">
+              <KeyValue label="Subject amount">
+                {aggregateRun.result.subjectAmount.toFixed(2)}
+              </KeyValue>
+              <KeyValue label="Aggregate limit">
+                {aggregateRun.result.aggregateLimit.toFixed(2)}
+              </KeyValue>
+              <KeyValue label="Prior plans total">
+                {aggregateRun.result.priorBenefitTotal.toFixed(2)}
+              </KeyValue>
+              <KeyValue label="Guaranteed benefit">
+                {aggregateRun.result.guaranteedBenefit.toFixed(2)}
+              </KeyValue>
+              <KeyValue label="Title IV benefit">
+                {aggregateRun.result.titleIvBenefit.toFixed(2)}
+              </KeyValue>
+              <KeyValue label="PC4 adjustment">
+                {aggregateRun.result.pc4AdjustmentFromAggregateLimit.toFixed(2)}
+              </KeyValue>
+              <KeyValue label="Limited by the aggregate limit">
+                {aggregateRun.result.limitedByAggregateLimit ? "Yes" : "No"}
+              </KeyValue>
+              <KeyValue label="Formula">
+                <span className="mono">{aggregateRun.result.formula}</span>
+              </KeyValue>
+              <KeyValue label="Rules">
+                <span className="mono">
+                  {aggregateRun.result.ruleIds.join(", ")}
+                </span>
+              </KeyValue>
+              <KeyValue label="Engine">
+                {aggregateRun.result.engineVersion}
+              </KeyValue>
+              <KeyValue label="Run id">
+                <span className="mono">{aggregateRun.runId}</span>
+              </KeyValue>
+            </dl>
+            <h3 className="subhead">Intermediates</h3>
+            <ul className="trace-list">
+              {Object.entries(aggregateRun.result.intermediates).map(
+                ([key, value]) => (
+                  <li key={key}>
+                    <span className="mono">{key}</span> = {String(value)}
+                  </li>
+                ),
+              )}
+            </ul>
+            {aggregateRun.result.warnings.length > 0 ? (
+              <div className="warning-block" role="note">
+                <strong>Warnings</strong>
+                <ul>
+                  {aggregateRun.result.warnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <EmptyState title="No aggregate limit run yet">
+            <p>
+              The rule refuses a payee with only one plan, and refuses amounts
+              where assets plus recovery funding exceed the guaranteed benefit.
+              It never supplies a guarantee amount on its own.
             </p>
           </EmptyState>
         )}

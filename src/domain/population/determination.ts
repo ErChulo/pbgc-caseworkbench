@@ -2,9 +2,9 @@
  * Participant determination path.
  *
  * This is the first V1 step that can run without policy: the calendar age of a
- * participant at a stated date, using the implemented calendar identity. Every
- * PBGC provision V1 needs is still unresolved, so each result carries the
- * blockers verbatim from the rule registry and no benefit amount is produced.
+ * participant at a stated date, using the implemented calendar identity. The
+ * provisions V1 still needs are unresolved, so each result carries the blockers
+ * verbatim from the rule registry and no benefit amount is produced.
  *
  * Pure domain: no React, storage, or parser imports.
  */
@@ -16,7 +16,7 @@ import type { ParticipantRecord } from "./types";
 /** Rules V1 needs before any benefit figure can be determined. */
 export const V1_REQUIRED_RULE_IDS = [
   "pbgc:earliest-retirement-date",
-  "pbgc:aggregate-limit",
+  "pbgc:maximum-guaranteeable-benefit",
   "pbgc:benefit-tiers-priority-categories",
 ] as const;
 

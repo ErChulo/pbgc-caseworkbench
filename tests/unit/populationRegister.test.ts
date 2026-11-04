@@ -91,8 +91,9 @@ describe("participant register golden fixture", () => {
     expect(html).toContain("74");
     expect(html).toContain("64");
     expect(html).toContain("Benefit blocked");
-    // The EPRD rule is implemented; these two provisions still block benefits.
-    expect(html).toContain("pbgc:aggregate-limit");
+    // EPRD and the aggregate limit are implemented; these two provisions still
+    // block every benefit amount.
+    expect(html).toContain("pbgc:maximum-guaranteeable-benefit");
     expect(html).toContain("pbgc:benefit-tiers-priority-categories");
     expect(html).toContain("artifact-0001".slice(0, 8));
     expect(html).toContain("row 2");
