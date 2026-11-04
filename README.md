@@ -33,12 +33,14 @@ npm run dev        # http://127.0.0.1:5173
 
 ```bash
 npm run check      # typecheck + unit/integration tests + single-file build
-npm run test:e2e   # production build + Playwright in Chromium
+npm run test:e2e   # production build + Playwright in Chromium (offline suite included)
+npm run serve      # serve the built artifact at http://127.0.0.1:4173
 ```
 
-`npm run build` writes a single self-contained `dist/index.html` (JavaScript and CSS
-inlined). Brand assets stay as files under `public/brand/`, so the deliverable is the
-HTML file plus that folder.
+`npm run build` writes a single self-contained `dist/index.html`. JavaScript, CSS, and
+the PBGC logo are all embedded (the logo as a base64 data URI), so the artifact makes
+no request for branding, fonts, or anything else. There is no CDN, no web font, and no
+fallback to unbranded text when the machine is offline.
 
 ## The office test walkthrough
 
@@ -130,19 +132,57 @@ never overwrite the case being reviewed.
   Store it where office policy allows.
 
 Encryption at rest is not provided by the app. Rely on full-disk encryption and the
-workstation's access controls.
+workstation's access controls. The logo and all other assets are embedded in the
+artifact, so the workbench renders correctly on a network-isolated machine.
 
-### Testing in an office environment
+### Running it in an office environment
 
-The build is static, so any static file server works:
+Only Node.js (22 or newer) and a Chromium-based browser are required. The server below
+uses nothing but `node:http` — no `npm install`, no dependencies, no network access.
+
+Build once on a machine that has the repository:
 
 ```bash
-npm run build
-npx vite preview --host 127.0.0.1 --port 4173
+npm ci
+npm run build          # writes dist/index.html
 ```
 
+Copy these two paths to the office machine, keeping the layout:
+
+```
+workbench/
+  dist/index.html
+  scripts/serve.mjs
+```
+
+Then, on the office machine:
+
+```bash
+cd workbench
+node scripts/serve.mjs
+```
+
+(Inside the repository, `npm run serve` runs the same server.)
+
+Open **http://127.0.0.1:4173** in Chrome or Edge. Keep that terminal window open while
+you work; `Ctrl+C` stops the server. Choose another port with
+`node scripts/serve.mjs --port 8080`.
+
+**Do not open `dist/index.html` by double-clicking it.** Chromium denies IndexedDB to
+`file://` documents, so a case would appear to save and then vanish on reload. Opened
+that way, the workbench detects the origin, still renders, and tells you to run the
+server — but nothing persists. The loopback URL above is the one supported launch path.
+
 Browser support: current Chromium, Edge, and Firefox with IndexedDB enabled. Private or
-incognito windows work but discard the case when the window closes.
+incognito windows work but discard the case when the window closes. The app stores data
+in that browser profile only; a different profile or a cleared site-data reset starts
+empty.
+
+**Where bundles must not go:** an exported bundle contains the plan facts, the raw
+evidence files, and the audit trail. Never email it, put it on a shared drive, sync it to
+a personal cloud account, attach it to a ticket, or commit it to Git. Keep it on the
+encrypted workstation (or the office-approved case store) and delete it when the review
+is finished.
 
 ## Tests
 
@@ -154,6 +194,11 @@ incognito windows work but discard the case when the window closes.
   save, reload, import and link evidence, refuse a duplicate by hash, run a calculation,
   generate a review copy, export a bundle, restore it as a new case, and confirm that a
   reload writes no audit events.
+- `tests/e2e/office.e2e.ts` — the handover conditions: every request outside the app's
+  own origin is aborted and asserted to be zero, the browser is taken offline for the
+  interactive flow, a realistic synthetic plan runs through entry, validation, evidence,
+  calculation, reconciliation, review copy, export, and restore, a reload writes no audit
+  events, and a `file://` load shows the storage notice while still rendering the branding.
 
 Playwright needs browser dependencies. On a normal desktop or CI image:
 
@@ -182,3 +227,8 @@ artifacts; the audit log is append-only.
 - Single browser profile: no multi-user access, no server-side share, no sync.
 - IndexedDB quota applies; large evidence sets need a workstation with room to spare.
 - The review copy is HTML for review and printing, not a faithful R5 workbook.
+- The authorized plan-level dictionary exposes four fields (case, case number, plan
+  name, date of plan termination). Employer identification numbers, plan numbers, plan
+  effective dates, and normal retirement age are not plan-level fields in that dictionary
+  — NRA exists only as a participant-level calculated field — so they are not collected
+  here rather than being invented or borrowed from elsewhere.

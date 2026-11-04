@@ -472,6 +472,16 @@ button.secondary:hover:not(:disabled) {
   color: var(--color-danger);
 }
 
+.file-origin-banner {
+  border-color: var(--color-warning);
+  background: rgba(247, 201, 72, 0.08);
+  color: var(--color-text);
+}
+
+.file-origin-banner strong {
+  color: var(--color-warning);
+}
+
 .notice-banner {
   border: 1px solid var(--color-border-strong);
   background: var(--color-raised);

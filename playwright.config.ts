@@ -23,8 +23,10 @@ export default defineConfig({
     acceptDownloads: true,
     ...devices["Desktop Chrome"],
   },
+  // The suite runs against the artifact and the launch command the office
+  // handover documents: `node scripts/serve.mjs`, serving ./dist.
   webServer: {
-    command: "npx vite preview --host 127.0.0.1 --port 4173 --strictPort",
+    command: "node scripts/serve.mjs --port 4173",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: true,
     timeout: 120_000,
