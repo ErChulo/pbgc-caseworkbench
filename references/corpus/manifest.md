@@ -30,9 +30,12 @@ or version is guessed.
 `02_TECHNICAL_SPECIFICATIONS / 01_BCV_Documentation`:
 
 - `BCV-DataValidation-predicates.xlsx` — predicate table for population validation
+  (SHA-256 `042d96e1…19ee0`, 250 rows × 12 columns: `DATA_VLDTN_ID`, type, enable flag,
+  SQL, description, consequence messages, population, category, fields)
 - `bcv-manual-combined.pdf` — BCV manual
 - `BCV ATPBGC (Add-ins).pdf` — BCV add-in formula reference; primary calculation
-  authority for V1
+  authority for V1 (SHA-256 `92d409b2…29d5`, 176 pages, 54 functions; indexed in
+  `references/rules/bcv-add-ins.md`)
 
 `02_TECHNICAL_SPECIFICATIONS / 02_Field_Dictionaries` — `Current_Selected`,
 `Index_Snapshots`, `Legacy_Unverified`. Only `Current_Selected` may be cited; legacy
