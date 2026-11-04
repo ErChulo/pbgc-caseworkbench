@@ -185,6 +185,9 @@ export function ReviewStage({ state, actions }: Props) {
               {state.lastRun
                 ? `${state.lastRun.result.value} ${state.lastRun.result.units} (run ${state.lastRun.runId.slice(0, 8)})`
                 : "None in this session"}
+              {state.lastEprdRun
+                ? ` · EPRD ${state.lastEprdRun.result.value} (run ${state.lastEprdRun.runId.slice(0, 8)})`
+                : ""}
             </dd>
           </div>
         </dl>

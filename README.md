@@ -18,7 +18,8 @@ to produce one and says why.
 | Plan-field slice (4 dictionary-mapped fields) | Working, validated, audited |
 | Evidence intake (hash, duplicate detection, linking) | Working |
 | Calendar age and calendar interval identities | Working, 138 tests |
-| PBGC provisions (earliest retirement, §4022(c), aggregate limit, §4044 tiers) | Listed and **blocked** |
+| Earliest PBGC retirement date (EPRD) | Implemented: cited age-55 rule; facts-and-circumstances remains a reviewer decision |
+| Other PBGC provisions (§4022(c), aggregate limit, §4044 tiers) | Listed and **blocked** |
 | Population stage | Working: CSV import, per-record provenance, calendar age; benefit amounts **blocked** |
 | Work products | 9 contracts registered; review copy, R5 template coverage, and participant register producible; R5 notice/V1/DEL/PF/BSRS/§436/memo blocked with reasons; reviewer decisions recordable per cell |
 | Field dictionary | 1,172 records across 12 tables |
@@ -59,9 +60,13 @@ fallback to unbranded text when the machine is offline.
    Download the participant register from here.
 5. **Rules & assumptions** — every rule the workbench may run, with its citation, and
    every provision that is blocked with the reason.
-6. **Calculations** — age at a date. The run records inputs, units, rule, intermediates,
-   engine version, and warnings, and appends an audit event. Values without evidence
-   are labelled reviewer-entered.
+6. **Calculations** — two runnable runs. Age at a date is a calendar identity. The
+   Earliest PBGC Retirement Date applies the cited age-55 floor: the earlier of the plan's
+   Earliest Annuity Date and age 55, with the facts-and-circumstances exception left as a
+   reviewer decision. Each run records inputs, units, rule, intermediates, engine version,
+   and warnings, and appends an audit event. Values without evidence are labelled
+   reviewer-entered. A DOPT before 2002-06-01 is refused rather than valued under a rule
+   that does not apply.
 7. **Reconciliation** — required fields reviewed, evidence linked, facts with
    provenance, blocked provisions, control totals.
 8. **Work products** — generate the plan summary review copy (HTML) with its own
@@ -80,7 +85,6 @@ with its blocking reason:
   earliest retirement, the aggregate limit, and the §4044 tiers have no recorded
   citation, so no benefit, guarantee, or priority-category figure is computed. The
   register says so on every row.
-- **`pbgc:earliest-retirement-date`** — no citation or effective-date analysis recorded.
 - **`pbgc:4022c-amounts`** — §4022(c) methodology and recovery-ratio periods not transcribed.
 - **`pbgc:aggregate-limit`** — guarantee-table version and phase-in rules not recorded.
 - **`pbgc:benefit-tiers-priority-categories`** — §4044 allocation ordering not reviewed.
@@ -201,7 +205,7 @@ is finished.
 
 ## Tests
 
-- `tests/unit` — calendar arithmetic, age and interval identities, validation, rule and
+- `tests/unit` — calendar arithmetic, age, EPRD, and interval identities, validation, rule and
   predicate registry integrity, work-product contract/readiness/snapshot identity,
   R5 manifest transcription and coverage, reviewer decisions, participant CSV parsing
   and determination, derived catalog integrity.
@@ -247,6 +251,9 @@ artifacts; the audit log is append-only.
 - Single browser profile: no multi-user access, no server-side share, no sync.
 - IndexedDB quota applies; large evidence sets need a workstation with room to spare.
 - The review copy is HTML for review and printing, not a faithful R5 workbook.
+- The EPRD facts-and-circumstances determination is a PBGC judgment; the workbench only
+  computes and validates the age-55 floor and accepts a reviewer-recorded earlier date.
+  Pre-2002 DOPTs and plan-specific trusteed-date distinctions are refused, not valued.
 - The authorized plan-level dictionary exposes four fields (case, case number, plan
   name, date of plan termination). Employer identification numbers, plan numbers, plan
   effective dates, and normal retirement age are not plan-level fields in that dictionary

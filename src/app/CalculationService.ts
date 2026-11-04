@@ -14,14 +14,27 @@ import {
   CALCULATION_ENGINE_VERSION,
   computeAgeAtDate,
 } from "../domain/calculations/age";
+import {
+  EPRD_RULE_ID,
+  computeEarliestPbgcRetirementDate,
+  type EarliestRetirementResult,
+} from "../domain/calculations/earliestRetirement";
 import { assertRuleImplemented } from "../domain/rules/registry";
 import { generateId, nowIso } from "../domain/case/validation";
 
-export type CalculationRun = {
+export type CalculationRun<T = number> = {
   runId: string;
   caseId: string;
   createdAt: string;
-  result: CalculationResult<number>;
+  result: CalculationResult<T>;
+};
+
+/** EPRD runs carry the guidance branch and the facts-and-circumstances flag. */
+export type EprdCalculationRun = {
+  runId: string;
+  caseId: string;
+  createdAt: string;
+  result: EarliestRetirementResult;
 };
 
 export class CalculationService {
@@ -66,6 +79,46 @@ export class CalculationService {
       eventType: "calculation-run",
       actor: "local-user",
       component: `CalculationService.runAgeAtDate (${rule.ruleId})`,
+      at: createdAt,
+      refs: { runId },
+      after: result.value,
+    });
+
+    return { runId, caseId: args.caseId, createdAt, result };
+  }
+
+  /**
+   * Earliest PBGC Retirement Date under the cited age-55 guidance. Fails closed
+   * for a DOPT before the guidance's effective date or for a reviewer date the
+   * guidance does not allow.
+   */
+  async runEarliestPbgcRetirementDate(args: {
+    caseId: string;
+    dateOfBirth: string;
+    earliestAnnuityDate: string;
+    dopt: string;
+    earlierRetirementDate?: string;
+    provenanceIds?: string[];
+  }): Promise<EprdCalculationRun> {
+    const rule = assertRuleImplemented(EPRD_RULE_ID);
+
+    const result: EarliestRetirementResult = computeEarliestPbgcRetirementDate({
+      dateOfBirth: args.dateOfBirth,
+      earliestAnnuityDate: args.earliestAnnuityDate,
+      dopt: args.dopt,
+      earlierRetirementDate: args.earlierRetirementDate ?? null,
+      provenanceIds: args.provenanceIds ?? [],
+    });
+
+    const runId = generateId();
+    const createdAt = nowIso();
+
+    await this.cases.appendAuditEvent({
+      eventId: generateId(),
+      caseId: args.caseId,
+      eventType: "calculation-run",
+      actor: "local-user",
+      component: `CalculationService.runEarliestPbgcRetirementDate (${rule.ruleId})`,
       at: createdAt,
       refs: { runId },
       after: result.value,

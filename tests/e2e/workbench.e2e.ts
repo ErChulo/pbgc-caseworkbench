@@ -136,6 +136,15 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await expect(page.getByText(/reviewer-entered value/)).toBeVisible();
   await shot(page, "calculation");
 
+  // EPRD: the cited age-55 floor runs and flags the reviewer determination.
+  await page.getByLabel("EPRD date of birth").fill("1950-01-15");
+  await page.getByLabel("EPRD Earliest Annuity Date").fill("2000-01-01");
+  await page.getByLabel("EPRD date of plan termination (DOPT)").fill("2024-06-30");
+  await page.getByRole("button", { name: "Run EPRD calculation" }).click();
+  await expect(page.locator("#eprd-input .result-value")).toHaveText("2005-01-15");
+  await expect(page.getByText(/PBGC determination could move this date/)).toBeVisible();
+  await expect(page.getByText("pbgc:earliest-retirement-date").first()).toBeVisible();
+
   await openStage(page, /Reconciliation/);
   await expect(page.getByRole("heading", { name: "Readiness for a work product" })).toBeVisible();
   await expect(page.locator(".checklist-row")).toHaveCount(5);

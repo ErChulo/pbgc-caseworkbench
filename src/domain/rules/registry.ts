@@ -90,19 +90,21 @@ export const RULES: readonly RuleRecord[] = [
     ruleId: "pbgc:earliest-retirement-date",
     title: "Earliest PBGC retirement date",
     kind: "pbgc-rule",
-    status: "unresolved",
+    status: "implemented",
     summary:
-      "Determines the earliest date a participant could be treated as retired for PBGC benefit purposes. Referenced by the corpus topic guidance of the same name and by the plan-summary fields already captured.",
-    formula: null,
+      "If the participant's Earliest Annuity Date is on or after the date the participant reaches age 55, the EPRD is the Earliest Annuity Date; otherwise it is the age-55 date, unless PBGC determines an earlier date under a facts-and-circumstances test. The EPRD is never earlier than the Earliest Annuity Date.",
+    formula:
+      "EPRD = Earliest Annuity Date when it is on or after dateOfBirth + 55 years; otherwise the age-55 date, unless a reviewer facts-and-circumstances date (never earlier than the Earliest Annuity Date) is recorded",
     units: "ISO 8601 date",
     authority: {
-      citation: null,
-      note: "The governing provision, its effective dates, and the interaction with plan normal retirement age must be recorded before implementation. The corpus contains a topic-guidance document and OBRA/REA-era amendments; none has been independently verified against the eCFR text yet.",
-      checkedOn: null,
+      citation:
+        "Earliest PBGC Retirement Date.pdf (PBGC internal guidance, issue date 03/27/2014), SHA-256 b10d471c380ff98036928f0b929f73c7bfeda3d839a611a705d41f4b98ce92f3",
+      note:
+        "Transcription and effective-date analysis in references/rules/earliest-pbgc-retirement-date.md. The age-55 rule applies for valuation and allocation to plans with a DOPT on or after 2002-06-01; plans trusteed before 1998-10-01 are not subject to the age-55 rule at all. The facts-and-circumstances determination is a PBGC judgment and remains a reviewer decision, not a computed result.",
+      checkedOn: "2026-11-04",
     },
-    implementedBy: null,
-    blockingReason:
-      "No citation or effective-date analysis recorded. Implementing this from memory would invent a PBGC rule.",
+    implementedBy: "src/domain/calculations/earliestRetirement.ts",
+    blockingReason: null,
   },
   {
     ruleId: "pbgc:4022c-amounts",

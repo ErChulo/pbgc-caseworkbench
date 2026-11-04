@@ -21,7 +21,7 @@ import {
   serializeBundle,
 } from "../../app/BundleService";
 import { downloadTextFile } from "../../app/download";
-import type { CalculationRun } from "../../app/CalculationService";
+import type { CalculationRun, EprdCalculationRun } from "../../app/CalculationService";
 import type { StageId } from "../../app/stages";
 import type {
   AuditEvent,
@@ -53,6 +53,7 @@ export type WorkbenchState = {
   saveStatus: SaveStatus;
   stage: StageId;
   lastRun: CalculationRun | null;
+  lastEprdRun: EprdCalculationRun | null;
 };
 
 export type WorkbenchActions = {
@@ -64,6 +65,12 @@ export type WorkbenchActions = {
   importPopulation: (file: File) => Promise<void>;
   linkEvidence: (artifactId: string, fieldId: string) => Promise<void>;
   runAge: (dateOfBirth: string, asOfDate: string) => Promise<void>;
+  runEarliestRetirement: (input: {
+    dateOfBirth: string;
+    earliestAnnuityDate: string;
+    dopt: string;
+    earlierRetirementDate?: string;
+  }) => Promise<void>;
   exportBundle: () => Promise<void>;
   importBundle: (file: File) => Promise<void>;
   recordWorkProduct: (info: {
@@ -97,6 +104,7 @@ const initialState: WorkbenchState = {
   saveStatus: "idle",
   stage: "home",
   lastRun: null,
+  lastEprdRun: null,
 };
 
 function messageOf(error: unknown): string {
@@ -133,6 +141,7 @@ export function useWorkbench(): {
         decisions: [],
         population: [],
         lastRun: null,
+        lastEprdRun: null,
         stage: "home",
       }));
       return;
@@ -250,7 +259,9 @@ export function useWorkbench(): {
       links: [],
       auditEvents: [],
       decisions: [],
+      population: [],
       lastRun: null,
+      lastEprdRun: null,
       stage: "home",
       saveStatus: "idle",
       notice: null,
@@ -420,6 +431,43 @@ export function useWorkbench(): {
     }
   }, []);
 
+  const runEarliestRetirement = useCallback(
+    async (input: {
+      dateOfBirth: string;
+      earliestAnnuityDate: string;
+      dopt: string;
+      earlierRetirementDate?: string;
+    }) => {
+      const caseId = activeCaseIdRef.current;
+      if (!caseId) return;
+      try {
+        const run = await services.calculationService.runEarliestPbgcRetirementDate({
+          caseId,
+          dateOfBirth: input.dateOfBirth,
+          earliestAnnuityDate: input.earliestAnnuityDate,
+          dopt: input.dopt,
+          ...(input.earlierRetirementDate
+            ? { earlierRetirementDate: input.earlierRetirementDate }
+            : {}),
+        });
+        const auditEvents = await services.caseService.getAuditEvents(caseId);
+        setState((previous) => ({
+          ...previous,
+          lastEprdRun: run,
+          auditEvents,
+          error: null,
+        }));
+      } catch (error) {
+        setState((previous) => ({
+          ...previous,
+          lastEprdRun: null,
+          error: messageOf(error),
+        }));
+      }
+    },
+    [],
+  );
+
   const exportBundle = useCallback(async () => {
     const current = stateRef.current;
     if (!current.activeCase) return;
@@ -577,6 +625,7 @@ export function useWorkbench(): {
       importPopulation,
       linkEvidence,
       runAge,
+      runEarliestRetirement,
       exportBundle,
       importBundle,
       recordWorkProduct,

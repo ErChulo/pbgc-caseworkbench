@@ -105,8 +105,9 @@ describe("participant determination", () => {
     expect(result.asOfDate).toBe("2024-03-01");
     expect(result.records[0]?.ageAtAsOf).toBe(74);
     expect(result.records[1]?.ageAtAsOf).toBe(64);
+    // The EPRD rule is implemented, so only the two still-unresolved provisions
+    // block a benefit amount.
     expect(result.records[0]?.blockers.map((blocker) => blocker.ruleId)).toEqual([
-      "pbgc:earliest-retirement-date",
       "pbgc:aggregate-limit",
       "pbgc:benefit-tiers-priority-categories",
     ]);

@@ -90,6 +90,7 @@ export function App() {
           <CalculationsStage
             state={state}
             onRun={actions.runAge}
+            onRunEprd={actions.runEarliestRetirement}
             facts={state.planFacts}
             links={state.links}
           />

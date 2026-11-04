@@ -91,7 +91,9 @@ describe("participant register golden fixture", () => {
     expect(html).toContain("74");
     expect(html).toContain("64");
     expect(html).toContain("Benefit blocked");
-    expect(html).toContain("pbgc:earliest-retirement-date");
+    // The EPRD rule is implemented; these two provisions still block benefits.
+    expect(html).toContain("pbgc:aggregate-limit");
+    expect(html).toContain("pbgc:benefit-tiers-priority-categories");
     expect(html).toContain("artifact-0001".slice(0, 8));
     expect(html).toContain("row 2");
     // No currency figure is ever printed by the register.

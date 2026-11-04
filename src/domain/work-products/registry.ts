@@ -190,7 +190,7 @@ export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
       "Deterministic calculation over the participant population using the authorized plan provisions, PBGC guarantee rules, assumption sets, and the calendar-date engine. Each participant result keeps its rule, assumption, and calculation-run identifiers.",
     status: "blocked",
     blockingReason:
-      "The population schema and CSV import now exist (see the participant population register), but the PBGC provisions needed for a valuation (earliest retirement date, aggregate limit, §4044 tiers) still have no recorded citations or effective dates, and no benefit-amount or assumption model is authorized.",
+      "The population schema, CSV import, and the cited EPRD age-55 rule now exist, but the aggregate limit and §4044 priority-category rules still lack citations and effective dates, no per-participant Earliest Annuity Date is captured, and no benefit-amount or assumption model is authorized.",
     dependencies: [
       ...PLAN_FIELDS,
       { kind: "rule", ruleId: "pbgc:earliest-retirement-date", required: true },
