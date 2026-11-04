@@ -49,8 +49,34 @@ describe("work-product registry", () => {
 
   it("covers the deliverable families from the architecture", () => {
     const families = new Set(WORK_PRODUCTS.map((spec) => spec.family));
-    for (const family of ["review-copy", "R5", "V1", "DEL", "PF", "BSRS", "436", "MEMO"]) {
+    for (const family of [
+      "review-copy",
+      "R1",
+      "R5",
+      "V1",
+      "DEL",
+      "PF",
+      "BSRS",
+      "436",
+      "EBA",
+      "AMB",
+      "CLOSEOUT",
+      "MEMO",
+    ]) {
       expect(families.has(family as never)).toBe(true);
+    }
+  });
+
+  it("registers the corpus template products that the scaffold omitted", () => {
+    const ids = WORK_PRODUCTS.map((spec) => spec.specId);
+    for (const specId of [
+      "wp.r1-data-request",
+      "wp.amb-acceptance",
+      "wp.estimated-benefit-adjustments",
+      "wp.estimated-benefit-administration",
+      "wp.software-closeout",
+    ]) {
+      expect(ids).toContain(specId);
     }
   });
 

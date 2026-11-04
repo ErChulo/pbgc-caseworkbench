@@ -17,6 +17,11 @@ engine and predicates.
 | 8 | BSRS configuration/reporting | BSRS | `wp.bsrs-configuration` | Blocked | Benefit-structure definitions and field mapping not recorded | Structure definitions from corpus; depends on V1 |
 | 9 | §436 evaluation | 436 | `wp.section-436-evaluation` | Blocked | §436 guidance not transcribed; funding figures absent | Transcribe the dated guidance and its thresholds |
 | 10 | Actuarial case memo | MEMO | `wp.case-memo` | Blocked | No approval workflow or reviewer decisions to narrate | Review workflow (Phase 2), then compose from the snapshot |
+| 11 | R1 census and plan-data request | R1 | `wp.r1-data-request` | Blocked | `R1 Simplified Instructions.docx` not transcribed: requested fields, formats, and acceptance criteria unknown; no outbound correspondence workflow | Transcribe the R1 instructions, then a request renderer |
+| 12 | Estimated benefit adjustments analysis | EBA | `wp.estimated-benefit-adjustments` | Blocked | Memo and worksheet present but adjustment methodology, thresholds, and worksheet formulas not transcribed; no valuation record | Transcribe the adjustment guidance and worksheet formulas; depends on V1 |
+| 13 | Estimated benefits administration analysis | EBA | `wp.estimated-benefit-administration` | Blocked | Memo template present but required content and reconciliation checks not transcribed; depends on adjustments | Transcribe the memo contract after the adjustments slice |
+| 14 | Actuarial case memo acceptance | AMB | `wp.amb-acceptance` | Blocked | `AMB Acceptance Template.docx` criteria, reviewer fields, and sign-off routing not transcribed; no approval workflow | Define the acceptance record, then the approval workflow |
+| 15 | Software closeout request | CLOSEOUT | `wp.software-closeout` | Blocked | Closeout email template and review checklist not transcribed; no routing or approval workflow | Transcribe the checklist items, then a request renderer |
 
 ## Participant population (implemented)
 

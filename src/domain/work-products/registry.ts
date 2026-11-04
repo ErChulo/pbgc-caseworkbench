@@ -154,7 +154,7 @@ export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
     usedWhen:
       "After the population file is imported and the plan termination date is reviewed; before any valuation run.",
     determination:
-      "Rendered from the imported participant records and the case's reviewed DOPT. Age is the implemented calendar identity; every benefit amount is shown as blocked because the earliest-retirement, aggregate-limit, and priority-category rules are unresolved.",
+      "Rendered from the imported participant records and the case's reviewed DOPT. Age is the implemented calendar identity; every benefit amount is shown as blocked because the guarantee table, the benefit model, and the priority-category rule are unresolved.",
     status: "implemented",
     blockingReason: null,
     dependencies: [
@@ -190,7 +190,7 @@ export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
       "Deterministic calculation over the participant population using the authorized plan provisions, PBGC guarantee rules, assumption sets, and the calendar-date engine. Each participant result keeps its rule, assumption, and calculation-run identifiers.",
     status: "blocked",
     blockingReason:
-      "The population schema, CSV import, and the cited EPRD age-55 rule now exist, but the aggregate limit and §4044 priority-category rules still lack citations and effective dates, no per-participant Earliest Annuity Date is captured, and no benefit-amount or assumption model is authorized.",
+      "The population schema, CSV import, the cited EPRD age-55 rule, and the aggregate-limit arithmetic now exist, but the guarantee table (`pbgc:maximum-guaranteeable-benefit`) and the §4044 priority-category rule still lack citations and effective dates, the BCV add-in formula set is not transcribed, no per-participant Earliest Annuity Date is captured, and no benefit-amount or assumption model is authorized.",
     dependencies: [
       ...PLAN_FIELDS,
       { kind: "rule", ruleId: "pbgc:earliest-retirement-date", required: true },
@@ -358,6 +358,144 @@ export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
     authority: {
       citations: [],
       note: "Depends on completed calculations and recorded reviewer conclusions.",
+      checkedOn: null,
+    },
+  },
+  {
+    specId: "wp.r1-data-request",
+    version: "0.1.0",
+    title: "R1 census and plan-data request",
+    family: "R1",
+    purpose:
+      "Request, receive, and check the plan census and plan-document data that every later work product depends on.",
+    whyNeeded:
+      "Valuation cannot start until the requested population is complete and acceptable. The R1 request is the recorded boundary between what the plan sponsor supplied and what the case assumes.",
+    usedWhen:
+      "First, at intake, and again whenever the sponsor supplies a corrected census.",
+    determination:
+      "The requested field list, required formats, and response checks come from the R1 instructions; no field is requested or accepted here by guesswork.",
+    status: "blocked",
+    blockingReason:
+      "The R1 Simplified Instructions in the corpus (03_CASEWORK_TEMPLATES / 01_Intake_and_Review) are not transcribed, so the requested field list, required formats, and acceptance criteria are unknown; there is also no outbound correspondence workflow.",
+    dependencies: [...PLAN_FIELDS],
+    predicates: ["pred.required-plan-fields"],
+    template: null,
+    outputFormats: ["docx", "pdf"],
+    rendererVersion: null,
+    authority: {
+      citations: [],
+      note: "No field list, instruction, or acceptance rule is recorded yet.",
+      checkedOn: null,
+    },
+  },
+  {
+    specId: "wp.amb-acceptance",
+    version: "0.1.0",
+    title: "Actuarial case memo acceptance",
+    family: "AMB",
+    purpose:
+      "Record that the actuarial case memo was reviewed and accepted, with the reviewer, date, and any conditions.",
+    whyNeeded:
+      "The case cannot close on an unaccepted memo; acceptance is a separate reviewer decision over the frozen memo, not a property of the document.",
+    usedWhen: "After the case memo is composed and before case closure.",
+    determination:
+      "The acceptance record is a reviewer decision over a frozen memo snapshot. Its criteria, reviewer fields, and sign-off routing come from the AMB Acceptance Template in the corpus.",
+    status: "blocked",
+    blockingReason:
+      "The AMB Acceptance Template is present in the corpus but its acceptance criteria, reviewer fields, and sign-off routing are not transcribed, and there is no approval workflow in this build to record the decision.",
+    dependencies: [...PLAN_FIELDS],
+    predicates: ["pred.required-plan-fields"],
+    template: null,
+    outputFormats: ["docx", "pdf"],
+    rendererVersion: null,
+    authority: {
+      citations: [],
+      note: "No acceptance criterion or sign-off field is recorded yet.",
+      checkedOn: null,
+    },
+  },
+  {
+    specId: "wp.estimated-benefit-adjustments",
+    version: "0.1.0",
+    title: "Estimated benefit adjustments analysis",
+    family: "EBA",
+    purpose:
+      "Document every adjustment applied to an estimated benefit, and the evidence and calculation behind it.",
+    whyNeeded:
+      "Estimated benefits are communicated before the final determination, so each adjustment must be explained and reproducible rather than plausible.",
+    usedWhen: "After benefit determinations exist and before any estimated benefit is communicated.",
+    determination:
+      "Adjustment categories, limits, and worksheet formulas come from the Estimated Benefit Adjustments guidance and worksheet in the corpus; each adjustment is tied to a recorded calculation run.",
+    status: "blocked",
+    blockingReason:
+      "The Estimated Benefit Adjustments memo and worksheet are in the corpus, but the adjustment methodology, thresholds, and worksheet formulas are not transcribed, and the valuation record they consume does not exist.",
+    dependencies: [
+      ...PLAN_FIELDS,
+      { kind: "rule", ruleId: "pbgc:earliest-retirement-date", required: true },
+      { kind: "rule", ruleId: "pbgc:aggregate-limit", required: true },
+    ],
+    predicates: ["pred.required-plan-fields"],
+    template: null,
+    outputFormats: ["docx", "xlsx"],
+    rendererVersion: null,
+    authority: {
+      citations: [],
+      note: "No adjustment category, threshold, or worksheet formula is recorded yet.",
+      checkedOn: null,
+    },
+  },
+  {
+    specId: "wp.estimated-benefit-administration",
+    version: "0.1.0",
+    title: "Estimated benefits administration analysis",
+    family: "EBA",
+    purpose:
+      "Explain how estimated benefits were administered: the population covered, the method used, and the results reconciled.",
+    whyNeeded:
+      "Administration produces the numbers participants actually see; the analysis is the record that those numbers match the determinations.",
+    usedWhen: "After estimated benefit adjustments are settled and before the estimates are issued.",
+    determination:
+      "Composed from the approved adjustment results and the population; the memo structure and required content come from the Estimated Benefits Administration template in the corpus.",
+    status: "blocked",
+    blockingReason:
+      "The Estimated Benefits Administration memo is in the corpus but its required content, reconciliation checks, and template mapping are not transcribed, and it depends on adjustments that cannot yet be computed.",
+    dependencies: [
+      ...PLAN_FIELDS,
+      { kind: "rule", ruleId: "pbgc:aggregate-limit", required: true },
+    ],
+    predicates: ["pred.required-plan-fields"],
+    template: null,
+    outputFormats: ["docx"],
+    rendererVersion: null,
+    authority: {
+      citations: [],
+      note: "No memo content or reconciliation check is recorded yet.",
+      checkedOn: null,
+    },
+  },
+  {
+    specId: "wp.software-closeout",
+    version: "0.1.0",
+    title: "Software closeout request",
+    family: "CLOSEOUT",
+    purpose:
+      "Record that the case is finished in the valuation software and request its closeout, with the checklist evidence attached.",
+    whyNeeded:
+      "The system of record must be reconciled and closed before the case file is complete; an open software case is an open case.",
+    usedWhen: "Last, after the determination letter and memo are accepted.",
+    determination:
+      "The request is generated from the frozen case snapshot; the required checklist items and routing come from the Software Closeout email template and review checklist in the corpus.",
+    status: "blocked",
+    blockingReason:
+      "The closeout email template and review checklist are in the corpus but their required items, routing, and supporting evidence are not transcribed, and there is no approval workflow to record the closeout.",
+    dependencies: [...PLAN_FIELDS],
+    predicates: ["pred.required-plan-fields"],
+    template: null,
+    outputFormats: ["docx"],
+    rendererVersion: null,
+    authority: {
+      citations: [],
+      note: "No closeout checklist item or routing rule is recorded yet.",
       checkedOn: null,
     },
   },

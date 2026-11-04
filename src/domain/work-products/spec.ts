@@ -13,12 +13,16 @@
 
 export type WorkProductFamily =
   | "review-copy"
+  | "R1"
   | "R5"
   | "V1"
   | "DEL"
   | "PF"
   | "BSRS"
   | "436"
+  | "EBA"
+  | "AMB"
+  | "CLOSEOUT"
   | "MEMO";
 
 export type WorkProductStatus = "implemented" | "draft" | "blocked";
@@ -84,12 +88,16 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 
 const FAMILIES: readonly WorkProductFamily[] = [
   "review-copy",
+  "R1",
   "R5",
   "V1",
   "DEL",
   "PF",
   "BSRS",
   "436",
+  "EBA",
+  "AMB",
+  "CLOSEOUT",
   "MEMO",
 ];
 
