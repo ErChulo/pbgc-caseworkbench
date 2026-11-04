@@ -17,10 +17,13 @@ import { ReviewStage } from "../features/review/ReviewStage";
 import { useWorkbench } from "../features/workbench/useWorkbench";
 import { STAGES } from "./stages";
 import { BlockedNotice, StatusPill } from "../ui/components";
+import logoUrl from "../assets/brand/pbgc-logo-text-banner-wt.png";
+import { FILE_ORIGIN_MESSAGE, isFileOrigin } from "./environment";
 
 export function App() {
   const { state, actions, catalog, dictionaryIndex } = useWorkbench();
   const activeStage = STAGES.find((stage) => stage.id === state.stage) ?? STAGES[0]!;
+  const fileOrigin = isFileOrigin();
 
   function renderStage() {
     if (state.loading) {
@@ -103,7 +106,7 @@ export function App() {
         <div className="brand">
           <img
             className="brand-logo"
-            src="/brand/pbgc-logo-text-banner-wt.png"
+            src={logoUrl}
             alt="PBGC"
             width={964}
             height={160}
@@ -178,6 +181,15 @@ export function App() {
       </header>
 
       <main id="main" className="workspace" tabIndex={-1}>
+        {fileOrigin ? (
+          <div className="error-banner file-origin-banner" role="alert">
+            <span>
+              <strong>Storage is unavailable on a file:// page.</strong>{" "}
+              {FILE_ORIGIN_MESSAGE}
+            </span>
+          </div>
+        ) : null}
+
         {state.error ? (
           <div className="error-banner" role="alert">
             <span>{state.error}</span>

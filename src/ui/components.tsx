@@ -42,7 +42,7 @@ export function Panel({
 }) {
   const headingId = id ? `${id}-title` : undefined;
   return (
-    <section className="panel" aria-labelledby={headingId}>
+    <section id={id} className="panel" aria-labelledby={headingId}>
       <div className="panel-heading">
         <div>
           <p className="eyebrow">{eyebrow}</p>

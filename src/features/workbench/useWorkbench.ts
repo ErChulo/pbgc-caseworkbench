@@ -26,6 +26,7 @@ import type { StageId } from "../../app/stages";
 import type { AuditEvent, CaseRecord, PlanFact } from "../../domain/case/types";
 import type { EvidenceLink, SourceArtifact } from "../../domain/evidence/types";
 import { generateId, nowIso } from "../../domain/case/validation";
+import { isFileOrigin } from "../../app/environment";
 
 const ACTIVE_CASE_KEY = "pbgc.activeCaseId";
 
@@ -141,6 +142,12 @@ export function useWorkbench(): {
 
   // Bootstrap: list cases, then reopen the last active case without auditing.
   useEffect(() => {
+    // A file:// document has no usable IndexedDB; the shell explains that
+    // instead of surfacing a storage error the reviewer cannot act on.
+    if (isFileOrigin()) {
+      setState((previous) => ({ ...previous, loading: false, cases: [] }));
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {
