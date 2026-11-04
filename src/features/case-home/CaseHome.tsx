@@ -1,72 +1,132 @@
 /**
- * Case Home screen — shows when no case is active.
- * Displays existing cases and a "Create new case" button.
+ * Case home — create a local case, reopen one, or close the active case.
+ *
+ * Reachable at any time from the rail, so a reviewer is never trapped inside a
+ * single case (the first slice could not return here once a case was open).
  */
 
 import type { CaseRecord } from "../../domain/case/types";
+import { EmptyState, Panel, StatusPill } from "../../ui/components";
 
 type Props = {
   cases: CaseRecord[];
+  activeCase: CaseRecord | null;
   onCreateCase: () => void;
   onOpenCase: (caseId: string) => void;
+  onCloseCase: () => void;
 };
 
-export function CaseHome({ cases, onCreateCase, onOpenCase }: Props) {
-  return (
-    <section className="intro" aria-labelledby="home-title">
-      <p className="eyebrow">Current stage · Case home</p>
-      <h2 id="home-title">Establish a trustworthy case foundation</h2>
-      <p>
-        Create a new synthetic case or open an existing one. All case data
-        remains on this workstation.
-      </p>
-      <button
-        className="primary"
-        type="button"
-        onClick={onCreateCase}
-        aria-label="Create new case"
-      >
-        Create new case
-      </button>
-
-      {cases.length > 0 && (
-        <div className="panel" style={{ marginTop: "32px" }}>
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Existing cases</p>
-              <h3>Open a previous case</h3>
-            </div>
-            <span className="count">{cases.length} case{cases.length === 1 ? "" : "s"}</span>
-          </div>
-          <ul className="case-list" aria-label="Existing cases">
-            {cases.map((c) => (
-              <li key={c.caseId}>
-                <button
-                  className="case-list-item"
-                  type="button"
-                  onClick={() => onOpenCase(c.caseId)}
-                  aria-label={`Open case ${c.alias}`}
-                >
-                  <span className="case-alias">{c.alias}</span>
-                  <span className="case-meta">
-                    Created {formatDate(c.createdAt)} · Updated{" "}
-                    {formatDate(c.updatedAt)}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </section>
-  );
-}
-
 function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
+}
+
+export function CaseHome({
+  cases,
+  activeCase,
+  onCreateCase,
+  onOpenCase,
+  onCloseCase,
+}: Props) {
+  return (
+    <>
+      <section className="intro" aria-labelledby="home-title">
+        <p className="eyebrow">Stage 1 · Case home</p>
+        <h2 id="home-title">A case that stays on this workstation</h2>
+        <p className="lede">
+          Evidence, reviewed values, and the audit trail are stored in this
+          browser profile only. Nothing is uploaded, and no network request is
+          made while you work.
+        </p>
+        <div className="button-row">
+          <button className="primary" type="button" onClick={onCreateCase}>
+            Create new case
+          </button>
+          {activeCase ? (
+            <button className="secondary" type="button" onClick={onCloseCase}>
+              Close {activeCase.alias}
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      <Panel
+        id="existing-cases"
+        eyebrow="Local store"
+        title={cases.length === 0 ? "No cases on this workstation" : "Cases on this workstation"}
+        aside={
+          <StatusPill tone={cases.length === 0 ? "muted" : "info"}>
+            {cases.length} {cases.length === 1 ? "case" : "cases"}
+          </StatusPill>
+        }
+      >
+        {cases.length === 0 ? (
+          <EmptyState title="Nothing to reopen yet">
+            <p>
+              Create a case to start the plan-field slice. Each case gets a
+              synthetic alias such as <code>CW-0001</code>.
+            </p>
+          </EmptyState>
+        ) : (
+          <ul className="case-list" aria-label="Cases on this workstation">
+            {cases.map((record) => {
+              const isActive = activeCase?.caseId === record.caseId;
+              return (
+                <li key={record.caseId}>
+                  <button
+                    className={isActive ? "case-list-item active" : "case-list-item"}
+                    type="button"
+                    onClick={() => onOpenCase(record.caseId)}
+                    aria-current={isActive ? "true" : undefined}
+                  >
+                    <span className="case-alias">
+                      {record.alias}
+                      {isActive ? (
+                        <span className="case-active-flag"> · open</span>
+                      ) : null}
+                    </span>
+                    <span className="case-meta">
+                      Created {formatDate(record.createdAt)} · Updated{" "}
+                      {formatDate(record.updatedAt)} · {record.status}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Panel>
+
+      <Panel
+        id="privacy-boundary"
+        eyebrow="Boundary"
+        title="What this build does and does not do"
+        description="Read this once before you bring real plan data into the office test."
+      >
+        <dl className="key-value-list">
+          <div className="key-value">
+            <dt>Stores locally</dt>
+            <dd>Evidence bytes, SHA-256 hashes, plan facts, calculation traces, audit events.</dd>
+          </div>
+          <div className="key-value">
+            <dt>Never stores</dt>
+            <dd>Nothing is written to the repository, a log, or an external service.</dd>
+          </div>
+          <div className="key-value">
+            <dt>Calculation scope</dt>
+            <dd>
+              Calendar age and calendar intervals are implemented. PBGC provisions
+              such as the earliest retirement date and §4022(c) amounts are listed
+              in Rules &amp; assumptions as unresolved and cannot be run.
+            </dd>
+          </div>
+        </dl>
+      </Panel>
+    </>
+  );
 }

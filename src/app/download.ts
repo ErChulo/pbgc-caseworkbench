@@ -1,0 +1,33 @@
+/**
+ * Local file download helper.
+ *
+ * Creates a Blob URL and clicks a temporary anchor. Nothing is uploaded; the
+ * browser writes the bytes to the workstation's download location.
+ */
+
+export function downloadTextFile(
+  fileName: string,
+  content: string,
+  mediaType: string,
+): void {
+  const blob = new Blob([content], { type: mediaType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.rel = "noopener";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  // Give the browser a tick to start the download before revoking.
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+/** Open a generated document in a new tab for review and printing. */
+export function openHtmlInNewTab(html: string): boolean {
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const opened = window.open(url, "_blank", "noopener,noreferrer");
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return opened !== null;
+}
