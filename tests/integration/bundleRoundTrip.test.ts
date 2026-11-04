@@ -100,15 +100,17 @@ async function buildFixture() {
   });
   await caseService.savePlanFields(record.caseId, PLAN_VALUES);
 
-  return { cases, artifacts, caseService, evidenceService, record, bytes };
+  const links = await evidenceService.listLinks(record.caseId);
+  return { cases, artifacts, caseService, evidenceService, record, bytes, links };
 }
 
 describe("case bundle round trip", () => {
   it("hashes every part in the manifest", async () => {
-    const { caseService, record, bytes, artifacts } = await buildFixture();
+    const { caseService, record, bytes, artifacts, links } = await buildFixture();
     const bundle = await buildCaseBundle({
       caseRecord: record,
       planFacts: await caseService.getPlanFacts(record.caseId),
+      evidenceLinks: links,
       auditEvents: await caseService.getAuditEvents(record.caseId),
       artifacts: [
         { artifact: (await artifacts.listArtifacts(record.caseId))[0]!, bytes },
@@ -120,6 +122,7 @@ describe("case bundle round trip", () => {
       "artifacts",
       "auditEvents",
       "case",
+      "evidenceLinks",
       "planFacts",
     ]);
     for (const entry of bundle.manifest) {
@@ -130,10 +133,11 @@ describe("case bundle round trip", () => {
   });
 
   it("restores facts, evidence bytes, and audit history as a new case", async () => {
-    const { cases, artifacts, caseService, record, bytes } = await buildFixture();
+    const { cases, artifacts, caseService, record, bytes, links } = await buildFixture();
     const bundle = await buildCaseBundle({
       caseRecord: record,
       planFacts: await caseService.getPlanFacts(record.caseId),
+      evidenceLinks: links,
       auditEvents: await caseService.getAuditEvents(record.caseId),
       artifacts: [
         { artifact: (await artifacts.listArtifacts(record.caseId))[0]!, bytes },
@@ -164,7 +168,17 @@ describe("case bundle round trip", () => {
       new TextDecoder().decode(bytes),
     );
 
+    // The evidence chain survives the round trip and points at restored ids.
+    const restoredLinks = await artifacts.listEvidenceLinks(restored.caseId);
+    expect(restoredLinks).toHaveLength(1);
+    expect(restoredLinks[0]?.fieldId).toBe("cust-plan-nm");
+    expect(restoredLinks[0]?.artifactId).toBe(restoredArtifacts[0]?.artifactId);
+    expect(restoredLinks[0]?.linkId).not.toBe(links[0]?.linkId);
+
     const events = await caseService.getAuditEvents(restored.caseId);
+    const linkedEvent = events.find((event) => event.eventType === "evidence-linked");
+    expect(linkedEvent?.refs.linkId).toBe(restoredLinks[0]?.linkId);
+    expect(linkedEvent?.refs.artifactId).toBe(restoredArtifacts[0]?.artifactId);
     expect(events.filter((event) => event.eventType === "case-created")).toHaveLength(1);
     expect(events.filter((event) => event.eventType === "bundle-imported")).toHaveLength(1);
     expect(events.filter((event) => event.eventType === "plan-fact-saved")).toHaveLength(4);
@@ -199,6 +213,6 @@ describe("case bundle round trip", () => {
           planFacts: [],
         }),
       ),
-    ).toThrowError(/missing its plan facts or audit events/i);
+    ).toThrowError(/missing its plan facts, evidence links, or audit events/i);
   });
 });

@@ -11,7 +11,7 @@
 import type { ArtifactStore } from "../domain/ports/ArtifactStore";
 import type { CaseStore } from "../domain/ports/CaseStore";
 import type { AuditEvent, CaseRecord, PlanFact } from "../domain/case/types";
-import type { SourceArtifact } from "../domain/evidence/types";
+import type { EvidenceLink, SourceArtifact } from "../domain/evidence/types";
 import { generateCaseAlias, generateId, nowIso } from "../domain/case/validation";
 import { sha256HexOfText } from "../adapters/hashing/sha256";
 
@@ -30,6 +30,7 @@ export type CaseBundle = {
   exportedAt: string;
   case: CaseRecord;
   planFacts: PlanFact[];
+  evidenceLinks: EvidenceLink[];
   auditEvents: AuditEvent[];
   artifacts: { artifact: SourceArtifact; bytesBase64: string }[];
   manifest: BundleManifestEntry[];
@@ -61,24 +62,28 @@ function fromBase64(value: string): ArrayBuffer {
 export async function buildCaseBundle(args: {
   caseRecord: CaseRecord;
   planFacts: PlanFact[];
+  evidenceLinks: EvidenceLink[];
   auditEvents: AuditEvent[];
   artifacts: { artifact: SourceArtifact; bytes: ArrayBuffer }[];
 }): Promise<CaseBundle> {
-  const manifest: BundleManifestEntry[] = [];
+  const artifacts: CaseBundle["artifacts"] = args.artifacts.map((entry) => ({
+    artifact: entry.artifact,
+    bytesBase64: toBase64(entry.bytes),
+  }));
+
   const parts: { name: string; payload: unknown; itemCount: number }[] = [
     { name: "case", payload: args.caseRecord, itemCount: 1 },
     { name: "planFacts", payload: args.planFacts, itemCount: args.planFacts.length },
-    { name: "auditEvents", payload: args.auditEvents, itemCount: args.auditEvents.length },
     {
-      name: "artifacts",
-      payload: args.artifacts.map((entry) => ({
-        artifact: entry.artifact,
-        bytesBase64: toBase64(entry.bytes),
-      })),
-      itemCount: args.artifacts.length,
+      name: "evidenceLinks",
+      payload: args.evidenceLinks,
+      itemCount: args.evidenceLinks.length,
     },
+    { name: "auditEvents", payload: args.auditEvents, itemCount: args.auditEvents.length },
+    { name: "artifacts", payload: artifacts, itemCount: artifacts.length },
   ];
 
+  const manifest: BundleManifestEntry[] = [];
   for (const part of parts) {
     manifest.push({
       part: part.name,
@@ -93,8 +98,9 @@ export async function buildCaseBundle(args: {
     exportedAt: nowIso(),
     case: args.caseRecord,
     planFacts: args.planFacts,
+    evidenceLinks: args.evidenceLinks,
     auditEvents: args.auditEvents,
-    artifacts: parts[3]!.payload as CaseBundle["artifacts"],
+    artifacts,
     manifest,
   };
 }
@@ -122,8 +128,14 @@ export function parseCaseBundle(text: string): CaseBundle {
   if (!candidate.case || typeof candidate.case.caseId !== "string") {
     throw new Error("The bundle has no case record.");
   }
-  if (!Array.isArray(candidate.planFacts) || !Array.isArray(candidate.auditEvents)) {
-    throw new Error("The bundle is missing its plan facts or audit events.");
+  if (
+    !Array.isArray(candidate.planFacts) ||
+    !Array.isArray(candidate.evidenceLinks) ||
+    !Array.isArray(candidate.auditEvents)
+  ) {
+    throw new Error(
+      "The bundle is missing its plan facts, evidence links, or audit events.",
+    );
   }
   return candidate as CaseBundle;
 }
@@ -158,10 +170,37 @@ export async function applyCaseBundle(
     refs: {},
   });
 
+  // Artifacts first: links, fact provenance, and audit refs must point at the
+  // restored identifiers, not at ids from the bundle's original case.
+  const artifactIdMap = new Map<string, string>();
+  for (const entry of bundle.artifacts) {
+    const artifactId = generateId();
+    artifactIdMap.set(entry.artifact.artifactId, artifactId);
+    await ports.artifacts.addArtifact(
+      { ...entry.artifact, artifactId, caseId: caseRecord.caseId },
+      fromBase64(entry.bytesBase64),
+    );
+  }
+
+  const linkIdMap = new Map<string, string>();
+  const links: EvidenceLink[] = bundle.evidenceLinks.map((link) => {
+    const linkId = generateId();
+    linkIdMap.set(link.linkId, linkId);
+    return {
+      ...link,
+      linkId,
+      caseId: caseRecord.caseId,
+      artifactId: artifactIdMap.get(link.artifactId) ?? link.artifactId,
+    };
+  });
+
   const facts: PlanFact[] = bundle.planFacts.map((fact) => ({
     ...fact,
     factId: generateId(),
     caseId: caseRecord.caseId,
+    ...(fact.provenanceIds
+      ? { provenanceIds: fact.provenanceIds.map((id) => linkIdMap.get(id) ?? id) }
+      : {}),
   }));
 
   const events: AuditEvent[] = bundle.auditEvents
@@ -171,11 +210,19 @@ export async function applyCaseBundle(
         event.eventType !== "case-opened" &&
         event.eventType !== "bundle-imported",
     )
-    .map((event) => ({
-      ...event,
-      eventId: generateId(),
-      caseId: caseRecord.caseId,
-    }));
+    .map((event) => {
+      const refs = { ...event.refs };
+      if (refs.artifactId) {
+        refs.artifactId = artifactIdMap.get(refs.artifactId) ?? refs.artifactId;
+      }
+      if (refs.linkId) refs.linkId = linkIdMap.get(refs.linkId) ?? refs.linkId;
+      return {
+        ...event,
+        eventId: generateId(),
+        caseId: caseRecord.caseId,
+        refs,
+      };
+    });
 
   events.push({
     eventId: generateId(),
@@ -196,15 +243,8 @@ export async function applyCaseBundle(
     });
   }
 
-  for (const entry of bundle.artifacts) {
-    await ports.artifacts.addArtifact(
-      {
-        ...entry.artifact,
-        artifactId: generateId(),
-        caseId: caseRecord.caseId,
-      },
-      fromBase64(entry.bytesBase64),
-    );
+  for (const link of links) {
+    await ports.artifacts.addEvidenceLink(link);
   }
 
   return caseRecord;
