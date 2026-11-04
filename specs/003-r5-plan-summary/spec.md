@@ -53,8 +53,9 @@ Measured by the coverage engine on a case with all four plan fields reviewed:
 fields not in the authorized dictionary plus all 60 plan provisions), and 7 blocked
 outright (`DOTR`, `DOBF`, `Plan Assets`, `SPARR`, and the three header-rate cells).
 
-1. **No reviewer-decision capture.** The manifest maps 71 cells to a decision id, but
-the workbench has no provision-decision record yet, so those cells stay pending.
+1. **Decisions are recordable but not yet recorded.** The manifest maps 71 cells to a
+decision id, and the coverage panel records each one append-only with a rationale and
+an audit event (spec 004). A new case starts with all 71 pending.
 2. **No executable rate lookup.** Routing is transcribed; the values require the
    add-in's rate tables and an effective-date rule that are not implemented.
 3. **No authorized benefit provisions.** The notice's benefit figures depend on the
@@ -65,8 +66,8 @@ the workbench has no provision-decision record yet, so those cells stay pending.
 
 1. ~~Transcribe the shell's placeholders into a versioned manifest.~~ Done:
    `template.r5-plan-summary-shell` v1.0.0, 81 placeholders, golden coverage tests.
-2. Add reviewer-decision capture for the 71 decision-mapped cells, so a reviewer can
-   record a provision and the coverage count can move.
+2. ~~Add reviewer-decision capture.~~ Done: `ReviewerDecision`, append-only storage,
+audited service, inline capture, bundle persistence (spec 004).
 3. Implement the rate lookup from the versioned table (v1.1.2) with cited effective
    intervals and boundary tests; keep values blocked until then.
 4. Implement the benefit calculations only after their provisions are cited; until

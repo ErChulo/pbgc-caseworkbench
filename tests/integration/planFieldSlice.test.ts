@@ -12,6 +12,7 @@ import type {
   CaseRecord,
   DerivedCatalog,
   PlanFact,
+  ReviewerDecision,
 } from "../../src/domain/case/types";
 
 /**
@@ -68,6 +69,12 @@ class SpyStore implements CaseStore {
   }
   getAuditEvents(caseId: string): Promise<AuditEvent[]> {
     return this.inner.getAuditEvents(caseId);
+  }
+  appendDecision(decision: ReviewerDecision): Promise<ReviewerDecision> {
+    return this.inner.appendDecision(decision);
+  }
+  getDecisions(caseId: string): Promise<ReviewerDecision[]> {
+    return this.inner.getDecisions(caseId);
   }
 
   appendAuditEventCallsOf(component: string): number {

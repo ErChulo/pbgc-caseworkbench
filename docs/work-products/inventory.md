@@ -9,7 +9,7 @@ engine and predicates.
 |---|---|---|---|---|---|---|
 | 1 | Plan summary review copy | review-copy | `wp.plan-summary-review-copy` | **Implemented** | — | Keep in step with the plan-field catalog |
 | 2 | R5 template coverage report | R5 | `wp.r5-plan-summary-coverage` | **Implemented** | — | Keep the manifest in step with the shell; extend as decisions become recordable |
-| 3 | R5 notice and plan summary | R5 | `wp.r5-plan-summary` | Blocked | 78 of 81 shell placeholders unresolved: 71 need reviewer decisions, 7 need unauthorized calculations or absent fields | Record provisions and decisions, then cite the header-rate and benefit rules |
+| 3 | R5 notice and plan summary | R5 | `wp.r5-plan-summary` | Blocked | 78 of 81 shell placeholders unresolved: 71 await recorded reviewer decisions (capture is implemented), 7 need unauthorized calculations or absent fields | Record the provisions in the coverage panel, then cite the header-rate and benefit rules |
 | 4 | V1 valuation summary | V1 | `wp.v1-valuation-summary` | Blocked | No participant/population schema; three PBGC provisions unresolved | Population spec (Phase 3), then V1 rules |
 | 5 | DEL determination letter | DEL | `wp.del-determination-letter` | Blocked | DEL field-inclusion rules and template mapping not transcribed; no valuation record | DEL extractor specification, then renderer |
 | 6 | PF plan financial work product | PF | `wp.pf-plan-financial` | Blocked | §4044 allocation rules unresolved; no asset field mapping | Allocation rule transcription; asset import |

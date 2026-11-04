@@ -3,7 +3,10 @@
  *
  * The reviewer-facing worklist for the Plan Summary Shell: what can be filled
  * from reviewed facts, what still needs a decision, and what is blocked outright.
- * The coverage report is a derived artifact; the notice itself stays blocked
+ * Reviewer decisions are recorded per manifest key, append-only and audited; a
+ * recorded decision turns its cell to resolved immediately.
+ *
+ * The coverage report is a derived artifact. The notice itself stays blocked
  * until the unresolved count reaches zero.
  */
 
@@ -21,9 +24,19 @@ import {
   type R5CoverageRow,
   type R5CoverageStatus,
 } from "../../domain/work-products/r5/coverage";
-import { R5_COVERAGE_SPEC_ID } from "../../domain/work-products/registry";
+import {
+  R5_COVERAGE_SPEC_ID,
+  R5_NOTICE_SPEC_ID,
+} from "../../domain/work-products/registry";
 import type { WorkbenchState } from "../workbench/useWorkbench";
 import { Panel, StatusPill, type StatusTone } from "../../ui/components";
+
+type RecordDecision = (input: {
+  decisionKey: string;
+  specId: string;
+  value: string;
+  rationale: string;
+}) => Promise<void>;
 
 type Props = {
   state: WorkbenchState;
@@ -32,6 +45,7 @@ type Props = {
     fileName: string;
     snapshotSha256: string;
   }) => Promise<void>) | undefined;
+  onRecordDecision: RecordDecision;
 };
 
 const statusTone: Record<R5CoverageStatus, StatusTone> = {
@@ -56,7 +70,11 @@ function escapeHtml(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-function buildCoverageHtml(rows: readonly R5CoverageRow[], alias: string, generatedAt: string): string {
+function buildCoverageHtml(
+  rows: readonly R5CoverageRow[],
+  alias: string,
+  generatedAt: string,
+): string {
   const body = rows
     .map(
       (row) => `<tr class="${row.status}">
@@ -98,18 +116,89 @@ function buildCoverageHtml(rows: readonly R5CoverageRow[], alias: string, genera
 ${body}
 </tbody>
 </table>
-<p class="footer">Derived artifact from the transcribed template manifest. The canonical record is the manifest plus the case's reviewed facts and decisions.</p>
+<p class="footer">Derived artifact from the transcribed template manifest. The canonical record is the manifest plus the case's reviewed facts and recorded reviewer decisions.</p>
 </body>
 </html>`;
 }
 
-export function R5CoveragePanel({ state, onWorkProductCreated }: Props) {
+function DecisionForm({
+  row,
+  onRecord,
+}: {
+  row: R5CoverageRow;
+  onRecord: RecordDecision;
+}) {
+  const [value, setValue] = useState("");
+  const [rationale, setRationale] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const decisionKey = row.decisionKey ?? "";
+  const canSubmit =
+    decisionKey !== "" && value.trim() !== "" && rationale.trim() !== "" && !busy;
+
+  return (
+    <form
+      className="decision-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!canSubmit) return;
+        setBusy(true);
+        setError(null);
+        void onRecord({
+          decisionKey,
+          specId: R5_NOTICE_SPEC_ID,
+          value,
+          rationale,
+        })
+          .then(() => {
+            setValue("");
+            setRationale("");
+          })
+          .catch((cause: unknown) => {
+            setError(cause instanceof Error ? cause.message : String(cause));
+          })
+          .finally(() => setBusy(false));
+      }}
+    >
+      <input
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        placeholder="Decision"
+        aria-label={`${row.label} decision value`}
+      />
+      <input
+        value={rationale}
+        onChange={(event) => setRationale(event.target.value)}
+        placeholder="Rationale (required)"
+        aria-label={`${row.label} decision rationale`}
+      />
+      <button type="submit" className="secondary" disabled={!canSubmit}>
+        {busy ? "Saving…" : "Record"}
+      </button>
+      {error ? (
+        <span className="decision-error" role="alert">
+          {error}
+        </span>
+      ) : null}
+    </form>
+  );
+}
+
+export function R5CoveragePanel({ state, onWorkProductCreated, onRecordDecision }: Props) {
   const [report, setReport] = useState<{ fileName: string; sha256: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const coverage = evaluateR5Coverage(state.planFacts);
-  const headerRows = coverage.rows.filter((row) => row.section === "Header");
+  const latestDecisionByKey: Record<string, string> = {};
+  for (const decision of state.decisions) {
+    latestDecisionByKey[decision.decisionKey] = decision.value;
+  }
+
+  const coverage = evaluateR5Coverage(state.planFacts, latestDecisionByKey);
+  const sectionNames: string[] = [];
+  for (const row of coverage.rows) {
+    if (!sectionNames.includes(row.section)) sectionNames.push(row.section);
+  }
 
   async function generate() {
     const caseRecord = state.activeCase;
@@ -142,7 +231,7 @@ export function R5CoveragePanel({ state, onWorkProductCreated }: Props) {
       id="work-product-r5-coverage"
       eyebrow="R5 · Template coverage"
       title="Plan Summary Shell coverage"
-      description={`Every placeholder in the transcribed shell (${R5_TEMPLATE_MANIFEST.fileName} v${R5_TEMPLATE_MANIFEST.version}), mapped to a reviewed fact, a reviewer decision, or a cited calculation.`}
+      description={`Every placeholder in the transcribed shell (${R5_TEMPLATE_MANIFEST.fileName} v${R5_TEMPLATE_MANIFEST.version}), mapped to a reviewed fact, a recorded reviewer decision, or a cited calculation.`}
       aside={
         <StatusPill tone={coverage.ready ? "success" : "warning"}>
           {coverage.resolved} of {coverage.total} resolved
@@ -157,42 +246,68 @@ export function R5CoveragePanel({ state, onWorkProductCreated }: Props) {
         ))}
       </ul>
 
-      <table className="coverage-table" aria-label="Header placeholders and their resolution status">
-        <thead>
-          <tr>
-            <th scope="col">Shell label</th>
-            <th scope="col">Status</th>
-            <th scope="col">Why</th>
-          </tr>
-        </thead>
-        <tbody>
-          {headerRows.map((row) => (
-            <tr key={row.placeholderId}>
-              <th scope="row">{row.label}</th>
-              <td>
-                <StatusPill tone={statusTone[row.status]}>{statusLabel[row.status]}</StatusPill>
-              </td>
-              <td className="coverage-why">{row.detail}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <p className="spec-meta">
-        <span className="chip">
-          Plan-provision questionnaire: {coverage.rows.filter((row) => row.placeholderId.startsWith("r5.item.") && row.status === "resolved").length} of{" "}
-          {coverage.rows.filter((row) => row.placeholderId.startsWith("r5.item.")).length} resolved
-        </span>
-        <span className="chip">
-          Header rates: routing recorded, values not computable in this build
-        </span>
-      </p>
-
       <p className="spec-blocker">
         <strong>The notice is not producible.</strong> {coverage.unresolved} placeholders are
         unresolved: {coverage.missing} missing fact(s), {coverage.pending} pending reviewer
         decision(s), {coverage.blocked} blocked by an unauthorized calculation or absent
-        field. The coverage report below exists so this worklist is explicit.
+        field. Recording a decision below resolves that cell and is appended to the audit
+        trail; it never overwrites an earlier decision.
+      </p>
+
+      {sectionNames.map((section) => {
+        const rows = coverage.rows.filter((row) => row.section === section);
+        const sectionResolved = rows.filter((row) => row.status === "resolved").length;
+        return (
+          <details
+            key={section}
+            className="coverage-section"
+            open={section === "Header"}
+          >
+            <summary>
+              {section} — {sectionResolved}/{rows.length} resolved
+            </summary>
+            <table
+              className="coverage-table"
+              aria-label={`${section} placeholders and their resolution status`}
+            >
+              <thead>
+                <tr>
+                  <th scope="col">Shell label</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Why</th>
+                  <th scope="col">Record a decision</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.placeholderId}>
+                    <th scope="row">{row.label}</th>
+                    <td>
+                      <StatusPill tone={statusTone[row.status]}>
+                        {statusLabel[row.status]}
+                      </StatusPill>
+                    </td>
+                    <td className="coverage-why">{row.detail}</td>
+                    <td>
+                      {row.status === "pending" && row.decisionKey ? (
+                        <DecisionForm row={row} onRecord={onRecordDecision} />
+                      ) : (
+                        <span className="coverage-why">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+        );
+      })}
+
+      <p className="spec-meta">
+        <span className="chip">
+          Header rates: routing recorded, values not computable in this build
+        </span>
+        <span className="mono">{R5_TEMPLATE_ID}</span>
       </p>
 
       <div className="button-row">
@@ -226,10 +341,6 @@ export function R5CoveragePanel({ state, onWorkProductCreated }: Props) {
           </div>
         </dl>
       ) : null}
-
-      <p className="spec-meta">
-        <span className="mono">{R5_TEMPLATE_ID}</span>
-      </p>
     </Panel>
   );
 }

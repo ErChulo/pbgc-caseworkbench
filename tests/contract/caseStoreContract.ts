@@ -9,6 +9,7 @@ import type {
   AuditEvent,
   CaseRecord,
   PlanFact,
+  ReviewerDecision,
 } from "../../src/domain/case/types";
 
 /**
@@ -455,6 +456,51 @@ export function runCaseStoreContractTests(
     it("returns null for non-existent plan fact", async () => {
       const latest = await store.getLatestPlanFact("test-case-1", "nonexistent");
       expect(latest).toBeNull();
+    });
+
+    it("appends reviewer decisions with a strictly increasing sequence", async () => {
+      await seedCase(store, "decisions-case", "CW-0301");
+      const base: ReviewerDecision = {
+        decisionId: "d-1",
+        caseId: "decisions-case",
+        decisionKey: "r5.decision.actuary",
+        specId: "wp.r5-plan-summary",
+        value: "A. Actuary",
+        rationale: "Synthetic reviewer decision.",
+        recordedAt: "2026-01-01T00:00:00.000Z",
+      };
+      const first = await store.appendDecision(base);
+      expect(first.sequence).toBe(1);
+
+      const second = await store.appendDecision({
+        ...base,
+        decisionId: "d-2",
+        value: "B. Actuary",
+        supersedes: "d-1",
+      });
+      expect(second.sequence).toBe(2);
+
+      const decisions = await store.getDecisions("decisions-case");
+      expect(decisions.map((entry) => entry.decisionId)).toEqual(["d-1", "d-2"]);
+      // Append-only: the superseded record is preserved with its original value.
+      expect(decisions[0]?.value).toBe("A. Actuary");
+      expect(decisions[1]?.supersedes).toBe("d-1");
+    });
+
+    it("keeps decisions isolated per case", async () => {
+      await seedCase(store, "decisions-a", "CW-0302");
+      await seedCase(store, "decisions-b", "CW-0303");
+      await store.appendDecision({
+        decisionId: "d-a",
+        caseId: "decisions-a",
+        decisionKey: "r5.decision.auditor",
+        specId: "wp.r5-plan-summary",
+        value: "Synthetic auditor",
+        rationale: "Synthetic reviewer decision.",
+        recordedAt: "2026-01-01T00:00:00.000Z",
+      });
+      expect(await store.getDecisions("decisions-a")).toHaveLength(1);
+      expect(await store.getDecisions("decisions-b")).toEqual([]);
     });
   });
 }

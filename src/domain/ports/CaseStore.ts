@@ -10,6 +10,7 @@ import type {
   AuditEvent,
   CaseRecord,
   PlanFact,
+  ReviewerDecision,
 } from "../case/types";
 
 /**
@@ -74,4 +75,14 @@ export interface CaseStore {
 
   /** Get all audit events for a case, ordered by per-case sequence ascending. */
   getAuditEvents(caseId: string): Promise<AuditEvent[]>;
+
+  /**
+   * Append a reviewer decision. Decisions are append-only: a correction is a new
+   * record carrying `supersedes`, never an overwrite (constitution §XII). The
+   * adapter stamps a per-case monotonic sequence.
+   */
+  appendDecision(decision: ReviewerDecision): Promise<ReviewerDecision>;
+
+  /** Get all reviewer decisions for a case, ordered by per-case sequence ascending. */
+  getDecisions(caseId: string): Promise<ReviewerDecision[]>;
 }

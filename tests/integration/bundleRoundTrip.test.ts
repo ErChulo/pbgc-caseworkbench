@@ -122,9 +122,11 @@ describe("case bundle round trip", () => {
       "artifacts",
       "auditEvents",
       "case",
+      "decisions",
       "evidenceLinks",
       "planFacts",
     ]);
+    expect(bundle.manifest.find((entry) => entry.part === "decisions")?.itemCount).toBe(0);
     for (const entry of bundle.manifest) {
       expect(entry.sha256).toMatch(/^[0-9a-f]{64}$/);
     }

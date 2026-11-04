@@ -8,16 +8,18 @@
  * Schema history:
  *   v1 — cases, facts, audit
  *   v2 — adds artifacts (immutable evidence bytes) and evidence (links)
+ *   v3 — adds decisions (append-only reviewer decisions)
  */
 
 export const DB_NAME = "pbgc-caseworkbench";
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 export const STORE_CASES = "cases";
 export const STORE_FACTS = "facts";
 export const STORE_AUDIT = "audit";
 export const STORE_ARTIFACTS = "artifacts";
 export const STORE_EVIDENCE = "evidence";
+export const STORE_DECISIONS = "decisions";
 
 const connections = new Map<string, Promise<IDBDatabase>>();
 
@@ -49,6 +51,13 @@ function upgrade(db: IDBDatabase): void {
     evidence.createIndex("caseId", "caseId", { unique: false });
     evidence.createIndex("artifactId", "artifactId", { unique: false });
     evidence.createIndex("fieldId", "fieldId", { unique: false });
+  }
+  if (!db.objectStoreNames.contains(STORE_DECISIONS)) {
+    const decisions = db.createObjectStore(STORE_DECISIONS, {
+      keyPath: "decisionId",
+    });
+    decisions.createIndex("caseId", "caseId", { unique: false });
+    decisions.createIndex("decisionKey", "decisionKey", { unique: false });
   }
 }
 

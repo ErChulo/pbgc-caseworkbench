@@ -34,6 +34,7 @@ const PLAN_FIELDS: WorkProductSpec["dependencies"] = [
 
 export const REVIEW_COPY_SPEC_ID = "wp.plan-summary-review-copy";
 export const R5_COVERAGE_SPEC_ID = "wp.r5-plan-summary-coverage";
+export const R5_NOTICE_SPEC_ID = "wp.r5-plan-summary";
 
 export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
   {

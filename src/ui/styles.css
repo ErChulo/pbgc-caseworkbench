@@ -1222,6 +1222,34 @@ button.secondary:hover:not(:disabled) {
   white-space: nowrap;
 }
 
+.coverage-section {
+  margin-top: 14px;
+}
+
+.coverage-section > summary {
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 0;
+}
+
+.decision-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.decision-form input {
+  font-size: 12px;
+  padding: 4px 8px;
+  min-width: 130px;
+}
+
+.decision-error {
+  color: var(--color-danger);
+  font-size: 12px;
+}
+
 .coverage-why {
   color: rgba(255, 255, 255, 0.72);
   line-height: 1.5;

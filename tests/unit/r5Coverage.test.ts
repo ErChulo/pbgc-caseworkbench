@@ -96,6 +96,38 @@ describe("R5 coverage", () => {
     expect(coverage.ready).toBe(false);
   });
 
+  it("resolves a pending cell only when a decision is recorded", () => {
+    const decisionKeys = R5_TEMPLATE_MANIFEST.placeholders
+      .filter((placeholder) => placeholder.source.kind === "reviewer-decision")
+      .map((placeholder) =>
+        placeholder.source.kind === "reviewer-decision" ? placeholder.source.decisionId : "",
+      );
+    expect(decisionKeys).toHaveLength(71);
+
+    const oneDecision = evaluateR5Coverage(reviewedFacts, {
+      [decisionKeys[0]!]: "Synthetic recorded decision",
+    });
+    expect(oneDecision.resolved).toBe(4);
+    expect(oneDecision.pending).toBe(70);
+
+    const allDecisions: Record<string, string> = {};
+    for (const key of decisionKeys) allDecisions[key] = "Synthetic recorded decision";
+    const covered = evaluateR5Coverage(reviewedFacts, allDecisions);
+    expect(covered.resolved).toBe(74);
+    expect(covered.pending).toBe(0);
+    expect(covered.blocked).toBe(7);
+    expect(covered.unresolved).toBe(7);
+    expect(covered.ready).toBe(false);
+  });
+
+  it("ignores blank decisions instead of treating them as resolved", () => {
+    const coverage = evaluateR5Coverage(reviewedFacts, {
+      "r5.decision.actuary": "   ",
+    });
+    expect(coverage.resolved).toBe(3);
+    expect(coverage.pending).toBe(71);
+  });
+
   it("reports missing facts when the plan fields are not reviewed", () => {
     const coverage = evaluateR5Coverage({});
     expect(coverage.resolved).toBe(0);

@@ -94,6 +94,7 @@ export type AuditEventType =
   | "evidence-linked"
   | "calculation-run"
   | "work-product-created"
+  | "reviewer-decision-recorded"
   | "export-created"
   | "bundle-imported";
 
@@ -111,6 +112,7 @@ export type AuditEvent = {
     artifactId?: string;
     linkId?: string;
     runId?: string;
+    decisionId?: string;
   };
   before?: PlanFactValue;
   after?: PlanFactValue;
@@ -123,6 +125,28 @@ export type AuditEvent = {
    * saves within the same millisecond). Optional so synthetic fixtures and
    * callers may omit it; adapters always stamp it.
    */
+  sequence?: number;
+};
+
+/**
+ * A reviewer's recorded decision for one template cell or provision prompt.
+ *
+ * Decisions are append-only: a correction adds a new record that supersedes the
+ * previous one, and the audit trail keeps both. The work-product manifests refer
+ * to decisions by `decisionKey`; the id is per recording.
+ */
+export type ReviewerDecision = {
+  decisionId: string;
+  caseId: string;
+  /** Stable manifest key, e.g. `r5.decision.actuary`. */
+  decisionKey: string;
+  /** Work-product spec the decision belongs to. */
+  specId: string;
+  value: string;
+  rationale: string;
+  recordedAt: string; // ISO 8601
+  supersedes?: string; // decisionId of the record this replaces
+  /** Per-case monotonic sequence assigned by the storage adapter. */
   sequence?: number;
 };
 

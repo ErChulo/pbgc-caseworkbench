@@ -13,6 +13,7 @@ import type {
   DerivedCatalog,
   PlanFact,
   PlanFactValue,
+  ReviewerDecision,
 } from "../domain/case/types";
 import {
   generateCaseAlias,
@@ -231,6 +232,71 @@ export class CaseService {
     });
 
     return savedFacts;
+  }
+
+  /**
+   * Record a reviewer decision for one work-product cell.
+   *
+   * Append-only: a repeat decision for the same key supersedes the previous
+   * record instead of overwriting it, and the audit trail records both. Empty
+   * values and empty rationales fail closed — a decision without a reason is not
+   * a decision a reviewer can defend later.
+   */
+  async recordDecision(input: {
+    caseId: string;
+    decisionKey: string;
+    specId: string;
+    value: string;
+    rationale: string;
+  }): Promise<ReviewerDecision> {
+    const decisionKey = input.decisionKey.trim();
+    const value = input.value.trim();
+    const rationale = input.rationale.trim();
+    if (decisionKey === "") throw new Error("A reviewer decision needs a decision key.");
+    if (value === "") throw new Error("A reviewer decision needs a value.");
+    if (rationale === "") {
+      throw new Error("A reviewer decision needs a rationale.");
+    }
+
+    const caseRecord = await this.store.getCase(input.caseId);
+    if (!caseRecord) throw new Error(`Case not found: ${input.caseId}`);
+
+    const existing = await this.store.getDecisions(input.caseId);
+    const previous = [...existing]
+      .reverse()
+      .find((decision) => decision.decisionKey === decisionKey);
+
+    const now = nowIso();
+    const decision: ReviewerDecision = {
+      decisionId: generateId(),
+      caseId: input.caseId,
+      decisionKey,
+      specId: input.specId,
+      value,
+      rationale,
+      recordedAt: now,
+      ...(previous ? { supersedes: previous.decisionId } : {}),
+    };
+
+    const saved = await this.store.appendDecision(decision);
+    await this.store.appendAuditEvent({
+      eventId: generateId(),
+      caseId: input.caseId,
+      eventType: "reviewer-decision-recorded",
+      actor: "local-user",
+      component: "CaseService.recordDecision",
+      at: now,
+      refs: { decisionId: saved.decisionId },
+      ...(previous ? { before: previous.value } : {}),
+      after: value,
+    });
+    await this.store.updateCase({ ...caseRecord, updatedAt: now });
+    return saved;
+  }
+
+  /** Get the reviewer decisions for a case, oldest first. */
+  async getDecisions(caseId: string): Promise<ReviewerDecision[]> {
+    return this.store.getDecisions(caseId);
   }
 
   /**

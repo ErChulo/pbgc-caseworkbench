@@ -9,6 +9,7 @@
  * - cases: { caseId (key), alias, status, createdAt, updatedAt }
  * - facts: { factId (key), caseId (index), fieldId (index), ... }
  * - audit: { eventId (key), caseId (index), at (index), ... }
+ * - decisions: { decisionId (key), caseId (index), decisionKey (index), ... }
  */
 
 import type { CaseStore } from "../../domain/ports/CaseStore";
@@ -16,12 +17,14 @@ import type {
   AuditEvent,
   CaseRecord,
   PlanFact,
+  ReviewerDecision,
 } from "../../domain/case/types";
 import {
   DB_NAME,
   openCaseworkbenchDb,
   STORE_AUDIT,
   STORE_CASES,
+  STORE_DECISIONS,
   STORE_FACTS,
 } from "./db";
 
@@ -329,6 +332,44 @@ export class IndexedDBCaseStore implements CaseStore {
         if (abortReason) reject(abortReason);
         else resolve();
       };
+    });
+  }
+
+  async appendDecision(decision: ReviewerDecision): Promise<ReviewerDecision> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      // Same read-modify-write pattern as audit events: the per-case sequence is
+      // assigned inside one transaction, so concurrent decisions cannot collide.
+      const tx = db.transaction(STORE_DECISIONS, "readwrite");
+      const store = tx.objectStore(STORE_DECISIONS);
+      const seqReq = store.index("caseId").getAll(decision.caseId);
+      seqReq.onsuccess = () => {
+        const existing = (seqReq.result as ReviewerDecision[]) ?? [];
+        const nextSeq =
+          existing.reduce((max, entry) => Math.max(max, entry.sequence ?? 0), 0) + 1;
+        const addReq = store.add({ ...decision, sequence: nextSeq });
+        addReq.onsuccess = () => resolve({ ...decision, sequence: nextSeq });
+        addReq.onerror = () => reject(addReq.error);
+      };
+      seqReq.onerror = () => reject(seqReq.error);
+      tx.onabort = () => reject(new Error("IndexedDB transaction aborted"));
+      tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction error"));
+    });
+  }
+
+  async getDecisions(caseId: string): Promise<ReviewerDecision[]> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_DECISIONS, "readonly");
+      const store = tx.objectStore(STORE_DECISIONS);
+      const req = store.index("caseId").getAll(caseId);
+      req.onsuccess = () => {
+        const decisions = (req.result as ReviewerDecision[]).sort(
+          (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
+        );
+        resolve(decisions);
+      };
+      req.onerror = () => reject(req.error);
     });
   }
 

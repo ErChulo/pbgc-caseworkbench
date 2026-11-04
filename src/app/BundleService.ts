@@ -10,7 +10,12 @@
 
 import type { ArtifactStore } from "../domain/ports/ArtifactStore";
 import type { CaseStore } from "../domain/ports/CaseStore";
-import type { AuditEvent, CaseRecord, PlanFact } from "../domain/case/types";
+import type {
+  AuditEvent,
+  CaseRecord,
+  PlanFact,
+  ReviewerDecision,
+} from "../domain/case/types";
 import type { EvidenceLink, SourceArtifact } from "../domain/evidence/types";
 import { generateCaseAlias, generateId, nowIso } from "../domain/case/validation";
 import { sha256HexOfText } from "../adapters/hashing/sha256";
@@ -32,6 +37,8 @@ export type CaseBundle = {
   planFacts: PlanFact[];
   evidenceLinks: EvidenceLink[];
   auditEvents: AuditEvent[];
+  /** Reviewer decisions; absent in bundles exported before decision capture. */
+  decisions?: ReviewerDecision[];
   artifacts: { artifact: SourceArtifact; bytesBase64: string }[];
   manifest: BundleManifestEntry[];
 };
@@ -64,8 +71,11 @@ export async function buildCaseBundle(args: {
   planFacts: PlanFact[];
   evidenceLinks: EvidenceLink[];
   auditEvents: AuditEvent[];
+  /** Omitted by callers written before decision capture; treated as none. */
+  decisions?: ReviewerDecision[];
   artifacts: { artifact: SourceArtifact; bytes: ArrayBuffer }[];
 }): Promise<CaseBundle> {
+  const decisions = args.decisions ?? [];
   const artifacts: CaseBundle["artifacts"] = args.artifacts.map((entry) => ({
     artifact: entry.artifact,
     bytesBase64: toBase64(entry.bytes),
@@ -80,6 +90,7 @@ export async function buildCaseBundle(args: {
       itemCount: args.evidenceLinks.length,
     },
     { name: "auditEvents", payload: args.auditEvents, itemCount: args.auditEvents.length },
+    { name: "decisions", payload: decisions, itemCount: decisions.length },
     { name: "artifacts", payload: artifacts, itemCount: artifacts.length },
   ];
 
@@ -100,6 +111,7 @@ export async function buildCaseBundle(args: {
     planFacts: args.planFacts,
     evidenceLinks: args.evidenceLinks,
     auditEvents: args.auditEvents,
+    decisions,
     artifacts,
     manifest,
   };
@@ -194,6 +206,21 @@ export async function applyCaseBundle(
     };
   });
 
+  // Decisions are re-identified before events so audit refs can be remapped.
+  const decisionIdMap = new Map<string, string>();
+  const decisions: ReviewerDecision[] = (bundle.decisions ?? []).map((decision) => {
+    const decisionId = generateId();
+    decisionIdMap.set(decision.decisionId, decisionId);
+    return {
+      ...decision,
+      decisionId,
+      caseId: caseRecord.caseId,
+      ...(decision.supersedes
+        ? { supersedes: decisionIdMap.get(decision.supersedes) ?? decision.supersedes }
+        : {}),
+    };
+  });
+
   const facts: PlanFact[] = bundle.planFacts.map((fact) => ({
     ...fact,
     factId: generateId(),
@@ -216,6 +243,9 @@ export async function applyCaseBundle(
         refs.artifactId = artifactIdMap.get(refs.artifactId) ?? refs.artifactId;
       }
       if (refs.linkId) refs.linkId = linkIdMap.get(refs.linkId) ?? refs.linkId;
+      if (refs.decisionId) {
+        refs.decisionId = decisionIdMap.get(refs.decisionId) ?? refs.decisionId;
+      }
       return {
         ...event,
         eventId: generateId(),
@@ -241,6 +271,10 @@ export async function applyCaseBundle(
       events,
       updatedCase: caseRecord,
     });
+  }
+
+  for (const decision of decisions) {
+    await ports.cases.appendDecision(decision);
   }
 
   for (const link of links) {

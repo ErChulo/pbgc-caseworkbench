@@ -20,7 +20,7 @@ to produce one and says why.
 | Calendar age and calendar interval identities | Working, 138 tests |
 | PBGC provisions (earliest retirement, §4022(c), aggregate limit, §4044 tiers) | Listed and **blocked** |
 | Population stage | Disabled, schema not authorized |
-| Work products | 9 contracts registered; review copy and R5 template coverage producible; R5 notice/V1/DEL/PF/BSRS/§436/memo blocked with reasons |
+| Work products | 9 contracts registered; review copy and R5 template coverage producible; R5 notice/V1/DEL/PF/BSRS/§436/memo blocked with reasons; reviewer decisions recordable per cell |
 | Field dictionary | 1,172 records across 12 tables |
 | Bundle export / restore | Working, hashed manifest, restores as a new case |
 
@@ -80,8 +80,10 @@ with its blocking reason:
 - **Work product engines** — every deliverable is registered as a contract with its
   purpose, lifecycle position, dependencies, and blocking reason. R5, V1, DEL, PF,
   BSRS, §436, and the case memo are listed and blocked; the review copy and the R5
-  template coverage report are producible. The R5 notice itself stays blocked: 78 of
-  81 shell placeholders are unresolved and none are filled by plausibility. See
+  template coverage report are producible. Reviewer decisions are captured per shell
+  cell, append-only and audited, and a recorded decision resolves that cell — but not
+  the notice: 7 cells remain blocked by unauthorized calculations, so the R5 notice
+  stays blocked and no cell is filled by plausibility. See
   `docs/work-products/inventory.md`, `specs/002-work-product-contract`, and
   `specs/003-r5-plan-summary`.
 - **Assumption sets** — no mortality, interest, timing, or rounding set is registered.

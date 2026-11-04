@@ -11,12 +11,14 @@ import type {
   AuditEvent,
   CaseRecord,
   PlanFact,
+  ReviewerDecision,
 } from "../../domain/case/types";
 
 export class InMemoryCaseStore implements CaseStore {
   private cases = new Map<string, CaseRecord>();
   private facts = new Map<string, PlanFact[]>(); // caseId → facts
   private auditEvents = new Map<string, AuditEvent[]>(); // caseId → events
+  private decisions = new Map<string, ReviewerDecision[]>(); // caseId → decisions
 
   async listCases(): Promise<CaseRecord[]> {
     return Array.from(this.cases.values()).sort((a, b) =>
@@ -42,6 +44,7 @@ export class InMemoryCaseStore implements CaseStore {
     this.cases.set(record.caseId, { ...record });
     this.facts.set(record.caseId, []);
     this.auditEvents.set(record.caseId, [stamped]);
+    this.decisions.set(record.caseId, []);
     return { ...record };
   }
 
@@ -159,6 +162,25 @@ export class InMemoryCaseStore implements CaseStore {
   async getAuditEvents(caseId: string): Promise<AuditEvent[]> {
     // Order by per-case sequence so same-millisecond events are deterministic.
     return [...(this.auditEvents.get(caseId) ?? [])].sort(
+      (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
+    );
+  }
+
+  async appendDecision(decision: ReviewerDecision): Promise<ReviewerDecision> {
+    if (!this.cases.has(decision.caseId)) {
+      throw new Error(`Case not found: ${decision.caseId}`);
+    }
+    const decisions = this.decisions.get(decision.caseId) ?? [];
+    const nextSeq =
+      decisions.reduce((max, entry) => Math.max(max, entry.sequence ?? 0), 0) + 1;
+    const stamped: ReviewerDecision = { ...decision, sequence: nextSeq };
+    decisions.push(stamped);
+    this.decisions.set(decision.caseId, decisions);
+    return { ...stamped };
+  }
+
+  async getDecisions(caseId: string): Promise<ReviewerDecision[]> {
+    return [...(this.decisions.get(caseId) ?? [])].sort(
       (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
     );
   }

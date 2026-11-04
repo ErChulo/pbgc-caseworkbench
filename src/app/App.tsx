@@ -92,6 +92,7 @@ export function App() {
           <WorkProductsStage
             state={state}
             onWorkProductCreated={actions.recordWorkProduct}
+            onRecordDecision={actions.recordDecision}
           />
         );
       case "review":

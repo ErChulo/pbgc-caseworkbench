@@ -23,7 +23,12 @@ import {
 import { downloadTextFile } from "../../app/download";
 import type { CalculationRun } from "../../app/CalculationService";
 import type { StageId } from "../../app/stages";
-import type { AuditEvent, CaseRecord, PlanFact } from "../../domain/case/types";
+import type {
+  AuditEvent,
+  CaseRecord,
+  PlanFact,
+  ReviewerDecision,
+} from "../../domain/case/types";
 import type { EvidenceLink, SourceArtifact } from "../../domain/evidence/types";
 import { generateId, nowIso } from "../../domain/case/validation";
 import { isFileOrigin } from "../../app/environment";
@@ -39,6 +44,7 @@ export type WorkbenchState = {
   artifacts: SourceArtifact[];
   links: EvidenceLink[];
   auditEvents: AuditEvent[];
+  decisions: ReviewerDecision[];
   loading: boolean;
   error: string | null;
   notice: string | null;
@@ -62,6 +68,12 @@ export type WorkbenchActions = {
     fileName: string;
     snapshotSha256: string;
   }) => Promise<void>;
+  recordDecision: (input: {
+    decisionKey: string;
+    specId: string;
+    value: string;
+    rationale: string;
+  }) => Promise<void>;
   setStage: (stage: StageId) => void;
   clearError: () => void;
   clearNotice: () => void;
@@ -74,6 +86,7 @@ const initialState: WorkbenchState = {
   artifacts: [],
   links: [],
   auditEvents: [],
+  decisions: [],
   loading: true,
   error: null,
   notice: null,
@@ -113,17 +126,19 @@ export function useWorkbench(): {
         artifacts: [],
         links: [],
         auditEvents: [],
+        decisions: [],
         lastRun: null,
         stage: "home",
       }));
       return;
     }
 
-    const [facts, artifacts, links, auditEvents] = await Promise.all([
+    const [facts, artifacts, links, auditEvents, decisions] = await Promise.all([
       services.caseService.getLatestPlanFacts(caseId),
       services.evidenceService.listArtifacts(caseId),
       services.evidenceService.listLinks(caseId),
       services.caseService.getAuditEvents(caseId),
+      services.caseService.getDecisions(caseId),
     ]);
 
     activeCaseIdRef.current = caseId;
@@ -140,6 +155,7 @@ export function useWorkbench(): {
       artifacts,
       links,
       auditEvents,
+      decisions,
       saveStatus: "idle",
       stage: previous.stage === "home" ? "plan" : previous.stage,
     }));
@@ -226,6 +242,7 @@ export function useWorkbench(): {
       artifacts: [],
       links: [],
       auditEvents: [],
+      decisions: [],
       lastRun: null,
       stage: "home",
       saveStatus: "idle",
@@ -376,6 +393,7 @@ export function useWorkbench(): {
         planFacts: allFacts,
         evidenceLinks: current.links,
         auditEvents: current.auditEvents,
+        decisions: current.decisions,
         artifacts: withBytes,
       });
       const fileName = `${current.activeCase.alias}-review-bundle-${nowIso().slice(0, 10)}.json`;
@@ -453,6 +471,39 @@ export function useWorkbench(): {
     [],
   );
 
+  const recordDecision = useCallback(
+    async (input: {
+      decisionKey: string;
+      specId: string;
+      value: string;
+      rationale: string;
+    }) => {
+      const caseId = activeCaseIdRef.current;
+      if (!caseId) throw new Error("No active case.");
+      await services.caseService.recordDecision({
+        caseId,
+        decisionKey: input.decisionKey,
+        specId: input.specId,
+        value: input.value,
+        rationale: input.rationale,
+      });
+      const [decisions, auditEvents, updated] = await Promise.all([
+        services.caseService.getDecisions(caseId),
+        services.caseService.getAuditEvents(caseId),
+        services.caseService.getCase(caseId),
+      ]);
+      setState((previous) => ({
+        ...previous,
+        decisions,
+        auditEvents,
+        activeCase: updated ?? previous.activeCase,
+        error: null,
+        notice: "Reviewer decision recorded and audited.",
+      }));
+    },
+    [],
+  );
+
   const setStage = useCallback((stage: StageId) => {
     setState((previous) => ({ ...previous, stage }));
   }, []);
@@ -480,6 +531,7 @@ export function useWorkbench(): {
       exportBundle,
       importBundle,
       recordWorkProduct,
+      recordDecision,
       setStage,
       clearError,
       clearNotice,

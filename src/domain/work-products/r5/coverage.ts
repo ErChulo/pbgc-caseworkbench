@@ -6,6 +6,10 @@
  * evidence behind `pred.template-placeholders-resolved` and the content of the
  * R5 coverage work product.
  *
+ * A placeholder mapped to a reviewer decision resolves only when the case holds a
+ * recorded decision for that key. A blank or absent decision leaves it pending —
+ * it is never treated as "not applicable".
+ *
  * Pure domain logic. No template parsing, no rates, no provisions.
  */
 
@@ -24,6 +28,8 @@ export type R5CoverageRow = {
   label: string;
   required: boolean;
   sourceKind: R5PlaceholderSource["kind"];
+  /** Manifest decision key when the cell is a reviewer decision. */
+  decisionKey: string | null;
   status: R5CoverageStatus;
   detail: string;
 };
@@ -53,6 +59,9 @@ export type R5FactLookup = Readonly<
   Record<string, { value: unknown } | undefined>
 >;
 
+/** Latest recorded value per decision key. */
+export type R5DecisionLookup = Readonly<Record<string, string | undefined>>;
+
 function hasValue(fact: { value: unknown } | undefined): boolean {
   return (
     fact !== undefined &&
@@ -62,9 +71,20 @@ function hasValue(fact: { value: unknown } | undefined): boolean {
   );
 }
 
+function recordedDecision(
+  decisions: R5DecisionLookup,
+  decisionKey: string,
+): string | null {
+  const value = decisions[decisionKey];
+  if (value === undefined) return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
 function evaluateRow(
   placeholder: R5Placeholder,
   facts: R5FactLookup,
+  decisions: R5DecisionLookup,
 ): R5CoverageRow {
   const base = {
     placeholderId: placeholder.placeholderId,
@@ -72,6 +92,10 @@ function evaluateRow(
     label: placeholder.label,
     required: placeholder.required,
     sourceKind: placeholder.source.kind,
+    decisionKey:
+      placeholder.source.kind === "reviewer-decision"
+        ? placeholder.source.decisionId
+        : null,
   };
 
   switch (placeholder.source.kind) {
@@ -91,6 +115,15 @@ function evaluateRow(
       };
     }
     case "reviewer-decision": {
+      const recorded = recordedDecision(decisions, placeholder.source.decisionId);
+      if (recorded !== null) {
+        const shown = recorded.length > 120 ? `${recorded.slice(0, 117)}…` : recorded;
+        return {
+          ...base,
+          status: "resolved",
+          detail: `Recorded decision: ${shown}`,
+        };
+      }
       return {
         ...base,
         status: "pending",
@@ -114,13 +147,16 @@ function evaluateRow(
 
 /**
  * Evaluate every placeholder. Ordering follows the manifest, so the same case
- * always produces the same report.
+ * and decision set always produce the same report.
  */
 export function evaluateR5Coverage(
   facts: R5FactLookup,
+  decisions: R5DecisionLookup = {},
   manifest: R5TemplateManifest = R5_TEMPLATE_MANIFEST,
 ): R5CoverageSummary {
-  const rows = manifest.placeholders.map((placeholder) => evaluateRow(placeholder, facts));
+  const rows = manifest.placeholders.map((placeholder) =>
+    evaluateRow(placeholder, facts, decisions),
+  );
 
   const resolved = rows.filter((row) => row.status === "resolved").length;
   const missing = rows.filter((row) => row.status === "missing").length;

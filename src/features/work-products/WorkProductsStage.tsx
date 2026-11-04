@@ -42,6 +42,12 @@ type Props = {
     fileName: string;
     snapshotSha256: string;
   }) => Promise<void>;
+  onRecordDecision: (input: {
+    decisionKey: string;
+    specId: string;
+    value: string;
+    rationale: string;
+  }) => Promise<void>;
 };
 
 type GeneratedCopy = {
@@ -213,7 +219,7 @@ ${artifacts}
 </html>`;
 }
 
-export function WorkProductsStage({ state, onWorkProductCreated }: Props) {
+export function WorkProductsStage({ state, onWorkProductCreated, onRecordDecision }: Props) {
   const [copy, setCopy] = useState<GeneratedCopy | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -221,7 +227,11 @@ export function WorkProductsStage({ state, onWorkProductCreated }: Props) {
   const implementedPredicateIds = new Set(
     implementedPredicates().map((predicate) => predicate.predicateId),
   );
-  const r5Coverage = evaluateR5Coverage(state.planFacts);
+  const latestDecisionByKey: Record<string, string> = {};
+  for (const decision of state.decisions) {
+    latestDecisionByKey[decision.decisionKey] = decision.value;
+  }
+  const r5Coverage = evaluateR5Coverage(state.planFacts, latestDecisionByKey);
   const readinessContext = {
     facts: state.planFacts,
     evidence: state.artifacts,
@@ -377,7 +387,11 @@ export function WorkProductsStage({ state, onWorkProductCreated }: Props) {
         </ul>
       </Panel>
 
-      <R5CoveragePanel state={state} onWorkProductCreated={onWorkProductCreated} />
+      <R5CoveragePanel
+        state={state}
+        onWorkProductCreated={onWorkProductCreated}
+        onRecordDecision={onRecordDecision}
+      />
 
       <Panel
         id="work-product-generate"
