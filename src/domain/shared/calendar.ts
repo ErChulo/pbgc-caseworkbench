@@ -1,13 +1,20 @@
 /**
- * Pure, calendar-aware date validity utilities for the domain.
+ * Pure, calendar-aware date utilities for the domain.
  *
  * Architecture.md §9 requires exact PBGC date/age rules to use calendar-aware
  * utilities rather than dividing elapsed milliseconds or relying on host-engine
- * Date parsing. This module validates calendar dates explicitly so behavior is
- * deterministic across engines and platforms.
+ * Date parsing. Every function here works on explicit year/month/day components
+ * so behaviour is deterministic across engines, platforms, and time zones.
  *
  * Deliberately no Date object, no timezone handling, and no millisecond math.
  */
+
+/** A calendar date with explicit components (proleptic Gregorian). */
+export type CalendarDate = {
+  year: number;
+  month: number;
+  day: number;
+};
 
 /** True if `year` is a leap year in the Gregorian/proleptic calendar. */
 export function isLeapYear(year: number): boolean {
@@ -32,9 +39,7 @@ export function daysInMonth(year: number, month: number): number {
  * The supported calendar year window for domain dates. Year 0000 is not a real
  * Gregorian year and is rejected. 9999 bounds the four-digit representation.
  *
- * NOTE: This is a data-integrity bound, not a PBGC plan-provision rule. PBGC
- * termination dates fall within it in practice, but no agency rule forces the
- * exact edges; both ends are chosen conservatively to reject impossible dates.
+ * NOTE: This is a data-integrity bound, not a PBGC plan-provision rule.
  */
 export const MIN_YEAR = 1;
 export const MAX_YEAR = 9999;
@@ -64,10 +69,7 @@ export function dateError(year: number, month: number, day: number): string | nu
  * Validate an ISO 8601 date string (YYYY-MM-DD) or full ISO 8601 datetime, and
  * return the normalized date-only portion (YYYY-MM-DD) on success. Returns null
  * when the string is not a valid calendar date or, for datetimes, has a
- * malformed/out-of-range time component. Time components, when present, are
- * ignored for the stored value (the stored value is the literal YYYY-MM-DD
- * prefix), but they are still validated so GARBAGE after a `T` is rejected
- * rather than silently accepted (fail closed).
+ * malformed/out-of-range time component.
  */
 export function parseAndNormalizeIsoDate(
   input: string,
@@ -103,4 +105,88 @@ export function parseAndNormalizeIsoDate(
   const mo = String(month).padStart(2, "0");
   const d = String(day).padStart(2, "0");
   return { normalized: `${y}-${mo}-${d}` };
+}
+
+/**
+ * Parse a date-only ISO string into explicit components, or null when invalid.
+ * Datetime input is rejected here: callers that accept datetimes must first
+ * normalize with parseAndNormalizeIsoDate so the intent is explicit.
+ */
+export function toCalendarDate(iso: string | null | undefined): CalendarDate | null {
+  if (iso === null || iso === undefined) return null;
+  const parsed = parseAndNormalizeIsoDate(iso);
+  if (!parsed) return null;
+  const [y, m, d] = parsed.normalized.split("-");
+  return {
+    year: Number(y),
+    month: Number(m),
+    day: Number(d),
+  };
+}
+
+/** Format explicit components as an ISO 8601 date-only string (YYYY-MM-DD). */
+export function formatCalendarDate(date: CalendarDate): string {
+  return `${String(date.year).padStart(4, "0")}-${String(date.month).padStart(2, "0")}-${String(date.day).padStart(2, "0")}`;
+}
+
+/** Negative when a precedes b, positive when a follows b, zero when equal. */
+export function compareCalendarDates(a: CalendarDate, b: CalendarDate): number {
+  if (a.year !== b.year) return a.year - b.year;
+  if (a.month !== b.month) return a.month - b.month;
+  return a.day - b.day;
+}
+
+/**
+ * Add whole calendar years to a date, clamping the day to the target month's
+ * length so 2024-02-29 + 1 year is 2025-02-28 (not March 1).
+ */
+export function addYears(date: CalendarDate, years: number): CalendarDate {
+  if (!Number.isInteger(years)) {
+    throw new RangeError("years must be an integer");
+  }
+  const year = date.year + years;
+  const maxDay = daysInMonth(year, date.month);
+  return { year, month: date.month, day: Math.min(date.day, maxDay) };
+}
+
+/**
+ * Whole calendar years, months, and residual days between `from` and `to`,
+ * using the completed-interval convention (the residual days never reach a
+ * full month, and months never reach 12).
+ *
+ * Throws RangeError when `to` precedes `from`; callers fail closed before
+ * calling rather than silently producing a negative age.
+ */
+export function yearsMonthsDaysBetween(
+  from: CalendarDate,
+  to: CalendarDate,
+): { years: number; months: number; days: number } {
+  if (compareCalendarDates(to, from) < 0) {
+    throw new RangeError("end date precedes start date");
+  }
+  let years = to.year - from.year;
+  let months = to.month - from.month;
+  let days = to.day - from.day;
+
+  if (days < 0) {
+    months -= 1;
+    const previousMonth = to.month === 1 ? 12 : to.month - 1;
+    const previousYear = to.month === 1 ? to.year - 1 : to.year;
+    days += daysInMonth(previousYear, previousMonth);
+  }
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+  return { years, months, days };
+}
+
+/** Completed whole calendar years from `from` to `to`. */
+export function fullYearsBetween(from: CalendarDate, to: CalendarDate): number {
+  return yearsMonthsDaysBetween(from, to).years;
+}
+
+/** True when both dates fall in the same calendar month and year. */
+export function isSameMonth(a: CalendarDate, b: CalendarDate): boolean {
+  return a.year === b.year && a.month === b.month;
 }

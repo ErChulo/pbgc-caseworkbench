@@ -1,0 +1,76 @@
+/**
+ * CalculationService — orchestrates a calculation run and records it.
+ *
+ * The service contains no formulas. It refuses to run a rule that the registry
+ * does not authorize, delegates the arithmetic to the pure domain, and appends
+ * an audit event carrying the run id and result so a run can never be claimed
+ * without a record.
+ */
+
+import type { CaseStore } from "../domain/ports/CaseStore";
+import type { CalculationResult } from "../domain/calculations/types";
+import {
+  AGE_RULE_ID,
+  CALCULATION_ENGINE_VERSION,
+  computeAgeAtDate,
+} from "../domain/calculations/age";
+import { assertRuleImplemented } from "../domain/rules/registry";
+import { generateId, nowIso } from "../domain/case/validation";
+
+export type CalculationRun = {
+  runId: string;
+  caseId: string;
+  createdAt: string;
+  result: CalculationResult<number>;
+};
+
+export class CalculationService {
+  constructor(private readonly cases: CaseStore) {}
+
+  /**
+   * Age in completed calendar years at a date.
+   *
+   * `provenanceIds` are the evidence-link ids supporting the date of birth; an
+   * empty list is allowed but produces an explicit warning in the result.
+   */
+  async runAgeAtDate(args: {
+    caseId: string;
+    dateOfBirth: string;
+    asOfDate: string;
+    provenanceIds?: string[];
+  }): Promise<CalculationRun> {
+    const rule = assertRuleImplemented(AGE_RULE_ID);
+
+    const result = computeAgeAtDate({
+      dateOfBirth: {
+        id: "participant-date-of-birth",
+        label: "Participant date of birth",
+        isoDate: args.dateOfBirth,
+        provenanceIds: args.provenanceIds ?? [],
+      },
+      asOfDate: {
+        id: "as-of-date",
+        label: "As-of date",
+        isoDate: args.asOfDate,
+        provenanceIds: [],
+      },
+      engineVersion: CALCULATION_ENGINE_VERSION,
+    });
+
+    const runId = generateId();
+    const createdAt = nowIso();
+
+    await this.cases.appendAuditEvent({
+      eventId: generateId(),
+      caseId: args.caseId,
+      eventType: "calculation-run",
+      actor: "local-user",
+      component: `CalculationService.runAgeAtDate (${rule.ruleId})`,
+      at: createdAt,
+      refs: { runId },
+      after: result.value,
+    });
+
+    return { runId, caseId: args.caseId, createdAt, result };
+  }
+}

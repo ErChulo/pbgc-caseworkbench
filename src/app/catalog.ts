@@ -7,6 +7,18 @@
  */
 
 import catalogData from "@derived-catalog";
+import dictionaryData from "@dictionary-index";
 import type { DerivedCatalog } from "../domain/case/types";
+import type { DictionaryIndex } from "../domain/catalog/types";
 
+/**
+ * The curated plan-level catalog used by the plan summary slice and by
+ * validation. Four fields, each mapped to a specific dictionary row.
+ */
 export const catalog: DerivedCatalog = catalogData as DerivedCatalog;
+
+/**
+ * The full derived field dictionary: every table-field record in the
+ * authoritative workbook. Read-only reference data, never case data.
+ */
+export const dictionaryIndex: DictionaryIndex = dictionaryData as DictionaryIndex;

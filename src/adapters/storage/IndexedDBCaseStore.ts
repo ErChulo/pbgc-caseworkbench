@@ -17,54 +17,27 @@ import type {
   CaseRecord,
   PlanFact,
 } from "../../domain/case/types";
-
-const DB_NAME = "pbgc-caseworkbench";
-const DB_VERSION = 1;
-const STORE_CASES = "cases";
-const STORE_FACTS = "facts";
-const STORE_AUDIT = "audit";
+import {
+  DB_NAME,
+  openCaseworkbenchDb,
+  STORE_AUDIT,
+  STORE_CASES,
+  STORE_FACTS,
+} from "./db";
 
 export class IndexedDBCaseStore implements CaseStore {
-  private dbPromise: Promise<IDBDatabase> | null = null;
-
   /**
    * @param dbName Optional IndexedDB database name. Defaults to the production
    * name. Tests pass a unique name per store so contract runs are isolated.
    */
   constructor(private readonly dbName: string = DB_NAME) {}
 
+  /**
+   * The connection comes from the single database factory in ./db.ts so every
+   * adapter shares one schema version and one upgrade path.
+   */
   private getDB(): Promise<IDBDatabase> {
-    if (this.dbPromise) return this.dbPromise;
-    this.dbPromise = new Promise((resolve, reject) => {
-      if (typeof indexedDB === "undefined") {
-        reject(new Error("IndexedDB is not available in this environment."));
-        return;
-      }
-      const req = indexedDB.open(this.dbName, DB_VERSION);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(STORE_CASES)) {
-          db.createObjectStore(STORE_CASES, { keyPath: "caseId" });
-        }
-        if (!db.objectStoreNames.contains(STORE_FACTS)) {
-          const store = db.createObjectStore(STORE_FACTS, {
-            keyPath: "factId",
-          });
-          store.createIndex("caseId", "caseId", { unique: false });
-          store.createIndex("fieldId", "fieldId", { unique: false });
-        }
-        if (!db.objectStoreNames.contains(STORE_AUDIT)) {
-          const store = db.createObjectStore(STORE_AUDIT, {
-            keyPath: "eventId",
-          });
-          store.createIndex("caseId", "caseId", { unique: false });
-          store.createIndex("at", "at", { unique: false });
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error ?? new Error("Failed to open IndexedDB"));
-    });
-    return this.dbPromise;
+    return openCaseworkbenchDb(this.dbName);
   }
 
   async listCases(): Promise<CaseRecord[]> {

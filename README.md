@@ -1,84 +1,183 @@
-# PBGC Case Workbench — OpenCode Starter [DELETE REPO LATER]
+# PBGC Case Workbench
 
-A local-first, single-user workbench for PBGC actuarial casework. The browser is the application boundary: case evidence, extracted data, calculations, and work products stay on the workstation unless the user deliberately exports them.
+A local-first, single-user workbench for PBGC plan-termination casework. The browser
+is the application boundary: evidence, reviewed values, calculation traces, and the
+audit trail stay in the workstation's browser profile unless a reviewer deliberately
+exports them. There is no account, no server, no telemetry, and no network request at
+runtime.
 
-This is a development starter, not a validated benefit-determination system. Every actuarial formula, plan interpretation, PBGC rule, and generated work product must pass evidence-backed review before production use.
+This is **not** a validated benefit-determination system. Every actuarial formula,
+plan interpretation, PBGC rule, and generated work product must pass evidence-backed
+review before production use. Where the workbench cannot justify a number, it refuses
+to produce one and says why.
 
-## What is included
+## Status at a glance
 
-- A runnable React/TypeScript/Vite shell that builds to one HTML file.
-- `docs/architecture.md` and `docs/design.md` as the technical and visual contracts.
-- OpenCode project configuration, one primary agent, six review subagents, and ten domain skills.
-- An opt-in Playwright MCP and an opt-in, read-only GitHub MCP.
-- A SpecKit bootstrap script and a project constitution.
-- JSON-schema locations, synthetic fixtures, and test layers.
-- The supplied data dictionary preserved as a read-only reference.
+| Area | State |
+| --- | --- |
+| Plan-field slice (4 dictionary-mapped fields) | Working, validated, audited |
+| Evidence intake (hash, duplicate detection, linking) | Working |
+| Calendar age and calendar interval identities | Working, 138 tests |
+| PBGC provisions (earliest retirement, §4022(c), aggregate limit, §4044 tiers) | Listed and **blocked** |
+| Population stage | Disabled, schema not authorized |
+| Work products | Plan summary review copy; R5, DEL, §436, memo blocked |
+| Field dictionary | 1,172 records across 12 tables |
+| Bundle export / restore | Working, hashed manifest, restores as a new case |
 
-## Start here
-
-Requirements: Node.js 22+, npm 10+, Git, OpenCode, and optionally `uv`/`uvx` for SpecKit.
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\bootstrap.ps1 -InstallDependencies -InitializeSpecKit
-npm run dev
-```
-
-Or on macOS/Linux:
-
-```bash
-chmod +x scripts/bootstrap.sh
-./scripts/bootstrap.sh --install --speckit
-npm run dev
-```
-
-The standalone `scaffold-pbgc-caseworkbench.ps1` delivered beside the ZIP can also create a fresh target and unpack the complete starter:
-
-```powershell
-.\scaffold-pbgc-caseworkbench.ps1 `
-  -ProjectRoot C:\Dev\pbgc-caseworkbench `
-  -StarterZipPath .\pbgc-caseworkbench-opencode-starter.zip `
-  -InitializeSpecKit `
-  -InstallDependencies
-```
-
-The equivalent Bash scaffold is included at `scripts/scaffold-tree.sh`:
+## Quick start
 
 ```bash
-./scripts/scaffold-tree.sh \
-  --project-root "$HOME/Dev/pbgc-caseworkbench" \
-  --starter-zip ./pbgc-caseworkbench-opencode-starter.zip \
-  --init-speckit \
-  --install-dependencies
+npm ci
+npm run dev        # http://127.0.0.1:5173
 ```
 
-Before beginning a feature, read `AGENTS.md`, `governance/constitution.md`, `docs/architecture.md`, and `docs/design.md`. In OpenCode, use the `case-actuary-builder` primary agent. Invoke review agents explicitly with `@agent-name` when a specification or calculation reaches its gate.
+```bash
+npm run check      # typecheck + unit/integration tests + single-file build
+npm run test:e2e   # production build + Playwright in Chromium
+```
 
-## SpecKit workflow
+`npm run build` writes a single self-contained `dist/index.html` (JavaScript and CSS
+inlined). Brand assets stay as files under `public/brand/`, so the deliverable is the
+HTML file plus that folder.
 
-The bootstrap script runs the official `specify init` integration for OpenCode. A safe working sequence is:
+## The office test walkthrough
 
-1. Establish or revise the constitution.
-2. Write a feature specification around a user outcome.
-3. Clarify ambiguous rules and evidence.
-4. Produce a technical plan that names schemas, provenance, and tests.
-5. Break the plan into tasks.
-6. Implement one vertical slice and run all required gates.
+1. **Case home** — create a case. It receives a synthetic alias such as `CW-0001`.
+2. **Evidence** — drop plan documents. Each file is hashed locally with SHA-256 and
+   stored once; importing identical content again is refused and reported. Link each
+   artifact to the field it supports.
+3. **Plan summary** — the four dictionary-mapped fields. Validation is per field, and
+   each value carries its Data Dictionary row, workbook hash, review status, and the
+   catalog version that produced it. `Browse field dictionary` opens the full 1,172-record
+   index with search and table/classification filters.
+4. **Rules & assumptions** — every rule the workbench may run, with its citation, and
+   every provision that is blocked with the reason.
+5. **Calculations** — age at a date. The run records inputs, units, rule, intermediates,
+   engine version, and warnings, and appends an audit event. Values without evidence
+   are labelled reviewer-entered.
+6. **Reconciliation** — required fields reviewed, evidence linked, facts with
+   provenance, blocked provisions, control totals.
+7. **Work products** — generate the plan summary review copy (HTML) with its own
+   SHA-256, and see which work products remain blocked.
+8. **Review & export** — the append-only audit trail, bundle export, and bundle restore.
 
-The exact slash commands are installed by your current SpecKit version. Run `specify integration list` and `specify integration info opencode` if command names or locations differ.
+Reloading the page reopens the last case without writing audit events. Closing a case
+returns to the case list and deletes nothing.
+
+## What is deliberately not implemented
+
+Fail-closed is a feature here, not a gap. Each item below is visible in the product
+with its blocking reason:
+
+- **Population** — the participant schema and its source field mapping are not
+  authorized, so the stage is disabled rather than half-built.
+- **`pbgc:earliest-retirement-date`** — no citation or effective-date analysis recorded.
+- **`pbgc:4022c-amounts`** — §4022(c) methodology and recovery-ratio periods not transcribed.
+- **`pbgc:aggregate-limit`** — guarantee-table version and phase-in rules not recorded.
+- **`pbgc:benefit-tiers-priority-categories`** — §4044 allocation ordering not reviewed.
+- **Work product templates** — R5 workbook, DEL, §436 evaluation, and the case memo need
+  a template contract and golden synthetic render before they can be produced.
+- **Assumption sets** — no mortality, interest, timing, or rounding set is registered.
+
+`assertRuleImplemented` rejects anything unknown, unimplemented, or uncited at run time,
+so a rule cannot be run by bypassing the interface.
+
+## Where the rules and data come from
+
+The authoritative source is the PBGC casework corpus: the Data Dictionary Complete
+workbook, topic guidance, templates, and case examples. The corpus is used as citation,
+template, and branding material; its real case files are never committed here.
+
+- The dictionary workbook's SHA-256 (`d7b7c63a…bc96`) is recorded in the derived catalog
+  and shown on every plan field.
+- `references/data-dictionary/derived/catalog-v1.0.json` is generated by
+  `npm run build:catalog` from a git-ignored export in `artifacts/source-staging/`.
+  It contains 1,172 records from 12 tables and preserves the source classifications
+  verbatim: 834 Calculated, 220 Input, 51 Input/Calculated, 24 System Generated, and
+  **43 Unspecified**. Uncertainty in the source is displayed, not resolved by guesswork.
+- `references/data-dictionary/derived/catalog-v0.1.json` is the curated four-field plan
+  slice used by the plan summary.
+
+## Architecture
+
+```
+src/
+  domain/        pure rules, types, validation, calendar arithmetic, calculations
+  app/           services (case, evidence, calculation, bundle), container, stages
+  adapters/      IndexedDB stores, SHA-256, shared database schema (v2)
+  features/      one folder per stage, plus the workbench state hook
+  ui/            shared primitives and the visual system
+```
+
+Domain code has no React, storage, or parser imports. Adapters implement ports
+(`CaseStore`, `ArtifactStore`). Services orchestrate and audit; components render and
+never compute policy. The audit log is append-only with a per-case monotonic sequence,
+so corrections supersede rather than erase.
+
+Bundles use schema `1.0.0`: case record, plan facts, full audit trail, and original
+evidence bytes in base64, with a SHA-256 manifest entry per part. A restore always
+creates a new case and a new alias, so importing a backup can never overwrite the case
+being reviewed.
 
 ## Privacy boundary
 
+- Everything is stored locally in IndexedDB and localStorage for this browser profile.
+- No analytics, no remote fonts, no outbound requests; a restrictive CSP forbids them.
 - Never commit case material, PII, browser storage, OCR output, or exports.
-- Use only `tests/fixtures/synthetic/` for repository fixtures.
-- OpenCode sharing is disabled in the project configuration.
-- MCP servers are disabled by default. Browser automation is for synthetic/local test data only.
-- A local model or local OCR engine may assist extraction, but all extracted values retain source coordinates, confidence, and review status.
+- Repository fixtures are synthetic only (`tests/fixtures/synthetic/`).
+- A bundle is readable JSON and may contain participant-level data and raw evidence.
+  Store it where office policy allows.
 
-## Build targets
+Encryption at rest is not provided by the app. Rely on full-disk encryption and the
+workstation's access controls.
 
-`npm run build` produces `dist/index.html` with application JavaScript and CSS inlined. OCR language data, WASM, fonts, templates, and other large companion assets stay as downloadable local files under `public/`. The final deliverable can therefore be one HTML file plus an optional versioned companion-assets folder.
+### Testing in an office environment
 
-## First milestone
+The build is static, so any static file server works:
 
-Build one end-to-end, synthetic vertical slice: import a document, hash it, create evidence records, map a small field set, perform one independently specified calculation, show provenance, and export a review bundle. Do not start with all work products at once.
+```bash
+npm run build
+npx vite preview --host 127.0.0.1 --port 4173
+```
+
+Browser support: current Chromium, Edge, and Firefox with IndexedDB enabled. Private or
+incognito windows work but discard the case when the window closes.
+
+## Tests
+
+- `tests/unit` — calendar arithmetic, age and interval identities, validation, rule
+  registry integrity, derived catalog integrity.
+- `tests/contract` — `CaseStore` behavior across the in-memory and IndexedDB adapters.
+- `tests/integration` — the plan-field slice end to end, and bundle round trip.
+- `tests/e2e` — Playwright in real Chromium against the production build: create, validate,
+  save, reload, import and link evidence, refuse a duplicate by hash, run a calculation,
+  generate a review copy, export a bundle, restore it as a new case, and confirm that a
+  reload writes no audit events.
+
+Playwright needs browser dependencies. On a normal desktop or CI image:
+
+```bash
+npx playwright install --with-deps chromium
+```
+
+In a minimal container without root, Chromium's shared libraries (`libnss3`, `libnspr4`,
+X11/at-spi libraries) and a font must be provided locally; without fonts Skia aborts on
+start-up rather than rendering blank pages.
+
+Screenshots from the last local run are written to `artifacts/screenshots/` (git-ignored).
+
+## Repository rules
+
+Read `AGENTS.md` and `governance/constitution.md` before changing behavior. In short:
+never invent a PBGC rule, date, or factor; use calendar-aware date math; keep the domain
+pure; fail closed; never commit real case data; generated documents are derived
+artifacts; the audit log is append-only.
+
+## Known limits
+
+- One plan per case; no participant-level records yet.
+- No PDF, spreadsheet, or OCR extraction — intake and interpretation are separate steps
+  by design, and no parser decision has been recorded.
+- Single browser profile: no multi-user access, no server-side share, no sync.
+- IndexedDB quota applies; large evidence sets need a workstation with room to spare.
+- The review copy is HTML for review and printing, not a faithful R5 workbook.

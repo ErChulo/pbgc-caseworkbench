@@ -64,6 +64,12 @@ export type PlanFact = {
   catalogVersion: string; // Version of the catalog that produced this fact
   reviewedAt: string; // ISO 8601
   /**
+   * Evidence link ids supporting this fact. Plan-level dictionary facts may
+   * have none until evidence intake links them; the UI must show that state
+   * rather than implying support that does not exist.
+   */
+  provenanceIds?: string[];
+  /**
    * Per-case monotonic sequence assigned by the storage adapter on save.
    * Provides a strict total order over a case's facts so "latest" is
    * deterministic even when two facts share a reviewedAt timestamp
@@ -81,8 +87,14 @@ export type PlanFact = {
 export type AuditEventType =
   | "case-created"
   | "case-opened"
+  | "case-closed"
   | "plan-fact-saved"
-  | "plan-fact-superseded";
+  | "plan-fact-superseded"
+  | "artifact-imported"
+  | "evidence-linked"
+  | "calculation-run"
+  | "export-created"
+  | "bundle-imported";
 
 export type AuditEvent = {
   eventId: string;
@@ -95,6 +107,9 @@ export type AuditEvent = {
     factId?: string;
     fieldId?: string;
     previousFactId?: string;
+    artifactId?: string;
+    linkId?: string;
+    runId?: string;
   };
   before?: PlanFactValue;
   after?: PlanFactValue;

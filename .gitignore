@@ -11,6 +11,9 @@ tmp/
 *.casebundle
 *.casebundle.enc
 
+# Working extracts, screenshots, and staged corpus exports (never committed).
+artifacts/
+
 # Local runtime assets and browser state.
 public/vendor/*
 !public/vendor/README.md

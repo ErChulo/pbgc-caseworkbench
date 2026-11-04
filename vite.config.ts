@@ -13,6 +13,12 @@ export default defineConfig({
           import.meta.url,
         ),
       ),
+      "@dictionary-index": fileURLToPath(
+        new URL(
+          "./references/data-dictionary/derived/catalog-v1.0.json",
+          import.meta.url,
+        ),
+      ),
     },
   },
   build: {

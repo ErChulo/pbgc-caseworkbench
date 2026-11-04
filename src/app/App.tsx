@@ -1,88 +1,184 @@
-import { useAppState } from "../features/case-home/useAppState";
-import { CaseHome } from "../features/case-home/CaseHome";
-import { PlanSummary } from "../features/plan-summary/PlanSummary";
-import { catalog } from "./catalog";
+/**
+ * Application shell: brand bar, case bar, stage rail, and the active stage.
+ *
+ * One `aria-current="step"` at a time, stages that are not implemented are
+ * disabled with their reason attached, and the case bar states exactly what is
+ * stored where.
+ */
 
-const stages = [
-  "Case home",
-  "Evidence",
-  "Plan summary",
-  "Population",
-  "Rules & assumptions",
-  "Calculations",
-  "Reconciliation",
-  "Work products",
-  "Review & export",
-] as const;
+import { CaseHome } from "../features/case-home/CaseHome";
+import { EvidenceStage } from "../features/evidence/EvidenceStage";
+import { PlanSummary } from "../features/plan-summary/PlanSummary";
+import { RulesStage } from "../features/rules/RulesStage";
+import { CalculationsStage } from "../features/calculations/CalculationsStage";
+import { ReconciliationStage } from "../features/reconciliation/ReconciliationStage";
+import { WorkProductsStage } from "../features/work-products/WorkProductsStage";
+import { ReviewStage } from "../features/review/ReviewStage";
+import { useWorkbench } from "../features/workbench/useWorkbench";
+import { STAGES } from "./stages";
+import { BlockedNotice, StatusPill } from "../ui/components";
 
 export function App() {
-  const { state, actions } = useAppState();
+  const { state, actions, catalog, dictionaryIndex } = useWorkbench();
+  const activeStage = STAGES.find((stage) => stage.id === state.stage) ?? STAGES[0]!;
+
+  function renderStage() {
+    if (state.loading) {
+      return (
+        <section className="intro" aria-busy="true">
+          <p className="eyebrow">Loading</p>
+          <h2>Restoring case state</h2>
+          <p className="lede">Reading the local database. Nothing leaves this machine.</p>
+        </section>
+      );
+    }
+
+    if (state.stage === "home" || !state.activeCase) {
+      return (
+        <CaseHome
+          cases={state.cases}
+          activeCase={state.activeCase}
+          onCreateCase={() => void actions.createCase()}
+          onOpenCase={(caseId) => void actions.openCase(caseId)}
+          onCloseCase={actions.closeCase}
+        />
+      );
+    }
+
+    if (!activeStage.implemented) {
+      return (
+        <section className="intro" aria-labelledby="blocked-title">
+          <p className="eyebrow">Stage {STAGES.indexOf(activeStage) + 1} · {activeStage.label}</p>
+          <h2 id="blocked-title">{activeStage.label} is not available in this build</h2>
+          <BlockedNotice reason={activeStage.blockedBy ?? "Not specified."} />
+        </section>
+      );
+    }
+
+    switch (state.stage) {
+      case "evidence":
+        return (
+          <EvidenceStage state={state} actions={actions} fields={catalog.fields} />
+        );
+      case "plan":
+        return (
+          <PlanSummary
+            fields={catalog.fields}
+            facts={state.planFacts}
+            links={state.links}
+            saveStatus={state.saveStatus}
+            dictionaryIndex={dictionaryIndex}
+            onSave={actions.savePlanFields}
+          />
+        );
+      case "rules":
+        return <RulesStage />;
+      case "calculations":
+        return (
+          <CalculationsStage
+            state={state}
+            onRun={actions.runAge}
+            facts={state.planFacts}
+            links={state.links}
+          />
+        );
+      case "reconciliation":
+        return <ReconciliationStage state={state} fields={catalog.fields} />;
+      case "work-products":
+        return <WorkProductsStage state={state} />;
+      case "review":
+        return <ReviewStage state={state} actions={actions} />;
+      default:
+        return null;
+    }
+  }
 
   return (
     <div className="shell">
-      <a className="skip-link" href="#main">Skip to case workspace</a>
+      <a className="skip-link" href="#main">
+        Skip to case workspace
+      </a>
 
       <aside className="rail" aria-label="Case stages">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true">CW</span>
-          <span>Case Workbench</span>
+          <img
+            className="brand-logo"
+            src="/brand/pbgc-logo-text-banner-wt.png"
+            alt="PBGC"
+            width={964}
+            height={160}
+          />
+          <span className="brand-sub">Case Workbench</span>
         </div>
-        <nav>
+
+        <nav aria-label="Case stage navigation">
           <ol className="stage-list">
-            {stages.map((stage, index) => (
-              <li key={stage}>
-                <button
-                  className={
-                    index === 0
-                      ? "stage active"
-                      : index === 2 && state.activeCase
-                        ? "stage active"
-                        : "stage"
-                  }
-                  type="button"
-                  aria-current={index === 0 || (index === 2 && state.activeCase) ? "step" : undefined}
-                >
-                  <span className="stage-number">{index + 1}</span>
-                  <span>{stage}</span>
-                </button>
-              </li>
-            ))}
+            {STAGES.map((stage, index) => {
+              const current = stage.id === state.stage;
+              const disabled = !stage.implemented;
+              return (
+                <li key={stage.id}>
+                  <button
+                    className={current ? "stage active" : "stage"}
+                    type="button"
+                    aria-current={current ? "step" : undefined}
+                    aria-disabled={disabled || undefined}
+                    disabled={disabled}
+                    title={disabled ? stage.blockedBy ?? "Not available" : stage.purpose}
+                    onClick={() => actions.setStage(stage.id)}
+                  >
+                    <span className="stage-number">{index + 1}</span>
+                    <span className="stage-label">{stage.label}</span>
+                    {disabled ? <span className="stage-flag">planned</span> : null}
+                  </button>
+                </li>
+              );
+            })}
           </ol>
         </nav>
+
+        <div className="rail-footer">
+          <p>Local only</p>
+          <p>No account, no telemetry, no network calls at runtime.</p>
+        </div>
       </aside>
 
       <header className="case-bar">
-        <div>
+        <div className="case-bar-identity">
           <p className="eyebrow">
-            {state.activeCase ? "Active case" : "Synthetic development case"}
+            {state.activeCase ? "Active case" : "No active case"}
           </p>
-          <h1>
-            {state.activeCase ? state.activeCase.alias : "No active case"}
-          </h1>
+          <h1>{state.activeCase ? state.activeCase.alias : "Case workbench"}</h1>
         </div>
         <div className="case-status" aria-label="Case status">
           {state.activeCase ? (
             <>
-              <span className="status success">● Active</span>
+              <StatusPill tone="success">Local case open</StatusPill>
+              <span>
+                Created{" "}
+                {new Date(state.activeCase.createdAt).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
               <span>
                 Updated{" "}
-                {new Date(state.activeCase.updatedAt).toLocaleDateString(
-                  "en-US",
-                  { month: "short", day: "numeric", year: "numeric" },
-                )}
+                {new Date(state.activeCase.updatedAt).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
               </span>
             </>
           ) : (
-            <>
-              <span className="status warning">● No case open</span>
-              <span>Backup: not created</span>
-            </>
+            <StatusPill tone="warning">Create or open a case to begin</StatusPill>
           )}
         </div>
       </header>
 
-      <main id="main" className="workspace">
-        {state.error && (
+      <main id="main" className="workspace" tabIndex={-1}>
+        {state.error ? (
           <div className="error-banner" role="alert">
             <span>{state.error}</span>
             <button
@@ -94,27 +190,23 @@ export function App() {
               ×
             </button>
           </div>
-        )}
+        ) : null}
 
-        {state.loading ? (
-          <section className="intro" aria-busy="true">
-            <p className="eyebrow">Loading…</p>
-            <h2>Restoring case state</h2>
-          </section>
-        ) : state.activeCase ? (
-          <PlanSummary
-            fields={catalog.fields}
-            facts={state.planFacts}
-            saveStatus={state.saveStatus}
-            onSave={actions.savePlanFields}
-          />
-        ) : (
-          <CaseHome
-            cases={state.cases}
-            onCreateCase={actions.createCase}
-            onOpenCase={actions.openCase}
-          />
-        )}
+        {state.notice ? (
+          <div className="notice-banner" role="status">
+            <span>{state.notice}</span>
+            <button
+              type="button"
+              className="error-dismiss"
+              onClick={actions.clearNotice}
+              aria-label="Dismiss message"
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
+
+        {renderStage()}
       </main>
     </div>
   );
