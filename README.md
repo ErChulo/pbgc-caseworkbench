@@ -19,6 +19,7 @@ to produce one and says why.
 | Evidence intake (hash, duplicate detection, linking) | Working |
 | Calendar age and calendar interval identities | Working, 138 tests |
 | BCV add-in functions | 9 of 54 implemented (ANB, ATT, NRD, NRDA, RETDATE, COMPM, COMPYM, COMPAYM, G515V), each tested against the source's examples |
+| Synthetic demo case pack | `demo/synthetic-plan/`: fictional plan (PP-01 to PP-10), 12-record census, financials, metadata; validated and refused for real cases |
 | Earliest PBGC retirement date (EPRD) | Implemented: cited age-55 rule; facts-and-circumstances remains a reviewer decision |
 | Aggregate limit on PBGC funds | Implemented: cited §4022B arithmetic; the guarantee table itself is a required, provenanced input |
 | Other PBGC provisions (§4022(c), guarantee table, §4044 tiers) | Listed and **blocked** |
@@ -115,6 +116,12 @@ The authoritative source is the PBGC casework corpus: the Data Dictionary Comple
 workbook, topic guidance, templates, and case examples. The corpus is used as citation,
 template, and branding material; its real case files are never committed here.
 
+- `demo/synthetic-plan/` is a complete fictional case: a plan document with
+  citable provisions, a 12-record census in the workbench's import format,
+  synthetic financials, and case metadata. `src/domain/demo/syntheticPack.ts`
+  accepts it only when the synthetic label, the `SYN-NNNN` keys, the counts, and
+  the document marker all agree, so a demo pack cannot be mistaken for a real
+  case. See `demo/synthetic-plan/README.md` and `specs/009-synthetic-demo-pack`.
 - `references/corpus/manifest.md` records the curated corpus taxonomy (nine families),
   the template inventory observed in `03_CASEWORK_TEMPLATES`, and which work product
   each template belongs to. It reconciled the registry with the corpus: five products
@@ -225,7 +232,8 @@ is finished.
 ## Tests
 
 - `tests/unit` — calendar arithmetic, age, EPRD, aggregate limit, BCV add-in functions
-  (with their documented examples and error codes), and interval identities,
+  (with their documented examples and error codes), the synthetic demo pack guard,
+  and interval identities,
   validation, rule and
   predicate registry integrity, work-product contract/readiness/snapshot identity,
   R5 manifest transcription and coverage, reviewer decisions, participant CSV parsing

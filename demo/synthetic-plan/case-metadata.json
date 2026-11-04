@@ -1,0 +1,11 @@
+{
+  "classification": "synthetic-demo",
+  "refusedForRealCases": true,
+  "caseAlias": "CW-DEMO-0001",
+  "planName": "Northline Pattern Works Defined Benefit Plan (fictional)",
+  "caseNumber": "SYNTH-PN-0001",
+  "dateOfPlanTermination": "2024-06-30",
+  "planYear": 2024,
+  "packVersion": "1.0.0",
+  "notes": "Synthetic demonstration case. The sponsor, plan, case number and every participant are invented. Do not use for a real case, and do not replace any value with real case data."
+}

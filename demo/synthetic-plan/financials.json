@@ -1,0 +1,8 @@
+{
+  "classification": "synthetic-demo",
+  "planYear": 2024,
+  "planAssetsUsd": 42500000,
+  "presentValueOfAccruedBenefitsUsd": 47250000,
+  "participantCount": 12,
+  "basis": "Synthetic illustration only. These figures are invented to exercise import, reconciliation and blocked-calculation states. They are not a valuation, carry no actuarial basis, and must never be compared with a real plan."
+}
