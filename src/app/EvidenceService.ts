@@ -12,6 +12,7 @@ import type { CaseStore } from "../domain/ports/CaseStore";
 import type {
   DocumentClass,
   EvidenceLink,
+  EvidenceLocator,
   SourceArtifact,
 } from "../domain/evidence/types";
 import { generateId, nowIso } from "../domain/case/validation";
@@ -132,6 +133,7 @@ export class EvidenceService {
     caseId: string;
     artifactId: string;
     fieldId: string;
+    locator?: EvidenceLocator;
     note?: string;
   }): Promise<EvidenceLink> {
     const now = nowIso();
@@ -140,7 +142,7 @@ export class EvidenceService {
       caseId: args.caseId,
       artifactId: args.artifactId,
       fieldId: args.fieldId,
-      locator: null,
+      locator: args.locator ?? null,
       status: "accepted",
       createdAt: now,
       ...(args.note ? { note: args.note } : {}),

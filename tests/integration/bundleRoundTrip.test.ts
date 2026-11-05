@@ -7,6 +7,7 @@
  * both the data path and the integrity failures.
  */
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { catalog } from "../../src/app/catalog";
 import {
@@ -18,7 +19,10 @@ import {
 } from "../../src/app/BundleService";
 import { CaseService } from "../../src/app/CaseService";
 import { EvidenceService } from "../../src/app/EvidenceService";
+import { PlanDataMappingService } from "../../src/app/PlanDataMappingService";
+import { SyntheticPlanDataRepository } from "../../src/adapters/plan-data/SyntheticPlanDataRepository";
 import { InMemoryCaseStore } from "../../src/adapters/storage/InMemoryCaseStore";
+import { mapPlanDataCandidates } from "../../src/domain/plan-data/mapSnapshot";
 import type { ArtifactStore } from "../../src/domain/ports/ArtifactStore";
 import type { EvidenceLink, SourceArtifact } from "../../src/domain/evidence/types";
 import { REVIEW_COPY_SPEC_ID } from "../../src/domain/work-products/registry";
@@ -325,6 +329,122 @@ describe("case bundle round trip", () => {
       before: "plan-documents",
       after: "census",
     });
+  });
+
+  it("restores a repository snapshot, its locators, facts, and correction note", async () => {
+    const { cases, artifacts, caseService, evidenceService, record, bytes } =
+      await buildFixture();
+    const mappingService = new PlanDataMappingService(
+      artifacts,
+      caseService,
+      evidenceService,
+      new SyntheticPlanDataRepository(),
+      catalog,
+    );
+    const snapshotText = readFileSync(
+      "tests/fixtures/synthetic/plan-data-repository.json",
+      "utf8",
+    );
+    const imported = await mappingService.importSnapshot(record.caseId, {
+      fileName: "plan-data-repository.json",
+      bytes: encode(snapshotText),
+    });
+    await mappingService.confirmCandidate(record.caseId, {
+      bindingId: "binding.cust-plan-nm",
+      artifactId: imported.artifact.artifactId,
+    });
+    const corrected = await mappingService.confirmCandidate(record.caseId, {
+      bindingId: "binding.cust-dopt",
+      artifactId: imported.artifact.artifactId,
+      value: "2024-07-01",
+      reviewerNote: "Synthetic bundle correction basis.",
+    });
+
+    const allArtifacts = await artifacts.listArtifacts(record.caseId);
+    const withBytes: { artifact: SourceArtifact; bytes: ArrayBuffer }[] = [];
+    for (const artifact of allArtifacts) {
+      const artifactBytes = await artifacts.getArtifactBytes(artifact.artifactId);
+      if (artifactBytes) withBytes.push({ artifact, bytes: artifactBytes });
+    }
+    const allLinks = await evidenceService.listLinks(record.caseId);
+    const bundle = await buildCaseBundle({
+      caseRecord: record,
+      planFacts: await caseService.getPlanFacts(record.caseId),
+      evidenceLinks: allLinks,
+      auditEvents: await caseService.getAuditEvents(record.caseId),
+      artifacts: withBytes,
+    });
+    expect(bundle.artifacts).toHaveLength(allArtifacts.length);
+
+    const parsed = parseCaseBundle(serializeBundle(bundle));
+    const restored = await applyCaseBundle(parsed, { cases, artifacts });
+    const restoredArtifacts = await artifacts.listArtifacts(restored.caseId);
+    const restoredSnapshot = restoredArtifacts.find(
+      (artifact) =>
+        artifact.mediaType === "application/vnd.pbgc.plan-data-repository+json",
+    );
+    expect(restoredSnapshot).toBeDefined();
+    expect(restoredSnapshot?.sha256).toBe(imported.artifact.sha256);
+    expect(new TextDecoder().decode(
+      (await artifacts.getArtifactBytes(restoredSnapshot!.artifactId))!,
+    )).toBe(snapshotText);
+
+    const restoredMapping = new PlanDataMappingService(
+      artifacts,
+      caseService,
+      evidenceService,
+      new SyntheticPlanDataRepository(),
+      catalog,
+    );
+    const current = await restoredMapping.getCurrent(restored.caseId);
+    expect(current?.snapshot.snapshotId).toBe("snapshot-2026-11-05-001");
+    expect(current?.artifact.artifactId).toBe(restoredSnapshot?.artifactId);
+
+    const restoredFacts = await caseService.getLatestPlanFacts(restored.caseId);
+    expect(restoredFacts["cust-plan-nm"]?.value).toBe(
+      "Northline Pattern Works Defined Benefit Plan (fictional)",
+    );
+    expect(restoredFacts["cust-dopt"]?.value).toBe("2024-07-01");
+    expect(restoredFacts["cust-dopt"]?.reviewerNote).toBe(
+      "Synthetic bundle correction basis.",
+    );
+    expect(restoredFacts["cust-dopt"]?.supersedes).toBeDefined();
+    expect(corrected.fact.reviewerNote).toBe("Synthetic bundle correction basis.");
+
+    const restoredLinks = await artifacts.listEvidenceLinks(restored.caseId);
+    const planNameLink = restoredLinks.find(
+      (link) => link.fieldId === "cust-plan-nm" && link.locator !== null,
+    );
+    const doptLink = restoredLinks.find(
+      (link) => link.fieldId === "cust-dopt" && link.locator !== null,
+    );
+    expect(planNameLink?.artifactId).toBe(restoredSnapshot?.artifactId);
+    expect(planNameLink?.locator?.artifactId).toBe(restoredSnapshot?.artifactId);
+    expect(planNameLink?.locator?.range).toBe(
+      "record=profile-001;path=/planName",
+    );
+    expect(doptLink?.locator?.artifactId).toBe(restoredSnapshot?.artifactId);
+    expect(doptLink?.locator?.range).toBe("record=profile-001;path=/dopt");
+    expect(restoredFacts["cust-plan-nm"]?.provenanceIds).toEqual([
+      planNameLink?.linkId,
+    ]);
+
+    const mappedAfterRestore = mapPlanDataCandidates({
+      snapshot: current!.snapshot,
+      artifactId: current!.artifact.artifactId,
+      fields: catalog.fields,
+      facts: restoredFacts,
+      links: restoredLinks,
+    });
+    expect(
+      mappedAfterRestore.find((candidate) => candidate.fieldId === "cust-plan-nm")
+        ?.status,
+    ).toBe("confirmed");
+    expect(
+      mappedAfterRestore.find((candidate) => candidate.fieldId === "cust-dopt")
+        ?.status,
+    ).toBe("stale");
+    expect(bytes.byteLength).toBeGreaterThan(0);
   });
 
   it("rejects invalid JSON without restoring anything", () => {

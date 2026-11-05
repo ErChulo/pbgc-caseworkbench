@@ -24,6 +24,8 @@ import {
   type R5CoverageRow,
   type R5CoverageStatus,
 } from "../../domain/work-products/r5/coverage";
+import { mapPlanDataCandidates } from "../../domain/plan-data/mapSnapshot";
+import type { PlanDataCandidateStatus } from "../../domain/plan-data/types";
 import {
   R5_COVERAGE_SPEC_ID,
   R5_NOTICE_SPEC_ID,
@@ -60,6 +62,24 @@ const statusLabel: Record<R5CoverageStatus, string> = {
   missing: "Missing",
   pending: "Pending decision",
   blocked: "Blocked",
+};
+
+const repositoryStatusTone: Record<PlanDataCandidateStatus, StatusTone> = {
+  candidate: "warning",
+  confirmed: "success",
+  stale: "warning",
+  missing: "danger",
+  invalid: "danger",
+  conflict: "danger",
+};
+
+const repositoryStatusLabel: Record<PlanDataCandidateStatus, string> = {
+  candidate: "Candidate — not confirmed",
+  confirmed: "Confirmed source",
+  stale: "Stale — review again",
+  missing: "Source value missing",
+  invalid: "Source value invalid",
+  conflict: "Source records conflict",
 };
 
 function escapeHtml(value: string): string {
@@ -195,6 +215,42 @@ export function R5CoveragePanel({ state, onWorkProductCreated, onRecordDecision 
   }
 
   const coverage = evaluateR5Coverage(state.planFacts, latestDecisionByKey);
+  const repositoryCandidates = state.planDataSnapshot
+    ? mapPlanDataCandidates({
+        snapshot: state.planDataSnapshot.snapshot,
+        artifactId: state.planDataSnapshot.artifact.artifactId,
+        fields: catalog.fields,
+        facts: state.planFacts,
+        links: state.links,
+      })
+    : [];
+  const repositoryByField = new Map(
+    repositoryCandidates.map((candidate) => [candidate.fieldId, candidate]),
+  );
+  const factPlaceholderFieldIds = new Map<string, string>();
+  for (const placeholder of R5_TEMPLATE_MANIFEST.placeholders) {
+    if (placeholder.source.kind === "fact") {
+      factPlaceholderFieldIds.set(placeholder.placeholderId, placeholder.source.fieldId);
+    }
+  }
+  const r5FactFieldIds = [...factPlaceholderFieldIds.values()];
+  const repositoryCounts: Record<PlanDataCandidateStatus, number> = {
+    candidate: 0,
+    confirmed: 0,
+    missing: 0,
+    invalid: 0,
+    conflict: 0,
+    stale: 0,
+  };
+  for (const candidate of repositoryCandidates) {
+    repositoryCounts[candidate.status] += 1;
+  }
+  const manualDecisionCells = coverage.rows.filter(
+    (row) => row.sourceKind === "reviewer-decision",
+  ).length;
+  const blockedCalculationCells = coverage.rows.filter(
+    (row) => row.sourceKind === "blocked" || row.sourceKind === "calculation",
+  ).length;
   const sectionNames: string[] = [];
   for (const row of coverage.rows) {
     if (!sectionNames.includes(row.section)) sectionNames.push(row.section);
@@ -246,6 +302,24 @@ export function R5CoveragePanel({ state, onWorkProductCreated, onRecordDecision 
         ))}
       </ul>
 
+      <ul className="spec-meta" aria-label="R5 mapping coverage">
+        <li className="chip">
+          {r5FactFieldIds.length} of {r5FactFieldIds.length} R5 fact cells have a
+          repository binding
+        </li>
+        <li className="chip">
+          {state.planDataSnapshot
+            ? `Confirmed ${repositoryCounts.confirmed} · Candidate ${repositoryCounts.candidate} · Missing ${repositoryCounts.missing} · Invalid ${repositoryCounts.invalid} · Conflict ${repositoryCounts.conflict} · Stale ${repositoryCounts.stale}`
+            : "No repository snapshot imported"}
+        </li>
+        <li className="chip">
+          {manualDecisionCells} reviewer-decision cells remain manual
+        </li>
+        <li className="chip">
+          {blockedCalculationCells} calculation or blocked cells remain blocked
+        </li>
+      </ul>
+
       <p className="spec-blocker">
         <strong>The notice is not producible.</strong> {coverage.unresolved} placeholders are
         unresolved: {coverage.missing} missing fact(s), {coverage.pending} pending reviewer
@@ -279,7 +353,12 @@ export function R5CoveragePanel({ state, onWorkProductCreated, onRecordDecision 
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {rows.map((row) => {
+                  const fieldId = factPlaceholderFieldIds.get(row.placeholderId);
+                  const repositoryCandidate = fieldId
+                    ? repositoryByField.get(fieldId)
+                    : undefined;
+                  return (
                   <tr key={row.placeholderId}>
                     <th scope="row">{row.label}</th>
                     <td>
@@ -287,7 +366,23 @@ export function R5CoveragePanel({ state, onWorkProductCreated, onRecordDecision 
                         {statusLabel[row.status]}
                       </StatusPill>
                     </td>
-                    <td className="coverage-why">{row.detail}</td>
+                    <td className="coverage-why">
+                      <div>{row.detail}</div>
+                      {fieldId ? (
+                        <div className="coverage-repository-source">
+                          <span>Repository source:</span>{" "}
+                          {repositoryCandidate ? (
+                            <StatusPill
+                              tone={repositoryStatusTone[repositoryCandidate.status]}
+                            >
+                              {repositoryStatusLabel[repositoryCandidate.status]}
+                            </StatusPill>
+                          ) : (
+                            <span>No snapshot imported</span>
+                          )}
+                        </div>
+                      ) : null}
+                    </td>
                     <td>
                       {row.status === "pending" && row.decisionKey ? (
                         <DecisionForm row={row} onRecord={onRecordDecision} />
@@ -296,7 +391,8 @@ export function R5CoveragePanel({ state, onWorkProductCreated, onRecordDecision 
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </details>

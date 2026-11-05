@@ -1,0 +1,19 @@
+{
+  "repositoryId": "synthetic-plan-repository",
+  "schemaVersion": "1.0.0",
+  "snapshotId": "snapshot-2026-11-05-001",
+  "capturedAt": "2026-11-05T12:00:00.000Z",
+  "synthetic": true,
+  "records": [
+    {
+      "recordId": "profile-001",
+      "recordType": "plan-profile",
+      "locator": "synthetic://plan-profile/CW-DEMO-0001",
+      "values": {
+        "planName": "Northline Pattern Works Defined Benefit Plan (fictional)",
+        "caseNumber": 1001,
+        "dopt": "2024-06-30"
+      }
+    }
+  ]
+}

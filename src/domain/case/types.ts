@@ -58,6 +58,8 @@ export type PlanFact = {
   fieldId: string;
   value: PlanFactValue;
   rawValue?: string; // Original user input before normalization
+  /** Reviewer's basis when the recorded value differs from a source candidate. */
+  reviewerNote?: string;
   units?: string;
   status: PlanFactStatus;
   source: FieldSource;

@@ -9,6 +9,7 @@
 import { CaseHome } from "../features/case-home/CaseHome";
 import { EvidenceStage } from "../features/evidence/EvidenceStage";
 import { PlanSummary } from "../features/plan-summary/PlanSummary";
+import { PlanDataMappingPanel } from "../features/plan-data/PlanDataMappingPanel";
 import { PopulationStage } from "../features/population/PopulationStage";
 import { RulesStage } from "../features/rules/RulesStage";
 import { CalculationsStage } from "../features/calculations/CalculationsStage";
@@ -72,14 +73,25 @@ export function App() {
         );
       case "plan":
         return (
-          <PlanSummary
-            fields={catalog.fields}
-            facts={state.planFacts}
-            links={state.links}
-            saveStatus={state.saveStatus}
-            dictionaryIndex={dictionaryIndex}
-            onSave={actions.savePlanFields}
-          />
+          <>
+            <PlanSummary
+              fields={catalog.fields}
+              facts={state.planFacts}
+              links={state.links}
+              saveStatus={state.saveStatus}
+              dictionaryIndex={dictionaryIndex}
+              onSave={actions.savePlanFields}
+            />
+            <PlanDataMappingPanel
+              fields={catalog.fields}
+              facts={state.planFacts}
+              links={state.links}
+              snapshot={state.planDataSnapshot}
+              snapshotError={state.planDataSnapshotError}
+              onImport={actions.importPlanDataSnapshot}
+              onConfirm={actions.confirmPlanDataCandidate}
+            />
+          </>
         );
       case "population":
         return (

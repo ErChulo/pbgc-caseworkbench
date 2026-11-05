@@ -212,6 +212,15 @@ export async function applyCaseBundle(
       linkId,
       caseId: caseRecord.caseId,
       artifactId: artifactIdMap.get(link.artifactId) ?? link.artifactId,
+      ...(link.locator
+        ? {
+            locator: {
+              ...link.locator,
+              artifactId:
+                artifactIdMap.get(link.locator.artifactId) ?? link.locator.artifactId,
+            },
+          }
+        : {}),
     };
   });
 

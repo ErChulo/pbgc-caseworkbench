@@ -23,6 +23,19 @@ import {
   validatePlanFields,
 } from "../domain/case/validation";
 
+export type SavePlanFieldsOptions = {
+  /** Restrict validation and writes to these catalog fields. */
+  onlyFields?: readonly string[];
+  /** Evidence-link ids to attach as provenance, keyed by field id. */
+  provenanceIdsByField?: Readonly<Record<string, readonly string[]>>;
+  /** Source text to retain instead of stringifying the submitted value. */
+  rawValuesByField?: Readonly<Record<string, string>>;
+  /** Reviewer correction basis, keyed by field id. */
+  reviewerNotesByField?: Readonly<Record<string, string>>;
+  /** Audit component to record; defaults to this method's name. */
+  component?: string;
+};
+
 export class CaseService {
   constructor(
     private readonly store: CaseStore,
@@ -142,9 +155,28 @@ export class CaseService {
   async savePlanFields(
     caseId: string,
     values: Record<string, unknown>,
+    options: SavePlanFieldsOptions = {},
   ): Promise<PlanFact[]> {
-    // Validate all values first — fail closed before any writes.
-    const errors = validatePlanFields(this.catalog.fields, values);
+    // A partial save must name catalog fields; an empty authorized set fails
+    // closed rather than silently updating only the case timestamp.
+    if (options.onlyFields) {
+      for (const fieldId of options.onlyFields) {
+        if (!this.catalog.fields.some((entry) => entry.fieldId === fieldId)) {
+          throw new Error(`No catalog field is authorized for "${fieldId}".`);
+        }
+      }
+    }
+    const fieldsToSave = options.onlyFields
+      ? this.catalog.fields.filter((entry) =>
+          options.onlyFields!.includes(entry.fieldId),
+        )
+      : this.catalog.fields;
+    if (fieldsToSave.length === 0) {
+      throw new Error("No authorized plan fields were supplied to save.");
+    }
+
+    // Validate all selected values first — fail closed before any writes.
+    const errors = validatePlanFields(fieldsToSave, values);
     if (errors) {
       throw new Error(
         `Validation failed: ${errors.map((e) => `${e.fieldId}: ${e.error}`).join("; ")}`,
@@ -152,7 +184,7 @@ export class CaseService {
     }
 
     // Normalize values.
-    const normalized = normalizePlanFields(this.catalog.fields, values);
+    const normalized = normalizePlanFields(fieldsToSave, values);
 
     // Read the current latest fact per field once, so supersession links are
     // computed consistently across the whole batch.
@@ -169,17 +201,23 @@ export class CaseService {
     const savedFacts: PlanFact[] = [];
     const events: AuditEvent[] = [];
 
-    for (const entry of this.catalog.fields) {
+    for (const entry of fieldsToSave) {
       const value = normalized[entry.fieldId];
       if (value === undefined) continue;
 
       const existing = latestByField.get(entry.fieldId);
 
       const rawValue = values[entry.fieldId];
+      const suppliedRaw = options.rawValuesByField?.[entry.fieldId];
       const rawString =
-        rawValue === null || rawValue === undefined
-          ? undefined
-          : String(rawValue);
+        suppliedRaw !== undefined
+          ? suppliedRaw
+          : rawValue === null || rawValue === undefined
+            ? undefined
+            : String(rawValue);
+      const provenanceIds = options.provenanceIdsByField?.[entry.fieldId];
+      const reviewerNote =
+        options.reviewerNotesByField?.[entry.fieldId]?.trim();
 
       const fact: PlanFact = {
         factId: generateId(),
@@ -187,6 +225,10 @@ export class CaseService {
         fieldId: entry.fieldId,
         value,
         ...(rawString !== undefined ? { rawValue: rawString } : {}),
+        ...(provenanceIds && provenanceIds.length > 0
+          ? { provenanceIds: [...provenanceIds] }
+          : {}),
+        ...(reviewerNote ? { reviewerNote } : {}),
         status: "reviewed",
         source: entry.source,
         catalogVersion: this.catalog.version,
@@ -204,7 +246,7 @@ export class CaseService {
         caseId,
         eventType,
         actor: "local-user",
-        component: "CaseService.savePlanFields",
+        component: options.component ?? "CaseService.savePlanFields",
         at: now,
         refs: {
           factId: fact.factId,

@@ -1735,6 +1735,181 @@ button.secondary:hover:not(:disabled) {
   color: var(--color-text);
 }
 
+/* ----------------------------------------------------- plan data mapping -- */
+
+.mapping-import {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-end;
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: 2px solid var(--color-info);
+  border-radius: var(--radius-control);
+  background: var(--color-raised);
+}
+
+.mapping-import .inline-field {
+  flex: 1 1 340px;
+}
+
+.mapping-import input[type="file"] {
+  padding: 7px 9px;
+}
+
+.mapping-import-copy {
+  flex: 1 1 280px;
+}
+
+.mapping-hint {
+  max-width: 74ch;
+  margin: var(--space-2) 0 0;
+  color: var(--color-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.mapping-error {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-danger);
+  background: rgba(255, 107, 107, 0.07);
+  color: var(--color-danger);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mapping-table-wrap {
+  max-height: none;
+}
+
+.mapping-table {
+  min-width: 940px;
+}
+
+.mapping-field-cell {
+  min-width: 180px;
+}
+
+.mapping-field-id {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.mapping-muted {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mapping-value {
+  max-width: 220px;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.mapping-detail {
+  max-width: 34ch;
+  margin: var(--space-2) 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mapping-fact {
+  max-width: 34ch;
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mapping-fact strong {
+  color: var(--color-text);
+}
+
+.mapping-actions {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 168px;
+}
+
+.mapping-actions button {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.mapping-correction {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 250px;
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.mapping-correction label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mapping-correction input,
+.mapping-correction textarea {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.mapping-correction textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.mapping-correction .button-row {
+  margin-top: 0;
+}
+
+.mapping-correction .button-row button {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.coverage-repository-source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.coverage-repository-source .status {
+  min-height: 22px;
+  padding: 1px 7px;
+  font-size: 11px;
+}
+
 /* ------------------------------------------------------------- review ----- */
 
 .audit-table {

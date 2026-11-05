@@ -29,6 +29,7 @@ import type {
 } from "../../app/CalculationService";
 import type { BcvAddInInput } from "../../domain/calculations/bcv";
 import type { StageId } from "../../app/stages";
+import type { PlanDataSnapshotRecord } from "../../domain/plan-data/types";
 import type {
   AuditEvent,
   CaseRecord,
@@ -57,6 +58,9 @@ export type WorkbenchState = {
   auditEvents: AuditEvent[];
   decisions: ReviewerDecision[];
   population: ParticipantRecord[];
+  planDataSnapshot: PlanDataSnapshotRecord | null;
+  /** A stored snapshot could not be parsed; this does not block the case. */
+  planDataSnapshotError: string | null;
   loading: boolean;
   error: string | null;
   notice: string | null;
@@ -80,6 +84,13 @@ export type WorkbenchActions = {
   ) => Promise<void>;
   importPopulation: (file: File) => Promise<void>;
   linkEvidence: (artifactId: string, fieldId: string) => Promise<void>;
+  importPlanDataSnapshot: (file: File) => Promise<void>;
+  confirmPlanDataCandidate: (input: {
+    bindingId: string;
+    artifactId: string;
+    value?: string;
+    reviewerNote?: string;
+  }) => Promise<void>;
   runAge: (dateOfBirth: string, asOfDate: string) => Promise<void>;
   runEarliestRetirement: (input: {
     dateOfBirth: string;
@@ -134,6 +145,8 @@ const initialState: WorkbenchState = {
   auditEvents: [],
   decisions: [],
   population: [],
+  planDataSnapshot: null,
+  planDataSnapshotError: null,
   loading: true,
   error: null,
   notice: null,
@@ -178,6 +191,8 @@ export function useWorkbench(): {
         auditEvents: [],
         decisions: [],
         population: [],
+        planDataSnapshot: null,
+        planDataSnapshotError: null,
         lastRun: null,
         lastEprdRun: null,
         lastAggregateRun: null,
@@ -187,14 +202,19 @@ export function useWorkbench(): {
       return;
     }
 
-    const [facts, artifacts, links, auditEvents, decisions, population] = await Promise.all([
-      services.caseService.getLatestPlanFacts(caseId),
-      services.evidenceService.listArtifacts(caseId),
-      services.evidenceService.listLinks(caseId),
-      services.caseService.getAuditEvents(caseId),
-      services.caseService.getDecisions(caseId),
-      services.populationService.list(caseId),
-    ]);
+    const [facts, artifacts, links, auditEvents, decisions, population, snapshotResult] =
+      await Promise.all([
+        services.caseService.getLatestPlanFacts(caseId),
+        services.evidenceService.listArtifacts(caseId),
+        services.evidenceService.listLinks(caseId),
+        services.caseService.getAuditEvents(caseId),
+        services.caseService.getDecisions(caseId),
+        services.populationService.list(caseId),
+        services.planDataMappingService.getCurrent(caseId).then(
+          (value) => ({ value, error: null as string | null }),
+          (error: unknown) => ({ value: null, error: messageOf(error) }),
+        ),
+      ]);
 
     activeCaseIdRef.current = caseId;
     try {
@@ -212,6 +232,8 @@ export function useWorkbench(): {
       auditEvents,
       decisions,
       population,
+      planDataSnapshot: snapshotResult.value,
+      planDataSnapshotError: snapshotResult.error,
       saveStatus: "idle",
       stage: previous.stage === "home" ? "plan" : previous.stage,
     }));
@@ -300,6 +322,8 @@ export function useWorkbench(): {
       auditEvents: [],
       decisions: [],
       population: [],
+      planDataSnapshot: null,
+      planDataSnapshotError: null,
       lastRun: null,
       lastEprdRun: null,
       lastAggregateRun: null,
@@ -345,6 +369,69 @@ export function useWorkbench(): {
       }));
     }
   }, []);
+
+  const importPlanDataSnapshot = useCallback(async (file: File) => {
+    const caseId = activeCaseIdRef.current;
+    if (!caseId) throw new Error("No active case.");
+    setState((previous) => ({
+      ...previous,
+      error: null,
+      notice: null,
+      planDataSnapshotError: null,
+    }));
+    const bytes = await file.arrayBuffer();
+    const outcome = await services.planDataMappingService.importSnapshot(caseId, {
+      fileName: file.name,
+      bytes,
+    });
+    const [artifacts, auditEvents] = await Promise.all([
+      services.evidenceService.listArtifacts(caseId),
+      services.caseService.getAuditEvents(caseId),
+    ]);
+    setState((previous) => ({
+      ...previous,
+      artifacts,
+      auditEvents,
+      planDataSnapshot: {
+        artifact: outcome.artifact,
+        snapshot: outcome.snapshot,
+      },
+      planDataSnapshotError: null,
+      notice: outcome.duplicate
+        ? `Repository snapshot ${file.name} was already imported (identical SHA-256). Its candidates remain unchanged.`
+        : `Imported repository snapshot ${file.name}. Values remain candidates until each is confirmed.`,
+    }));
+  }, []);
+
+  const confirmPlanDataCandidate = useCallback(
+    async (input: {
+      bindingId: string;
+      artifactId: string;
+      value?: string;
+      reviewerNote?: string;
+    }) => {
+      const caseId = activeCaseIdRef.current;
+      if (!caseId) throw new Error("No active case.");
+      setState((previous) => ({ ...previous, error: null, notice: null }));
+      await services.planDataMappingService.confirmCandidate(caseId, input);
+      const [facts, links, auditEvents, updated] = await Promise.all([
+        services.caseService.getLatestPlanFacts(caseId),
+        services.evidenceService.listLinks(caseId),
+        services.caseService.getAuditEvents(caseId),
+        services.caseService.getCase(caseId),
+      ]);
+      setState((previous) => ({
+        ...previous,
+        planFacts: facts,
+        links,
+        auditEvents,
+        activeCase: updated ?? previous.activeCase,
+        planDataSnapshotError: null,
+        notice: "Repository value confirmed and audited.",
+      }));
+    },
+    [],
+  );
 
   const importFiles = useCallback(
     async (files: File[], documentClass?: DocumentClass) => {
@@ -774,6 +861,8 @@ export function useWorkbench(): {
       classifyArtifact,
       importPopulation,
       linkEvidence,
+      importPlanDataSnapshot,
+      confirmPlanDataCandidate,
       runAge,
       runEarliestRetirement,
       runAggregateLimit,

@@ -365,6 +365,125 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   expect(consoleErrors).toEqual([]);
 });
 
+test("imports a repository snapshot, confirms a fact, and keeps the R5 notice blocked", async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  const requests: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("pageerror", (error) => consoleErrors.push(error.message));
+  page.on("request", (request) => requests.push(request.url()));
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create new case" }).click();
+
+  const snapshot = {
+    repositoryId: "synthetic-plan-repository",
+    schemaVersion: "1.0.0",
+    snapshotId: "snapshot-e2e-001",
+    capturedAt: "2026-11-05T12:00:00.000Z",
+    synthetic: true,
+    records: [
+      {
+        recordId: "profile-e2e-001",
+        recordType: "plan-profile",
+        locator: "synthetic://plan-profile/E2E",
+        values: {
+          planName: "Synthetic Repository Mapping Plan",
+          caseNumber: 3001,
+          dopt: "2024-06-30",
+        },
+      },
+    ],
+  };
+
+  await page
+    .getByLabel("Repository snapshot (synthetic JSON)")
+    .setInputFiles({
+      name: "synthetic-plan-data-repository.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(snapshot, null, 2)),
+    });
+  await expect(page.getByText(/Imported repository snapshot/)).toBeVisible();
+  await expect(page.getByText("0 of 3 confirmed")).toBeVisible();
+  await expect(page.locator(".mapping-table tbody tr")).toHaveCount(3);
+  await expect(page.getByText("Candidate", { exact: true })).toHaveCount(3);
+
+  await page
+    .getByRole("button", { name: "Confirm repository Plan Name of Customer Plan" })
+    .click();
+  await expect(page.getByText("Repository value confirmed and audited.")).toBeVisible();
+  await expect(page.getByText("1 of 3 confirmed")).toBeVisible();
+  await expect(page.getByLabel("Plan Name of Customer Plan")).toHaveValue(
+    "Synthetic Repository Mapping Plan",
+  );
+  await shot(page, "plan-data-mapping");
+
+  await page.reload();
+  await expect(page.getByText("1 of 3 confirmed")).toBeVisible();
+  await expect(page.getByLabel("Plan Name of Customer Plan")).toHaveValue(
+    "Synthetic Repository Mapping Plan",
+  );
+
+  await openStage(page, /Work products/);
+  const mappingCoverage = page.locator('ul[aria-label="R5 mapping coverage"]');
+  await expect(mappingCoverage).toContainText(
+    "3 of 3 R5 fact cells have a repository binding",
+  );
+  await expect(mappingCoverage).toContainText("Confirmed 1");
+  await expect(mappingCoverage).toContainText(
+    "71 reviewer-decision cells remain manual",
+  );
+  await expect(mappingCoverage).toContainText(
+    "7 calculation or blocked cells remain blocked",
+  );
+  await expect(page.getByText(/80 placeholders are unresolved/)).toBeVisible();
+  await expect(
+    page.locator(".coverage-table tr", { hasText: "Plan Name:" }),
+  ).toContainText("Confirmed source");
+
+  await openStage(page, /Plan & people/);
+  await page
+    .getByRole("button", {
+      name: "Enter a correction for Date of Plan Termination for Customer Plan",
+    })
+    .click();
+  await page
+    .getByLabel("Corrected value for Date of Plan Termination for Customer Plan")
+    .fill("2024-07-01");
+  await page
+    .getByLabel("Basis for correcting Date of Plan Termination for Customer Plan")
+    .fill("Synthetic correction: the reviewer verified a different termination date.");
+  await page.getByRole("button", { name: "Save correction" }).click();
+  await expect(page.getByText("Repository value confirmed and audited.")).toBeVisible();
+  await expect(
+    page.getByText(/Reviewer correction basis: Synthetic correction/),
+  ).toBeVisible();
+  await expect(page.locator("#field-cust-dopt")).toHaveValue("2024-07-01");
+  // A reviewer-corrected value is a fact, but the source candidate remains
+  // stale until it matches that fact; it is not silently counted as confirmed.
+  await expect(page.getByText("1 of 3 confirmed")).toBeVisible();
+  await expect(
+    page.locator(".mapping-table tbody tr", { hasText: "Dopt" }),
+  ).toContainText("Review again");
+
+  await page.reload();
+  await expect(
+    page.getByText(/Reviewer correction basis: Synthetic correction/),
+  ).toBeVisible();
+  await expect(page.getByText("1 of 3 confirmed")).toBeVisible();
+
+  expect(consoleErrors).toEqual([]);
+  const appOrigin = new URL(page.url()).origin;
+  const external = requests.filter((url) => {
+    if (!url.startsWith("http")) return false;
+    return new URL(url).origin !== appOrigin;
+  });
+  expect(external).toEqual([]);
+});
+
 test("restores a bundle into a new case without overwriting the open one", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Create new case" }).click();
