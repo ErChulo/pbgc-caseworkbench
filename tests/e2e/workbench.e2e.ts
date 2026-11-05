@@ -6,6 +6,7 @@
  * the branded shell.
  */
 
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
 const SCREENSHOTS = "artifacts/screenshots";
@@ -124,18 +125,47 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   expect((await registerDownload).suggestedFilename()).toMatch(/participant-register\.html$/);
   await shot(page, "population");
 
-  // Final document: plan data is inserted, and the Word draft downloads.
+  // Final document: plan data is inserted, questions can be answered, and the
+  // answer travels into the downloaded Word file.
   await openStage(page, /Final document/);
   await expect(page.getByRole("heading", { name: "Your plan summary" })).toBeVisible();
   await expect(page.locator(".doc-paper")).toContainText("Synthetic Office Test Plan");
   await expect(page.locator(".doc-paper")).toContainText("1001");
   await expect(page.locator(".doc-paper")).toContainText("2024-06-30");
   await expect(page.getByText("Census imported")).toBeVisible();
+
+  await page.getByRole("button", { name: /^Plan provisions/ }).click();
+  await expect(page.getByRole("heading", { name: "Plan provisions" })).toBeVisible();
+  await page
+    .locator('#plan-provisions details[data-section="Plan Provisions"] summary')
+    .click();
+  const adoption = page.locator('[data-decision-key="r5.decision.item-01"]');
+  await adoption.getByRole("button", { name: "Answer" }).click();
+  await adoption.getByLabel("What the plan says").fill("January 1, 2005");
+  await adoption
+    .getByLabel("Where this comes from")
+    .fill("Synthetic plan document, Article 1");
+  await adoption.getByRole("button", { name: "Save answer" }).click();
+  await expect(adoption).toContainText("January 1, 2005");
+  await expect(
+    page.getByText("Reviewer decision recorded and audited."),
+  ).toBeVisible();
+  await expect(page.getByText(/1 of 71 answered/).first()).toBeVisible();
+  await shot(page, "plan-provisions");
+
+  await page.getByRole("button", { name: "Document", exact: true }).click();
+  await expect(page.getByText("Draft · 4 of 81 items filled")).toBeVisible();
+  await expect(
+    page.locator(".doc-paper-list li", { hasText: "Plan Provisions" }),
+  ).toContainText("1 of 3");
+
   const documentDownload = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download plan summary (Word)" }).click();
-  expect((await documentDownload).suggestedFilename()).toMatch(
-    /plan-summary-draft\.docx$/,
-  );
+  const documentFile = await documentDownload;
+  expect(documentFile.suggestedFilename()).toMatch(/plan-summary-draft\.docx$/);
+  const docxPath = await documentFile.path();
+  const docxBytes = await readFile(docxPath!);
+  expect(docxBytes.includes(Buffer.from("January 1, 2005"))).toBe(true);
   await expect(page.getByText("Downloaded.")).toBeVisible();
   await shot(page, "final-document");
 

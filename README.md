@@ -25,7 +25,7 @@ to produce one and says why.
 | Aggregate limit on PBGC funds | Implemented: cited §4022B arithmetic; the guarantee table itself is a required, provenanced input |
 | Other PBGC provisions (§4022(c), guarantee table, §4044 tiers) | Listed and **blocked** |
 | Population stage | Working: CSV import, per-record provenance, calendar age; benefit amounts **blocked** |
-| Guided flow and final document | Four steps — Case, Documents, Plan & people, Final document. The final document inserts the case's plan data into the transcribed R5 shell structure and downloads a real `.docx`; every unrecorded cell is marked "Not recorded". It is generated from the manifest, not a byte-preserving fill of the corpus shell file. |
+| Guided flow and final document | Four steps — Case, Documents, Plan & people, Final document. The final document inserts the case's plan data into the transcribed R5 shell structure and downloads a real `.docx`; every unrecorded cell is marked "Not recorded". Its Plan provisions view asks all 71 reviewer questions in plain language with a required source. It is generated from the manifest, not a byte-preserving fill of the corpus shell file. |
 | Work products | 15 contracts registered: review copy, R5 template coverage, and participant register producible; R1/R5 notice/V1/DEL/PF/BSRS/§436/EBA/AMB/closeout/memo blocked with reasons; reviewer decisions recordable per cell |
 | Field dictionary | 1,172 records across 12 tables |
 | Bundle export / restore | Working, hashed manifest, restores as a new case |
@@ -90,7 +90,10 @@ plan name, case number, termination date, and every reviewer decision already in
 shows what is still missing in plain language, and downloads
 `CW-NNNN-plan-summary-draft.docx`. The Word file contains the transcribed R5 header and
 all 60 plan provisions; a cell without a recorded value says "Not recorded" rather than
-borrowing the shell's sample text. Technical template ids, hashes, rules, and formulas
+borrowing the shell's sample text. The **Plan provisions** view inside step 4 asks those
+60 questions plus the header decisions in plain language (71 in all). Every answer needs
+a source, is saved as an append-only reviewer decision, and appears in the document and
+the downloaded Word file immediately. Technical template ids, hashes, rules, and formulas
 live under **Review details**, so they never obscure the document itself.
 
 Reloading the page reopens the last case without writing audit events. Closing a case
@@ -250,7 +253,8 @@ is finished.
   and interval identities,
   validation, rule and
   predicate registry integrity, work-product contract/readiness/snapshot identity,
-  R5 manifest transcription and coverage, the plan-summary document model and its
+  R5 manifest transcription and coverage, guided R5 questions (reviewer-decision
+  filtering, header prompts, progress), the plan-summary document model and its
   Word package (ZIP structure, escaping, inserted values, byte reproducibility),
   reviewer decisions, participant CSV parsing
   and determination, derived catalog integrity.
@@ -259,9 +263,9 @@ is finished.
 - `tests/integration` — the plan-field slice end to end, and bundle round trip.
 - `tests/e2e` — Playwright in real Chromium against the production build: create, validate,
   save, reload, import and link evidence, refuse a duplicate by hash, run a calculation
-  and a BCV add-in function, download the filled Word plan summary, generate a review
-  copy, export a bundle, restore it as a new case, and confirm that a reload writes no
-  audit events.
+  and a BCV add-in function, answer a plan provision and confirm it appears in the
+  downloaded Word plan summary, generate a review copy, export a bundle, restore it as
+  a new case, and confirm that a reload writes no audit events.
 - `tests/e2e/office.e2e.ts` — the handover conditions: every request outside the app's
   own origin is aborted and asserted to be zero, the browser is taken offline for the
   interactive flow, a realistic synthetic plan runs through entry, validation, evidence,

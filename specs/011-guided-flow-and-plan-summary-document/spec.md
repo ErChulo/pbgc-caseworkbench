@@ -83,9 +83,10 @@ unresolved. The event records the export action, not an approval.
 
 ## Deliberate limits
 
-- The 60 plan-provision cells remain reviewer decisions; the guided screen does
-  not turn them into a questionnaire in this slice. The document marks them
-  "Not recorded" until decisions are recorded under Review details.
+- The 60 plan-provision cells remain reviewer decisions. This slice marked them
+  "Not recorded" until decisions were recorded under Review details; spec 012
+  adds the guided Plan provisions questionnaire that records those decisions in
+  step 4.
 - The shell's rate cells remain blocked. The document does not compute or embed a
   rate table.
 - The document is not a determination of benefits, and no calculation result is

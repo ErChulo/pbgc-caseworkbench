@@ -2,9 +2,9 @@
  * Final document — the guided flow's output step.
  *
  * Shows the plan summary with the case's plan data already inserted, how much
- * of it is recorded, and a single Word download. Technical template ids,
- * hashes, and rule references stay out of this screen; they remain available in
- * Review details for an auditor.
+ * of it is recorded, and a single Word download. The Plan provisions view turns
+ * the shell's reviewer-decision cells into plain-language questions, without
+ * exposing template ids, rule references, or hashes.
  */
 
 import { useState } from "react";
@@ -14,12 +14,17 @@ import type { StageId } from "../../app/stages";
 import { nowIso } from "../../domain/case/validation";
 import { R5_TEMPLATE_MANIFEST } from "../../domain/work-products/r5/manifest";
 import {
+  r5DecisionSections,
+  r5QuestionTotals,
+} from "../../domain/work-products/r5/questions";
+import {
   buildPlanSummaryDocument,
   headerFields,
   provisionSections,
 } from "../../domain/work-products/r5/summaryDocument";
 import { Panel, StatusPill } from "../../ui/components";
 import type { WorkbenchState } from "../workbench/useWorkbench";
+import { PlanProvisions } from "./PlanProvisions";
 
 /**
  * Audit label for a draft export. The registered R5 notice contract stays
@@ -27,6 +32,13 @@ import type { WorkbenchState } from "../workbench/useWorkbench";
  * own user action instead of claiming the notice was produced.
  */
 const PLAN_SUMMARY_DRAFT_SPEC_ID = "wp.r5-plan-summary-draft";
+
+type RecordDecision = (input: {
+  decisionKey: string;
+  specId: string;
+  value: string;
+  rationale: string;
+}) => Promise<void>;
 
 type Props = {
   state: WorkbenchState;
@@ -37,11 +49,18 @@ type Props = {
         snapshotSha256: string;
       }) => Promise<void>)
     | undefined;
+  onRecordDecision: RecordDecision;
   onSetStage: (stage: StageId) => void;
 };
 
-export function FinalDocumentStage({ state, onWorkProductCreated, onSetStage }: Props) {
+export function FinalDocumentStage({
+  state,
+  onWorkProductCreated,
+  onRecordDecision,
+  onSetStage,
+}: Props) {
   const [generatedAt] = useState(() => nowIso());
+  const [view, setView] = useState<"document" | "provisions">("document");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
@@ -54,8 +73,10 @@ export function FinalDocumentStage({ state, onWorkProductCreated, onSetStage }: 
   if (!caseRecord) return null;
 
   const latestDecisionByKey: Record<string, string> = {};
+  const rationaleByKey: Record<string, string> = {};
   for (const decision of state.decisions) {
     latestDecisionByKey[decision.decisionKey] = decision.value;
+    rationaleByKey[decision.decisionKey] = decision.rationale;
   }
 
   const document = buildPlanSummaryDocument({
@@ -66,6 +87,10 @@ export function FinalDocumentStage({ state, onWorkProductCreated, onSetStage }: 
   });
   const header = headerFields(document);
   const sections = provisionSections(document);
+  const questionSections = r5DecisionSections(latestDecisionByKey);
+  const questionTotals = r5QuestionTotals(questionSections);
+  const unanswered = questionTotals.total - questionTotals.answered;
+
   const headerFacts = R5_TEMPLATE_MANIFEST.placeholders
     .filter(
       (placeholder) =>
@@ -139,128 +164,193 @@ export function FinalDocumentStage({ state, onWorkProductCreated, onSetStage }: 
   }
 
   return (
-    <Panel
-      id="final-document"
-      eyebrow="Step 4 · Final document"
-      title="Your plan summary"
-      description="The plan data you recorded is already in this document. Review it, then download the Word file."
-      aside={
-        <StatusPill tone={incomplete ? "warning" : "success"}>
-          Draft · {document.totals.filled} of {document.totals.total} items filled
-        </StatusPill>
-      }
-    >
-      <div className="doc-layout">
-        <section className="doc-paper" aria-label="Plan summary preview">
-          <p className="doc-paper-eyebrow">Plan Summary</p>
-          <h3>{header.find((row) => row.placeholderId === "r5.plan-name")?.value ?? "Plan name not recorded"}</h3>
-          <dl className="doc-paper-fields">
-            <div>
-              <dt>Case number</dt>
-              <dd>
-                {header.find((row) => row.placeholderId === "r5.case-number")?.value ?? "Not recorded"}
-              </dd>
-            </div>
-            <div>
-              <dt>Date of plan termination</dt>
-              <dd>
-                {header.find((row) => row.placeholderId === "r5.dopt")?.value ?? "Not recorded"}
-              </dd>
-            </div>
-          </dl>
-          <div className="doc-paper-rule" />
-          <p className="doc-paper-section-title">Plan provisions</p>
-          <ul className="doc-paper-list">
-            {sections.map((section) => (
-              <li key={section.label}>
-                <span>{section.label}</span>
-                <span className="doc-paper-count">
-                  {section.filled} of {section.total}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="doc-paper-note">
-            Blank items are marked “Not recorded” in the Word file. They are never
-            filled with sample text.
-          </p>
-        </section>
+    <>
+      <div className="step-switch" role="group" aria-label="Final document view">
+        <button
+          type="button"
+          aria-pressed={view === "document"}
+          className={view === "document" ? "active" : undefined}
+          onClick={() => setView("document")}
+        >
+          Document
+        </button>
+        <button
+          type="button"
+          aria-pressed={view === "provisions"}
+          className={view === "provisions" ? "active" : undefined}
+          onClick={() => setView("provisions")}
+        >
+          Plan provisions{unanswered > 0 ? ` · ${unanswered} left` : ""}
+        </button>
+      </div>
 
-        <div className="doc-side">
-          <section aria-labelledby="doc-ready-title">
-            <h3 id="doc-ready-title" className="doc-side-title">
-              Before you download
-            </h3>
-            <ul className="doc-checklist">
-              {checks.map((check) => (
-                <li key={check.label} className={check.done ? "done" : "todo"}>
-                  <span aria-hidden="true">{check.done ? "✓" : "○"}</span>
-                  <span>
-                    <strong>{check.label}</strong>
-                    <span className="doc-check-detail">{check.detail}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
+      {view === "document" ? (
+        <Panel
+          id="final-document"
+          eyebrow="Step 4 · Final document"
+          title="Your plan summary"
+          description="The plan data you recorded is already in this document. Review it, then download the Word file."
+          aside={
+            <StatusPill tone={incomplete ? "warning" : "success"}>
+              Draft · {document.totals.filled} of {document.totals.total} items filled
+            </StatusPill>
+          }
+        >
+          <div className="doc-layout">
+            <section className="doc-paper" aria-label="Plan summary preview">
+              <p className="doc-paper-eyebrow">Plan Summary</p>
+              <h3>
+                {header.find((row) => row.placeholderId === "r5.plan-name")?.value ??
+                  "Plan name not recorded"}
+              </h3>
+              <dl className="doc-paper-fields">
+                <div>
+                  <dt>Case number</dt>
+                  <dd>
+                    {header.find((row) => row.placeholderId === "r5.case-number")
+                      ?.value ?? "Not recorded"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Date of plan termination</dt>
+                  <dd>
+                    {header.find((row) => row.placeholderId === "r5.dopt")?.value ??
+                      "Not recorded"}
+                  </dd>
+                </div>
+              </dl>
+              <div className="doc-paper-rule" />
+              <p className="doc-paper-section-title">Plan provisions</p>
+              <ul className="doc-paper-list">
+                {sections.map((section) => (
+                  <li key={section.label}>
+                    <span>{section.label}</span>
+                    <span className="doc-paper-count">
+                      {section.filled} of {section.total}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="doc-paper-note">
+                Blank items are marked “Not recorded” in the Word file. They are never
+                filled with sample text.
+              </p>
+            </section>
 
-          <div className="doc-actions">
-            <button
-              type="button"
-              className="primary"
-              onClick={() => void generate()}
-              disabled={busy}
+            <div className="doc-side">
+              <section aria-labelledby="doc-ready-title">
+                <h3 id="doc-ready-title" className="doc-side-title">
+                  Before you download
+                </h3>
+                <ul className="doc-checklist">
+                  {checks.map((check) => (
+                    <li key={check.label} className={check.done ? "done" : "todo"}>
+                      <span aria-hidden="true">{check.done ? "✓" : "○"}</span>
+                      <span>
+                        <strong>{check.label}</strong>
+                        <span className="doc-check-detail">{check.detail}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              <div className="doc-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => void generate()}
+                  disabled={busy}
+                >
+                  {busy ? "Preparing document…" : "Download plan summary (Word)"}
+                </button>
+                {unanswered > 0 ? (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setView("provisions")}
+                  >
+                    Answer plan provisions ({unanswered} left)
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => onSetStage("plan")}
+                >
+                  Edit plan details
+                </button>
+              </div>
+
+              {incomplete ? (
+                <p className="doc-callout">
+                  <strong>
+                    {document.totals.filled} of {document.totals.total}
+                  </strong>{" "}
+                  document items are recorded. Missing items are clearly marked, so the
+                  draft can be shared for review without implying they are complete.
+                </p>
+              ) : (
+                <p className="doc-callout success">
+                  Every document item has a recorded value.
+                </p>
+              )}
+
+              {error ? (
+                <p className="spec-blocker" role="alert">
+                  <strong>The document could not be prepared.</strong> {error}
+                </p>
+              ) : null}
+
+              {result ? (
+                <div className="doc-result" role="status">
+                  <p>
+                    <strong>Downloaded.</strong>{" "}
+                    <span className="mono">{result.fileName}</span>
+                  </p>
+                  <p>
+                    {result.filled} of {result.total} items recorded. Open the file in
+                    Word to review or print it.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </Panel>
+      ) : (
+        <Panel
+          id="plan-provisions"
+          eyebrow="Step 4 · Final document"
+          title="Plan provisions"
+          description="Answer what the plan says. Every answer is saved with the source you give, and an update keeps the earlier answer in the audit trail."
+          aside={
+            <StatusPill
+              tone={
+                questionTotals.answered === questionTotals.total
+                  ? "success"
+                  : "warning"
+              }
             >
-              {busy ? "Preparing document…" : "Download plan summary (Word)"}
-            </button>
+              {questionTotals.answered} of {questionTotals.total} answered
+            </StatusPill>
+          }
+        >
+          <PlanProvisions
+            sections={questionSections}
+            sources={rationaleByKey}
+            onRecord={onRecordDecision}
+          />
+          <div className="button-row">
             <button
               type="button"
               className="secondary"
-              onClick={() => onSetStage("plan")}
+              onClick={() => setView("document")}
             >
-              Edit plan details
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => onSetStage("population")}
-            >
-              Edit people
+              Back to document
             </button>
           </div>
-
-          {incomplete ? (
-            <p className="doc-callout">
-              <strong>{document.totals.filled} of {document.totals.total}</strong>{" "}
-              document items are recorded. Missing items are clearly marked, so the
-              draft can be shared for review without implying they are complete.
-            </p>
-          ) : (
-            <p className="doc-callout success">
-              Every document item has a recorded value.
-            </p>
-          )}
-
-          {error ? (
-            <p className="spec-blocker" role="alert">
-              <strong>The document could not be prepared.</strong> {error}
-            </p>
-          ) : null}
-
-          {result ? (
-            <div className="doc-result" role="status">
-              <p>
-                <strong>Downloaded.</strong>{" "}
-                <span className="mono">{result.fileName}</span>
-              </p>
-              <p>
-                {result.filled} of {result.total} items recorded. Open the file in
-                Word to review or print it.
-              </p>
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </Panel>
+        </Panel>
+      )}
+    </>
   );
 }

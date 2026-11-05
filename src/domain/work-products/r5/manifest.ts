@@ -32,6 +32,8 @@ export type R5Placeholder = {
   label: string;
   source: R5PlaceholderSource;
   required: boolean;
+  /** The shell's own question when the row label alone is not a prompt. */
+  question?: string;
   /** What a reviewer must know before using the cell; omitted when obvious. */
   note?: string;
 };
@@ -308,6 +310,7 @@ function itemPlaceholder(
     label: shellRow,
     source: { kind: "reviewer-decision", decisionId: `r5.decision.item-${id}` },
     required: true,
+    question,
     note: `Placed by the 60-item plan-provision questionnaire: "${question}"`,
   };
 }

@@ -110,6 +110,7 @@ export function App() {
           <FinalDocumentStage
             state={state}
             onWorkProductCreated={actions.recordWorkProduct}
+            onRecordDecision={actions.recordDecision}
             onSetStage={actions.setStage}
           />
         );
