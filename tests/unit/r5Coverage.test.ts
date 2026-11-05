@@ -192,6 +192,8 @@ describe("template placeholder predicate", () => {
       evidence: [],
       implementedPredicateIds,
       templateCoverage: { [R5_TEMPLATE_ID]: coverage },
+      requiredClassPolicies: {},
+      documentClasses: [],
     });
     expect(report.ready).toBe(false);
     expect(report.checks[0]?.status).toBe("fail");
@@ -206,6 +208,8 @@ describe("template placeholder predicate", () => {
       facts: reviewedFacts,
       evidence: [],
       implementedPredicateIds,
+      requiredClassPolicies: {},
+      documentClasses: [],
     });
     expect(report.checks[0]?.status).toBe("blocked");
   });
@@ -230,6 +234,8 @@ describe("R5 work products", () => {
       evidence: [],
       implementedPredicateIds,
       templateCoverage: { [R5_TEMPLATE_ID]: evaluateR5Coverage(reviewedFacts) },
+      requiredClassPolicies: {},
+      documentClasses: [],
     });
     expect(report.ready).toBe(true);
   });

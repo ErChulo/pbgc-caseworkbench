@@ -38,6 +38,8 @@ function readinessOf(specId: string, overrides: Partial<Parameters<typeof checkW
     facts: completeFacts,
     evidence: [{ sha256: HASH }],
     implementedPredicateIds,
+    requiredClassPolicies: {},
+    documentClasses: [],
     ...overrides,
   });
 }
@@ -186,7 +188,7 @@ describe("work-product readiness", () => {
   it("passes when every required fact is reviewed and the predicate runs", () => {
     const report = readinessOf(REVIEW_COPY_SPEC_ID);
     expect(report.ready).toBe(true);
-    expect(report.checks.map((check) => check.status)).toEqual(["pass"]);
+    expect(report.checks.map((check) => check.status)).toEqual(["pass", "pass"]);
   });
 
   it("fails and names the missing field", () => {

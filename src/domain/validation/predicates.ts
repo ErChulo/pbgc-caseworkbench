@@ -87,6 +87,23 @@ export const PREDICATES: readonly PredicateRecord[] = [
     blockingReason: null,
   },
   {
+    predicateId: "pred.required-plan-data-classes",
+    title: "Required plan-data classes are applicable and present",
+    severity: "blocking",
+    summary:
+      "When a reviewer records a required-class policy for a work product, every selected class must have an applies decision and at least one assigned file. With no policy the class gate is inactive; no class is ever inferred from presence, the catalog, or the product type.",
+    status: "implemented",
+    authority: {
+      citation:
+        "Spec 016 — Reviewer-controlled required-class policy (reviewer decision, not a PBGC rule)",
+      note:
+        "The requirement is configured per work product by a reviewer with a required basis. A pass does not establish file completeness or authority.",
+      checkedOn: "2026-11-05",
+    },
+    implementedBy: "src/domain/work-products/requiredClassPolicy.ts",
+    blockingReason: null,
+  },
+  {
     predicateId: "pred.population-records-present",
     title: "Participant population is imported",
     severity: "blocking",

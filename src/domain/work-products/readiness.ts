@@ -7,8 +7,13 @@
  * disabled.
  */
 
+import type { DocumentClassReview } from "../evidence/documentClassApplicability";
 import { getPredicate } from "../validation/predicates";
 import type { R5CoverageSummary } from "./r5/coverage";
+import {
+  evaluateRequiredClassPolicy,
+  type RequiredClassPolicyState,
+} from "./requiredClassPolicy";
 import type { WorkProductSpec } from "./spec";
 
 export type ReadinessStatus = "pass" | "fail" | "blocked";
@@ -36,6 +41,16 @@ export type ReadinessContext = {
   templateCoverage?: Readonly<Record<string, R5CoverageSummary | undefined>>;
   /** Imported participant population; absent means no records, not unknown. */
   population?: { readonly recordCount: number };
+  /**
+   * Latest required-class policy per work-product spec. The map must be
+   * supplied even when no policies are recorded; an absent map blocks a spec
+   * that uses the class predicate rather than assuming the gate is inactive.
+   */
+  requiredClassPolicies?: Readonly<
+    Record<string, RequiredClassPolicyState | undefined>
+  >;
+  /** Class-level applicability and file state used by the policy gate. */
+  documentClasses?: readonly DocumentClassReview[];
 };
 
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -85,6 +100,23 @@ function checkTemplatePlaceholders(
     status: "fail",
     detail: `${coverage.unresolved} of ${coverage.total} placeholders are unresolved (missing ${coverage.missing}, pending reviewer decisions ${coverage.pending}, blocked ${coverage.blocked}).`,
   };
+}
+
+function checkRequiredClassPolicy(
+  spec: WorkProductSpec,
+  context: ReadinessContext,
+): { status: ReadinessStatus; detail: string } {
+  if (!context.requiredClassPolicies) {
+    return {
+      status: "blocked",
+      detail:
+        "No required-class policy context was supplied; the class gate cannot be evaluated.",
+    };
+  }
+  const policy =
+    context.requiredClassPolicies[spec.specId] ??
+    ({ status: "not-configured" } as const);
+  return evaluateRequiredClassPolicy(policy, context.documentClasses);
 }
 
 function checkPopulationRecords(context: ReadinessContext): {
@@ -186,6 +218,9 @@ export function checkWorkProductReadiness(
         break;
       case "pred.population-records-present":
         result = checkPopulationRecords(context);
+        break;
+      case "pred.required-plan-data-classes":
+        result = checkRequiredClassPolicy(spec, context);
         break;
       default:
         result = {

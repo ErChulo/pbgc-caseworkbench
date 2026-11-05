@@ -17,6 +17,8 @@ import { downloadTextFile, openHtmlInNewTab } from "../../app/download";
 import { sha256HexOfText } from "../../adapters/hashing/sha256";
 import { buildCaseSnapshot, freezeCaseSnapshot } from "../../app/WorkProductService";
 import { nowIso } from "../../domain/case/validation";
+import { reviewDocumentClasses } from "../../domain/evidence/documentClassApplicability";
+import { requiredClassPolicyStates } from "../../domain/work-products/requiredClassPolicy";
 import {
   REVIEW_COPY_SPEC_ID,
   WORK_PRODUCTS,
@@ -32,6 +34,7 @@ import type { ReadinessCheck } from "../../domain/work-products/readiness";
 import { evaluateR5Coverage } from "../../domain/work-products/r5/coverage";
 import { R5_TEMPLATE_ID } from "../../domain/work-products/r5/manifest";
 import { R5CoveragePanel } from "./R5CoveragePanel";
+import { RequiredClassPolicyPanel } from "./RequiredClassPolicyPanel";
 import type { WorkbenchState } from "../workbench/useWorkbench";
 import { Panel, StatusPill, type StatusTone } from "../../ui/components";
 
@@ -232,11 +235,18 @@ export function WorkProductsStage({ state, onWorkProductCreated, onRecordDecisio
     latestDecisionByKey[decision.decisionKey] = decision.value;
   }
   const r5Coverage = evaluateR5Coverage(state.planFacts, latestDecisionByKey);
+  const documentClassReviews = reviewDocumentClasses(
+    state.artifacts,
+    state.decisions,
+  ).classes;
+  const requiredClassPolicies = requiredClassPolicyStates(state.decisions);
   const readinessContext = {
     facts: state.planFacts,
     evidence: state.artifacts,
     implementedPredicateIds,
     templateCoverage: { [R5_TEMPLATE_ID]: r5Coverage },
+    requiredClassPolicies,
+    documentClasses: documentClassReviews,
   };
 
   const readinessBySpec = new Map(
@@ -386,6 +396,12 @@ export function WorkProductsStage({ state, onWorkProductCreated, onRecordDecisio
           })}
         </ul>
       </Panel>
+
+      <RequiredClassPolicyPanel
+        decisions={state.decisions}
+        classes={documentClassReviews}
+        onRecordDecision={onRecordDecision}
+      />
 
       <R5CoveragePanel
         state={state}

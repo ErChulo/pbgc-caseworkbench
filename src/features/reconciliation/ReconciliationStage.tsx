@@ -120,7 +120,7 @@ export function ReconciliationStage({ state, fields }: Props) {
         id="reconciliation"
         eyebrow="Stage 7 · Reconciliation"
         title="Readiness for a work product"
-        description="Checks that must be satisfied before a review copy is generated. A blocking failure keeps the work product unavailable."
+        description="Plan-field coverage checks for the review copy. The Work products stage also evaluates any reviewer-configured required-class policy and the template-coverage gate. A blocking failure there keeps the work product unavailable."
         aside={
           <StatusPill tone={blocking > 0 ? "danger" : "warning"}>
             {blocking > 0 ? `${blocking} blocking` : "No blocking gaps"}

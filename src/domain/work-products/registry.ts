@@ -54,7 +54,10 @@ export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
     status: "implemented",
     blockingReason: null,
     dependencies: PLAN_FIELDS,
-    predicates: ["pred.required-plan-fields"],
+    predicates: [
+      "pred.required-plan-fields",
+      "pred.required-plan-data-classes",
+    ],
     template: null,
     outputFormats: ["html"],
     rendererVersion: "0.2.0",
@@ -82,7 +85,10 @@ export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
     status: "implemented",
     blockingReason: null,
     dependencies: [...PLAN_FIELDS, { kind: "template", templateId: "template.r5-plan-summary-shell", required: true }],
-    predicates: ["pred.required-plan-fields"],
+    predicates: [
+      "pred.required-plan-fields",
+      "pred.required-plan-data-classes",
+    ],
     template: {
       templateId: "template.r5-plan-summary-shell",
       version: "1.0.0",
@@ -161,7 +167,11 @@ export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
       { kind: "fact", fieldId: "cust-dopt", required: true },
       { kind: "fact", fieldId: "cust-plan-nm", required: true },
     ],
-    predicates: ["pred.required-plan-fields", "pred.population-records-present"],
+    predicates: [
+      "pred.required-plan-fields",
+      "pred.population-records-present",
+      "pred.required-plan-data-classes",
+    ],
     template: null,
     outputFormats: ["html"],
     rendererVersion: "0.1.0",
