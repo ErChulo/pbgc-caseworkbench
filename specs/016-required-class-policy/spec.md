@@ -123,6 +123,9 @@ be generated.
 - Playwright: record a policy requiring an absent class, see the review copy
   blocked; record a superseding policy requiring the class that is applicable
   and present, see the check pass and generate the copy.
+- Bundle: a superseded policy round-trips through export and restore as part of
+  the existing decisions part; the latest restored policy remains current, and
+  its supersession link points at the restored prior decision.
 - The existing offline, restore, reload, and narrow-viewport checks still pass.
 - `npm run check` and the production build pass.
 
