@@ -15,6 +15,12 @@ export interface ArtifactStore {
    */
   addArtifact(artifact: SourceArtifact, bytes: ArrayBuffer): Promise<SourceArtifact>;
 
+  /**
+   * Update artifact metadata without changing stored bytes or the SHA-256.
+   * Used to assign or correct a document class; fails if the artifact is absent.
+   */
+  updateArtifact(artifact: SourceArtifact): Promise<SourceArtifact>;
+
   /** List artifacts for a case, ordered by import time ascending. */
   listArtifacts(caseId: string): Promise<SourceArtifact[]>;
 

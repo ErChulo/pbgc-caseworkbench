@@ -749,6 +749,63 @@ button.secondary:hover:not(:disabled) {
   border-color: var(--color-accent);
 }
 
+.intake-class-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: var(--space-4);
+}
+
+.intake-class-row .inline-field {
+  text-align: left;
+}
+
+.artifact-class {
+  margin: var(--space-2) 0 0;
+  color: var(--color-info);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.document-class-list {
+  display: grid;
+  gap: 0;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.document-class-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.document-class-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.document-class-description {
+  margin: 2px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.document-class-status {
+  color: var(--color-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.document-class-status.present {
+  color: var(--color-success);
+}
+
 /* ------------------------------------------------------------ catalog ----- */
 
 .filter-bar {

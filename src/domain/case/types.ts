@@ -91,6 +91,7 @@ export type AuditEventType =
   | "plan-fact-saved"
   | "plan-fact-superseded"
   | "artifact-imported"
+  | "artifact-classified"
   | "evidence-linked"
   | "calculation-run"
   | "work-product-created"

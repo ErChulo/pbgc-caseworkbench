@@ -36,6 +36,14 @@ class InMemoryArtifactStore implements ArtifactStore {
     return { ...artifact };
   }
 
+  async updateArtifact(artifact: SourceArtifact): Promise<SourceArtifact> {
+    if (!this.artifacts.has(artifact.artifactId)) {
+      throw new Error(`Artifact not found: ${artifact.artifactId}`);
+    }
+    this.artifacts.set(artifact.artifactId, { ...artifact });
+    return { ...artifact };
+  }
+
   async listArtifacts(caseId: string): Promise<SourceArtifact[]> {
     return [...this.artifacts.values()]
       .filter((artifact) => artifact.caseId === caseId)
@@ -92,6 +100,7 @@ async function buildFixture() {
     fileName: "synthetic-plan-summary.txt",
     mediaType: "text/plain",
     bytes,
+    documentClass: "plan-documents",
   });
   await evidenceService.linkEvidence({
     caseId: record.caseId,
@@ -165,6 +174,7 @@ describe("case bundle round trip", () => {
     expect(restoredArtifacts[0]?.sha256).toBe(
       (await artifacts.listArtifacts(record.caseId))[0]?.sha256,
     );
+    expect(restoredArtifacts[0]?.documentClass).toBe("plan-documents");
     const restoredBytes = await artifacts.getArtifactBytes(restoredArtifacts[0]!.artifactId);
     expect(restoredBytes?.byteLength).toBe(bytes.byteLength);
     expect(new TextDecoder().decode(restoredBytes!)).toBe(
@@ -189,6 +199,38 @@ describe("case bundle round trip", () => {
     for (let i = 1; i < events.length; i += 1) {
       expect(events[i]!.sequence!).toBeGreaterThan(events[i - 1]!.sequence!);
     }
+  });
+
+  it("classifies an artifact without changing its bytes and records the prior class", async () => {
+    const { record, artifacts, caseService, evidenceService } = await buildFixture();
+    const before = (await artifacts.listArtifacts(record.caseId))[0]!;
+    const beforeBytes = new TextDecoder().decode(
+      (await artifacts.getArtifactBytes(before.artifactId))!,
+    );
+
+    const updated = await evidenceService.classifyArtifact({
+      caseId: record.caseId,
+      artifactId: before.artifactId,
+      documentClass: "census",
+    });
+
+    expect(updated.documentClass).toBe("census");
+    const stored = (await artifacts.listArtifacts(record.caseId))[0]!;
+    expect(stored.documentClass).toBe("census");
+    expect(stored.sha256).toBe(before.sha256);
+    expect(
+      new TextDecoder().decode(
+        (await artifacts.getArtifactBytes(before.artifactId))!,
+      ),
+    ).toBe(beforeBytes);
+
+    const classified = (await caseService.getAuditEvents(record.caseId)).find(
+      (event) => event.eventType === "artifact-classified",
+    );
+    expect(classified).toMatchObject({
+      before: "plan-documents",
+      after: "census",
+    });
   });
 
   it("rejects invalid JSON without restoring anything", () => {

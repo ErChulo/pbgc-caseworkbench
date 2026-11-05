@@ -9,7 +9,11 @@
 
 import type { ArtifactStore } from "../domain/ports/ArtifactStore";
 import type { CaseStore } from "../domain/ports/CaseStore";
-import type { EvidenceLink, SourceArtifact } from "../domain/evidence/types";
+import type {
+  DocumentClass,
+  EvidenceLink,
+  SourceArtifact,
+} from "../domain/evidence/types";
 import { generateId, nowIso } from "../domain/case/validation";
 import { sha256Hex } from "../adapters/hashing/sha256";
 
@@ -17,6 +21,7 @@ export type ImportableFile = {
   fileName: string;
   mediaType: string;
   bytes: ArrayBuffer;
+  documentClass?: DocumentClass;
 };
 
 export type ImportResult =
@@ -54,6 +59,7 @@ export class EvidenceService {
       byteSize: file.bytes.byteLength,
       sha256,
       importedAt: now,
+      ...(file.documentClass ? { documentClass: file.documentClass } : {}),
     };
 
     await this.artifacts.addArtifact(artifact, file.bytes);
@@ -74,6 +80,40 @@ export class EvidenceService {
 
   listArtifacts(caseId: string): Promise<SourceArtifact[]> {
     return this.artifacts.listArtifacts(caseId);
+  }
+
+  /**
+   * Assign or correct a document class. Bytes and the hash are never touched;
+   * the previous class is retained in the audit trail.
+   */
+  async classifyArtifact(args: {
+    caseId: string;
+    artifactId: string;
+    documentClass: DocumentClass;
+  }): Promise<SourceArtifact> {
+    const existing = await this.artifacts.getArtifact(args.artifactId);
+    if (!existing || existing.caseId !== args.caseId) {
+      throw new Error("That evidence file is not part of the open case.");
+    }
+    if (existing.documentClass === args.documentClass) return existing;
+
+    const updated: SourceArtifact = {
+      ...existing,
+      documentClass: args.documentClass,
+    };
+    await this.artifacts.updateArtifact(updated);
+    await this.cases.appendAuditEvent({
+      eventId: generateId(),
+      caseId: args.caseId,
+      eventType: "artifact-classified",
+      actor: "local-user",
+      component: "EvidenceService.classifyArtifact",
+      at: nowIso(),
+      refs: { artifactId: args.artifactId },
+      before: existing.documentClass ?? "unclassified",
+      after: args.documentClass,
+    });
+    return updated;
   }
 
   getArtifactBytes(artifactId: string): Promise<ArrayBuffer | null> {

@@ -1,14 +1,23 @@
 /**
  * Evidence intake — import source files, hash them locally, detect duplicates,
- * and link artifacts to plan-level fields.
+ * classify them by Image Viewer plan-data class, and link artifacts to
+ * plan-level fields.
  *
  * Intake is deliberately separate from interpretation: this stage records what
- * the file is and proves it has not changed. It does not extract values.
+ * the file is and proves it has not changed. It does not extract values, and a
+ * class marked present is not a finding that the class applies or is complete.
  */
 
 import { useRef, useState } from "react";
 import type { WorkbenchActions, WorkbenchState } from "../workbench/useWorkbench";
 import type { DerivedFieldEntry } from "../../domain/case/types";
+import type { DocumentClass } from "../../domain/evidence/types";
+import {
+  DOCUMENT_CLASSES,
+  documentClassCoverage,
+  documentClassLabel,
+  unclassifiedArtifactCount,
+} from "../../domain/evidence/documentClasses";
 import { formatByteSize } from "../../adapters/hashing/sha256";
 import { EmptyState, Panel, StatusPill } from "../../ui/components";
 
@@ -35,18 +44,36 @@ export function EvidenceStage({ state, actions, fields }: Props) {
   const [dragging, setDragging] = useState(false);
   const [linkTargets, setLinkTargets] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [intakeClass, setIntakeClass] = useState<DocumentClass | "">("");
+  const [classifying, setClassifying] = useState<string | null>(null);
 
   const linksFor = (artifactId: string) =>
     state.links.filter((link) => link.artifactId === artifactId);
+
+  const coverage = documentClassCoverage(state.artifacts);
+  const presentClasses = coverage.filter((entry) => entry.count > 0).length;
+  const unclassified = unclassifiedArtifactCount(state.artifacts);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     setBusy(true);
     try {
-      await actions.importFiles(Array.from(files));
+      await actions.importFiles(
+        Array.from(files),
+        intakeClass === "" ? undefined : intakeClass,
+      );
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  async function handleClassify(artifactId: string, documentClass: DocumentClass) {
+    setClassifying(artifactId);
+    try {
+      await actions.classifyArtifact(artifactId, documentClass);
+    } finally {
+      setClassifying(null);
     }
   }
 
@@ -54,12 +81,13 @@ export function EvidenceStage({ state, actions, fields }: Props) {
     <>
       <Panel
         id="evidence-import"
-        eyebrow="Stage 2 · Evidence"
-        title="Import source files unchanged"
+        eyebrow="Step 2 · Documents"
+        title="Add the plan's source documents"
         description="Each file is hashed with SHA-256 in this browser before it is stored. Identical content is never stored twice for the same case."
         aside={
           <StatusPill tone={state.artifacts.length === 0 ? "muted" : "success"}>
-            {state.artifacts.length} {state.artifacts.length === 1 ? "artifact" : "artifacts"}
+            {state.artifacts.length}{" "}
+            {state.artifacts.length === 1 ? "document" : "documents"}
           </StatusPill>
         }
       >
@@ -80,6 +108,24 @@ export function EvidenceStage({ state, actions, fields }: Props) {
           <p className="dropzone-hint">
             PDF, XLSX, CSV, TXT, or JSON. Files stay in this browser profile.
           </p>
+          <div className="intake-class-row">
+            <label className="inline-field grow">
+              <span>Document type for new files</span>
+              <select
+                value={intakeClass}
+                onChange={(event) =>
+                  setIntakeClass(event.target.value as DocumentClass | "")
+                }
+              >
+                <option value="">Unclassified — classify after import</option>
+                {DOCUMENT_CLASSES.map((definition) => (
+                  <option key={definition.id} value={definition.id}>
+                    {definition.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <div className="button-row">
             <button
               className="primary"
@@ -101,11 +147,11 @@ export function EvidenceStage({ state, actions, fields }: Props) {
         </div>
 
         {state.artifacts.length === 0 ? (
-          <EmptyState title="No evidence imported yet">
+          <EmptyState title="No documents added yet">
             <p>
-              Import a plan document to establish the evidence chain. The
-              SHA-256 shown on each artifact is the integrity anchor recorded in
-              the audit trail.
+              Add the census, plan document set, valuation, or another class of
+              plan data. The SHA-256 recorded for each file is the integrity
+              anchor in the audit trail.
             </p>
           </EmptyState>
         ) : (
@@ -122,6 +168,9 @@ export function EvidenceStage({ state, actions, fields }: Props) {
                         {formatByteSize(artifact.byteSize)} ·{" "}
                         {artifact.mediaType || "unknown type"} · imported{" "}
                         {formatDate(artifact.importedAt)}
+                      </p>
+                      <p className="artifact-class">
+                        {documentClassLabel(artifact.documentClass)}
                       </p>
                     </div>
                     <StatusPill tone={links.length > 0 ? "success" : "warning"}>
@@ -150,6 +199,31 @@ export function EvidenceStage({ state, actions, fields }: Props) {
                   ) : null}
 
                   <div className="artifact-actions">
+                    <label className="inline-field">
+                      <span>Document type</span>
+                      <select
+                        value={artifact.documentClass ?? ""}
+                        disabled={classifying === artifact.artifactId}
+                        onChange={(event) => {
+                          const next = event.target.value;
+                          if (next) {
+                            void handleClassify(
+                              artifact.artifactId,
+                              next as DocumentClass,
+                            );
+                          }
+                        }}
+                      >
+                        <option value="" disabled>
+                          Choose a type
+                        </option>
+                        {DOCUMENT_CLASSES.map((definition) => (
+                          <option key={definition.id} value={definition.id}>
+                            {definition.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <label className="inline-field">
                       <span>Supports field</span>
                       <select
@@ -182,6 +256,57 @@ export function EvidenceStage({ state, actions, fields }: Props) {
             })}
           </ul>
         )}
+      </Panel>
+
+      <Panel
+        id="document-set"
+        eyebrow="Document set"
+        title="Image Viewer document classes"
+        description="Track which classes of plan data are present. A class marked added means at least one file was assigned to it."
+        aside={
+          <StatusPill tone={presentClasses === 0 ? "muted" : "success"}>
+            {presentClasses} of {DOCUMENT_CLASSES.length} classes added
+          </StatusPill>
+        }
+      >
+        <ul className="document-class-list" aria-label="Document set completeness">
+          {coverage.map((entry) => (
+            <li key={entry.id}>
+              <div>
+                <p className="document-class-name">{entry.label}</p>
+                <p className="document-class-description">{entry.description}</p>
+              </div>
+              <span
+                className={
+                  entry.count > 0
+                    ? "document-class-status present"
+                    : "document-class-status"
+                }
+              >
+                {entry.count > 0
+                  ? `${entry.count} ${entry.count === 1 ? "file" : "files"}`
+                  : "Not added"}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        {unclassified > 0 ? (
+          <p className="spec-blocker">
+            <strong>
+              {unclassified} imported {unclassified === 1 ? "file is" : "files are"}{" "}
+              unclassified.
+            </strong>{" "}
+            Choose a document type on each file card so it counts toward the
+            document set.
+          </p>
+        ) : null}
+
+        <p className="panel-prose">
+          Presence tracks intake, not applicability or completeness. Whether a
+          class applies to this plan, and whether a file is complete and
+          authoritative, remains a reviewer determination.
+        </p>
       </Panel>
 
       <Panel
