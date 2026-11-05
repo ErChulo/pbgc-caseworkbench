@@ -15,7 +15,7 @@ import type { DecisionCitation } from "../../domain/case/types";
 import { nowIso } from "../../domain/case/validation";
 import {
   isSyntheticR5DemoCase,
-  syntheticR5DemoResolutionForDopt,
+  syntheticR5DemoResolutionForCase,
 } from "../../domain/demo/r5SyntheticProfile";
 import { R5_TEMPLATE_MANIFEST } from "../../domain/work-products/r5/manifest";
 import {
@@ -88,7 +88,10 @@ export function FinalDocumentStage({
   }
 
   const synthetic = isSyntheticR5DemoCase(caseRecord.alias)
-    ? syntheticR5DemoResolutionForDopt(state.planFacts["cust-dopt"]?.value)
+    ? syntheticR5DemoResolutionForCase(
+        caseRecord.alias,
+        state.planFacts["cust-dopt"]?.value,
+      )
     : null;
   const document = buildPlanSummaryDocument({
     caseAlias: caseRecord.alias,

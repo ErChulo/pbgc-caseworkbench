@@ -19,7 +19,7 @@ import { buildCaseSnapshot, freezeCaseSnapshot } from "../../app/WorkProductServ
 import { nowIso } from "../../domain/case/validation";
 import {
   isSyntheticR5DemoCase,
-  syntheticR5DemoResolutionForDopt,
+  syntheticR5DemoResolutionForCase,
 } from "../../domain/demo/r5SyntheticProfile";
 import { reviewDocumentClasses } from "../../domain/evidence/documentClassApplicability";
 import { requiredClassPolicyStates } from "../../domain/work-products/requiredClassPolicy";
@@ -241,9 +241,13 @@ export function WorkProductsStage({ state, onWorkProductCreated, onRecordDecisio
   for (const decision of state.decisions) {
     latestDecisionByKey[decision.decisionKey] = decision.value;
   }
-  const synthetic = state.activeCase && isSyntheticR5DemoCase(state.activeCase.alias)
-    ? syntheticR5DemoResolutionForDopt(state.planFacts["cust-dopt"]?.value)
-    : null;
+  const synthetic =
+    state.activeCase && isSyntheticR5DemoCase(state.activeCase.alias)
+      ? syntheticR5DemoResolutionForCase(
+          state.activeCase.alias,
+          state.planFacts["cust-dopt"]?.value,
+        )
+      : null;
   const r5Coverage = evaluateR5Coverage(
     state.planFacts,
     latestDecisionByKey,

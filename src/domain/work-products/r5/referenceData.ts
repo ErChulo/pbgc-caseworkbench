@@ -1,12 +1,12 @@
 /**
  * Cited R5 header reference data.
  *
- * These are small, exact lookup tables for the synthetic demo case. They are not
- * a general PBGC rate engine and they do not execute the PBGC Excel add-in.
+ * These are small, exact lookup tables for the synthetic demo cases. They are
+ * not a general PBGC rate engine and they do not execute the PBGC Excel add-in.
  *
  * A real case must still be valued through the authorized PBGC rate process.
- * The synthetic profile selects one of these exact rows; no interpolation and no
- * nearest-year fallback is allowed.
+ * Each synthetic profile selects one of these exact rows; no interpolation and
+ * no nearest-year fallback is allowed.
  */
 
 export type R5LumpSumStability = "M" | "PY" | "CY" | "PQ" | "CQ";
@@ -40,10 +40,9 @@ export type R5HeaderRateSet = {
 };
 
 /**
- * The 2024-06 DOPT row uses the published May 2024 minimum present value
- * segment rates: a monthly stability period containing 2024-06-30 has a
- * one-month lookback to May 2024. It also uses the PBGC 4044 April-June 2024
- * select-and-ultimate annuity rates. The values are reference data, not values
+ * Each DOPT row uses the published minimum present value segment rates for the
+ * preceding lookback month and the PBGC 4044 select-and-ultimate annuity rates
+ * for the quarter containing the DOPT. The values are reference data, not values
  * produced by PPALSRATE/RATETIER.
  */
 export const R5_HEADER_RATE_SETS: readonly R5HeaderRateSet[] = [
@@ -74,6 +73,33 @@ export const R5_HEADER_RATE_SETS: readonly R5HeaderRateSet[] = [
     note:
       "Monthly stability with a one-month lookback for DOPT 2024-06-30; the May 2024 rate row applies. Published reference rates selected for the synthetic demo. The PBGC PPALSRATE/RATETIER add-in is not executed in this build.",
   },
+  {
+    id: "r5-dopt-2023-06",
+    dopt: "2023-06-30",
+    lookupDate: "2023-05-01",
+    stability: "M",
+    lookbackMonths: 1,
+    planAnniversary: "0101",
+    planEffectiveDate: "1991-01-01",
+    lumpSum: {
+      first: 0.0491,
+      second: 0.0515,
+      third: 0.0534,
+    },
+    annuity: {
+      select: 0.0538,
+      selectYears: 20,
+      ultimate: 0.0509,
+    },
+    sources: {
+      lumpSum:
+        "IRS Notice 2023-48, minimum present value segment rates for May 2023: 4.91%, 5.15%, 5.34%.",
+      annuity:
+        "PBGC 29 CFR part 4044 appendix B, April-June 2023: 5.38% for the first 20 years, 5.09% thereafter.",
+    },
+    note:
+      "Monthly stability with a one-month lookback for DOPT 2023-06-30; the May 2023 rate row applies. Published reference rates selected for the synthetic demo. The PBGC PPALSRATE/RATETIER add-in is not executed in this build.",
+  },
 ];
 
 export type R5SparrRow = {
@@ -84,10 +110,16 @@ export type R5SparrRow = {
 };
 
 /**
- * Values transcribed from the public PBGC actuarial reports. The workbench only
- * needs the years exercised by the synthetic demo and the following year.
+ * Values transcribed from the public PBGC actuarial reports for the fiscal years
+ * used by the synthetic profiles and their fiscal-year boundary tests.
  */
 export const R5_SPARR_ROWS: readonly R5SparrRow[] = [
+  {
+    fiscalYear: 2023,
+    rate: 0.0779,
+    source:
+      "PBGC Fiscal Year 2024 Actuarial Report, Table 2B: FY2023 SPARR = 7.79%.",
+  },
   {
     fiscalYear: 2024,
     rate: 0.0846,

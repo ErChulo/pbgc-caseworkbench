@@ -3,6 +3,7 @@
 Status: implemented (2026-11-05)
 Depends on: 003 R5 plan summary, 009 synthetic demo pack, 017 R5 plan-data mapping
 Related: 018 plan-provision evidence (unchanged)
+Extended by: 020 second synthetic R5 demo profile
 Delivers: the seven previously blocked R5 header cells for a synthetic demo case;
 it does not make a real notice producible.
 
@@ -131,8 +132,9 @@ The profile is valid only when:
 
 ## UI
 
-- Case home gains **Create synthetic demo case**. It creates `CW-DEMO-0001`, saves
-  the four synthetic plan facts through the existing audited path, and opens it.
+- Case home gains **Create 2024 synthetic demo case**. It creates `CW-DEMO-0001`,
+  saves the four synthetic plan facts through the existing audited path, and opens
+  it. Spec 020 adds the separate 2023 demo button.
 - The final-document screen shows a **Synthetic demo inputs** note and the seven
   resolved values.
 - The R5 coverage panel shows `Synthetic demo input` status, a separate synthetic

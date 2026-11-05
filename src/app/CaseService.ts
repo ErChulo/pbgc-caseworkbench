@@ -25,8 +25,8 @@ import {
   validatePlanFields,
 } from "../domain/case/validation";
 import {
+  findSyntheticR5DemoCase,
   SYNTHETIC_R5_CASE_ALIAS,
-  SYNTHETIC_R5_PLAN_FACTS,
 } from "../domain/demo/r5SyntheticProfile";
 
 export type SavePlanFieldsOptions = {
@@ -81,21 +81,28 @@ export class CaseService {
   }
 
   /**
-   * Create the explicit synthetic R5 demo case and seed its four catalog facts.
-   * This is development data only; the alias is reserved and cannot be created
+   * Create an explicit synthetic R5 demo case and seed its four catalog facts.
+   * This is development data only; each alias is reserved and cannot be created
    * twice. The facts go through the normal validated, audited save path.
    */
-  async createSyntheticDemoCase(): Promise<CaseRecord> {
+  async createSyntheticDemoCase(
+    profileAlias: string = SYNTHETIC_R5_CASE_ALIAS,
+  ): Promise<CaseRecord> {
+    const demo = findSyntheticR5DemoCase(profileAlias);
+    if (!demo) {
+      throw new Error(`Unknown synthetic demo case ${profileAlias}.`);
+    }
+    const alias = demo.profile.caseAlias;
     const existing = await this.store.listCases();
-    if (existing.some((record) => record.alias === SYNTHETIC_R5_CASE_ALIAS)) {
+    if (existing.some((record) => record.alias === alias)) {
       throw new Error(
-        `The synthetic demo case ${SYNTHETIC_R5_CASE_ALIAS} already exists on this workstation.`,
+        `The synthetic demo case ${alias} already exists on this workstation.`,
       );
     }
     const now = nowIso();
     const record: CaseRecord = {
       caseId: generateId(),
-      alias: SYNTHETIC_R5_CASE_ALIAS,
+      alias,
       status: "active",
       createdAt: now,
       updatedAt: now,
@@ -109,7 +116,7 @@ export class CaseService {
       at: now,
       refs: {},
     });
-    await this.savePlanFields(record.caseId, { ...SYNTHETIC_R5_PLAN_FACTS }, {
+    await this.savePlanFields(record.caseId, { ...demo.facts }, {
       component: "CaseService.createSyntheticDemoCase",
     });
     return (await this.store.getCase(record.caseId)) ?? record;

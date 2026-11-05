@@ -33,9 +33,12 @@ Population stage is unaffected by these demo-only rules.
    provisions have provenance.
 2. **Plan summary** — either create the built-in **synthetic demo case**
    (`CW-DEMO-0001`) from the case home, or enter the case number, plan name, and
-   DOPT from `case-metadata.json`. The demo case seeds those four facts and uses
-   the versioned R5 profile in `src/domain/demo/r5SyntheticProfile.ts`; its seven
-   header values are labelled synthetic and never make the notice producible.
+   DOPT from `case-metadata.json`. The 2024 demo case seeds those four facts and
+   uses the versioned R5 profile in `src/domain/demo/r5SyntheticProfile.ts`; its
+   seven header values are labelled synthetic and never make the notice
+   producible. The case home also offers `CW-DEMO-0002`, a separate fictional
+   2023 profile with its own cited rate and SPARR rows; it is not derived from
+   this 2024 pack.
 3. **Population** — import `census.csv`. It uses the interchange headers
    `participant_key, record_type, status, date_of_birth, date_of_hire,
    date_of_termination, date_of_death`.

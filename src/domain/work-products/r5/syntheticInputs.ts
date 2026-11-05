@@ -256,7 +256,9 @@ export function resolveSyntheticR5Inputs(
       detail: dobf
         ? "Synthetic benefit-freeze amendment PP-11; the Data Dictionary defines bcv1.dobf as Date of Benefit Freeze."
         : "The synthetic plan has no benefit freeze; no date is supplied.",
-      source: "synthetic-r5-profile · plan amendment PP-11",
+      source: dobf
+        ? "synthetic-r5-profile · plan amendment PP-11"
+        : "synthetic-r5-profile · no benefit-freeze amendment",
     },
     [R5_SYNTHETIC_PLACEHOLDER_IDS.planAssets]: {
       value: `${formatUsd(profile.planAssetsUsd)} as of ${assetDate.normalized}`,

@@ -17,7 +17,7 @@ import { sha256HexOfText } from "../../adapters/hashing/sha256";
 import { nowIso } from "../../domain/case/validation";
 import {
   isSyntheticR5DemoCase,
-  syntheticR5DemoResolutionForDopt,
+  syntheticR5DemoResolutionForCase,
 } from "../../domain/demo/r5SyntheticProfile";
 import {
   R5_TEMPLATE_ID,
@@ -221,9 +221,13 @@ export function R5CoveragePanel({ state, onWorkProductCreated, onRecordDecision 
     latestDecisionByKey[decision.decisionKey] = decision.value;
   }
 
-  const synthetic = state.activeCase && isSyntheticR5DemoCase(state.activeCase.alias)
-    ? syntheticR5DemoResolutionForDopt(state.planFacts["cust-dopt"]?.value)
-    : null;
+  const synthetic =
+    state.activeCase && isSyntheticR5DemoCase(state.activeCase.alias)
+      ? syntheticR5DemoResolutionForCase(
+          state.activeCase.alias,
+          state.planFacts["cust-dopt"]?.value,
+        )
+      : null;
   const coverage = evaluateR5Coverage(
     state.planFacts,
     latestDecisionByKey,

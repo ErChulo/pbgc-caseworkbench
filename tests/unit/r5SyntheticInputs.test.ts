@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  SYNTHETIC_R5_2023_PROFILE,
   SYNTHETIC_R5_PROFILE,
   syntheticR5DemoResolution,
-  syntheticR5DemoResolutionForDopt,
+  syntheticR5DemoResolutionForCase,
 } from "../../src/domain/demo/r5SyntheticProfile";
 import {
   R5_HEADER_RATE_SETS,
@@ -14,7 +15,7 @@ import {
 } from "../../src/domain/work-products/r5/syntheticInputs";
 
 describe("synthetic R5 header inputs", () => {
-  it("resolves all seven demo cells from the built-in fictional profile", () => {
+  it("resolves all seven cells from the 2024 fictional profile", () => {
     const resolution = syntheticR5DemoResolution();
 
     expect(resolution.ok).toBe(true);
@@ -44,19 +45,64 @@ describe("synthetic R5 header inputs", () => {
     ).toBe("5.50% for the first 20 years; 4.83% thereafter");
   });
 
-  it("carries the published source for each rate and SPARR cell", () => {
-    const resolution = resolveSyntheticR5Inputs(SYNTHETIC_R5_PROFILE);
+  it("resolves all seven cells from the 2023 fictional profile", () => {
+    const resolution = syntheticR5DemoResolution(SYNTHETIC_R5_2023_PROFILE);
+
     expect(resolution.ok).toBe(true);
     if (!resolution.ok) return;
 
+    expect(Object.keys(resolution.cells)).toHaveLength(7);
+    expect(resolution.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.dotr]?.value).toBe(
+      "2023-10-31",
+    );
+    expect(resolution.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.dobf]?.value).toBe(
+      "No benefit freeze recorded",
+    );
     expect(
-      resolution.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.lumpSumFirst]?.source,
+      resolution.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.planAssets]?.value,
+    ).toBe("$31,750,000 as of 2023-06-30");
+    expect(resolution.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.sparr]?.value).toBe(
+      "7.79% (FY2023)",
+    );
+    expect(
+      resolution.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.lumpSumFirst]?.value,
+    ).toBe("4.91% for the first 5 years");
+    expect(
+      resolution.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.lumpSumSecondThird]?.value,
+    ).toBe("5.15% for years 6-20; 5.34% after 20");
+    expect(
+      resolution.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.annuity]?.value,
+    ).toBe("5.38% for the first 20 years; 5.09% thereafter");
+  });
+
+  it("carries the published source for each rate and SPARR cell", () => {
+    const current = resolveSyntheticR5Inputs(SYNTHETIC_R5_PROFILE);
+    const prior = resolveSyntheticR5Inputs(SYNTHETIC_R5_2023_PROFILE);
+    expect(current.ok).toBe(true);
+    expect(prior.ok).toBe(true);
+    if (!current.ok || !prior.ok) return;
+
+    expect(
+      current.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.lumpSumFirst]?.source,
     ).toContain("IRS Notice 2024-53");
     expect(
-      resolution.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.annuity]?.source,
+      current.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.annuity]?.source,
     ).toContain("4044");
-    expect(resolution.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.sparr]?.source).toContain(
+    expect(current.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.sparr]?.source).toContain(
       "Fiscal Year 2025 Actuarial Report",
+    );
+
+    expect(
+      prior.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.lumpSumFirst]?.source,
+    ).toContain("IRS Notice 2023-48");
+    expect(
+      prior.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.annuity]?.source,
+    ).toContain("4044");
+    expect(prior.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.sparr]?.source).toContain(
+      "Fiscal Year 2024 Actuarial Report",
+    );
+    expect(prior.cells[R5_SYNTHETIC_PLACEHOLDER_IDS.dobf]?.source).toContain(
+      "no benefit-freeze amendment",
     );
   });
 
@@ -129,22 +175,42 @@ describe("synthetic R5 header inputs", () => {
     expect(wrongLookup.issues.join(" ")).toContain("lookupDate must be 2024-05-01");
   });
 
-  it("stops applying the demo profile when the case DOPT diverges", () => {
-    expect(syntheticR5DemoResolutionForDopt("2024-06-30")).toBe(
-      syntheticR5DemoResolution(),
-    );
-    expect(syntheticR5DemoResolutionForDopt("2024-07-31")).toBeNull();
+  it("matches each profile to its own case alias and DOPT", () => {
+    expect(
+      syntheticR5DemoResolutionForCase("CW-DEMO-0001", "2024-06-30"),
+    ).toBe(syntheticR5DemoResolution());
+    expect(
+      syntheticR5DemoResolutionForCase("CW-DEMO-0002", "2023-06-30"),
+    ).toBe(syntheticR5DemoResolution(SYNTHETIC_R5_2023_PROFILE));
+    expect(
+      syntheticR5DemoResolutionForCase("CW-DEMO-0002", "2024-06-30"),
+    ).toBeNull();
+    expect(
+      syntheticR5DemoResolutionForCase("CW-0001", "2024-06-30"),
+    ).toBeNull();
   });
 
   it("keeps the reference tables read-only and exact", () => {
-    expect(R5_HEADER_RATE_SETS).toHaveLength(1);
+    expect(R5_HEADER_RATE_SETS).toHaveLength(2);
     expect(R5_HEADER_RATE_SETS[0]?.lookupDate).toBe("2024-05-01");
     expect(R5_HEADER_RATE_SETS[0]?.lumpSum).toEqual({
       first: 0.0518,
       second: 0.0541,
       third: 0.0562,
     });
+    expect(R5_HEADER_RATE_SETS[1]?.lookupDate).toBe("2023-05-01");
+    expect(R5_HEADER_RATE_SETS[1]?.lumpSum).toEqual({
+      first: 0.0491,
+      second: 0.0515,
+      third: 0.0534,
+    });
+    expect(R5_HEADER_RATE_SETS[1]?.annuity).toEqual({
+      select: 0.0538,
+      selectYears: 20,
+      ultimate: 0.0509,
+    });
     expect(R5_SPARR_ROWS.map((row) => [row.fiscalYear, row.rate])).toEqual([
+      [2023, 0.0779],
       [2024, 0.0846],
       [2025, 0.0308],
     ]);
