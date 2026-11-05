@@ -17,7 +17,7 @@ to produce one and says why.
 | --- | --- |
 | Plan-field slice (4 dictionary-mapped fields) | Working, validated, audited |
 | Evidence intake (hash, duplicate detection, linking) | Working |
-| Image Viewer document classes | Working: 13 intake classes, batch or per-file classification, reclassification audited, and a `X of 13` completeness checklist. Presence is not a finding that a class applies. |
+| Plan-data classes | Working: 18 intake classes in three groups — 13 Image Viewer classes, 4 PBGC plan-record classes, and salary data. Batch or per-file classification, reclassification audited, and a grouped `X of 18` completeness checklist. Presence is not a finding that a class applies. Salary data is intake only. |
 | Calendar age and calendar interval identities | Working, 138 tests |
 | BCV add-in functions | 9 of 54 implemented (ANB, ATT, NRD, NRDA, RETDATE, COMPM, COMPYM, COMPAYM, G515V), each tested against the source's examples |
 | Synthetic demo case pack | `demo/synthetic-plan/`: fictional plan (PP-01 to PP-10), 12-record census, financials, metadata; validated and refused for real cases |
@@ -55,8 +55,11 @@ fallback to unbranded text when the machine is offline.
 2. **Documents** — choose a document type for new files, then drop plan documents.
    The 13 Image Viewer classes cover the census, plan document set, valuation, AFTAPS,
    Form 5500, paid lump sums, loans, check register, 204(h), benefit determinations and
-   selections, QDROs, and disabled participants. Each file is hashed locally with
-   SHA-256 and stored once; importing identical content again is refused and reported.
+   selections, QDROs, and disabled participants. Four PBGC plan-record classes cover CMS
+   screens, the TWG narrative, the PIP, and the trusteeship agreement. Salary data is a
+   separate participant-data class, classified for intake only. Each file is hashed
+   locally with SHA-256 and stored once; importing identical content again is refused
+   and reported.
    A class can be corrected on the file card without changing its bytes, and the
    checklist shows which classes are present. Presence is not a finding that the class
    applies. Link each artifact to the field it supports.
@@ -260,8 +263,8 @@ is finished.
   validation, rule and
   predicate registry integrity, work-product contract/readiness/snapshot identity,
   R5 manifest transcription and coverage, guided R5 questions (reviewer-decision
-  filtering, header prompts, progress), document-class coverage and unclassified
-  handling, the plan-summary document model and its
+  filtering, header prompts, progress), document-class coverage, group counts and
+  unclassified handling, the plan-summary document model and its
   Word package (ZIP structure, escaping, inserted values, byte reproducibility),
   reviewer decisions, participant CSV parsing
   and determination, derived catalog integrity.
@@ -307,7 +310,9 @@ artifacts; the audit log is append-only.
 - No PDF, spreadsheet, or OCR extraction — intake and interpretation are separate steps
   by design, and no parser decision has been recorded. Document classes are intake
   labels; the checklist does not decide whether a class applies or whether a file is
-  complete.
+  complete. Salary data is classified for intake only: no participant salary fields,
+  import, formula mapping, or accrued-benefit assessment are implemented. The PBGC
+  plan-record classes do not call CMS or interpret trusteeship documents.
 - Single browser profile: no multi-user access, no server-side share, no sync.
 - IndexedDB quota applies; large evidence sets need a workstation with room to spare.
 - The final document reproduces the transcribed R5 shell's sections, labels, and

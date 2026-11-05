@@ -1,5 +1,10 @@
 # Spec 013 — Image Viewer document classes and completeness
 
+> **Extended by spec 014.** This spec remains the record of the original 13
+> Image Viewer classes. Spec 014 adds four PBGC plan-record classes and a
+> salary-data intake class; it does not change the classification, audit, or
+> completeness semantics recorded here.
+
 ## Problem
 
 The Documents stage stored every file with identity and integrity metadata only.
@@ -91,8 +96,9 @@ record those determinations explicitly; this one deliberately does not.
 - Integration: import with a class, correct it, prove bytes and hash unchanged,
   and assert the audit event records the previous class. Bundle restore keeps
   the class.
-- Playwright: import a classified document and see `1 of 13 classes added`;
-  import three files in the office flow, reclassify the census file, and see
-  `2 of 13 classes added`.
+- Playwright at the time of this slice: import a classified document and see
+  `1 of 13 classes added`; import three files in the office flow, reclassify the
+  census file, and see `2 of 13 classes added`. After spec 014 the same flows
+  expect `1 of 18` and `2 of 18`.
 - `npm run check`, the production build, both Playwright suites, and the bundle
   round trip pass.

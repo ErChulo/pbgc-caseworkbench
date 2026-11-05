@@ -36,8 +36,10 @@ export type ReviewedFact<T> = {
 };
 
 /**
- * Image Viewer plan-data classes. This is an intake taxonomy, not a statement
- * that every class applies to every plan or that a present file is complete.
+ * Plan-data intake classes. The first thirteen are the Image Viewer taxonomy;
+ * the PBGC plan-record and salary-data classes extend intake without asserting
+ * that a class applies to a plan or that a present file is complete or
+ * authoritative.
  */
 export type DocumentClass =
   | "census"
@@ -52,7 +54,12 @@ export type DocumentClass =
   | "benefit-determinations"
   | "benefit-selections"
   | "qdros"
-  | "disabled";
+  | "disabled"
+  | "cms-screens"
+  | "twg-narrative"
+  | "pip"
+  | "trusteeship-agreement"
+  | "salary-data";
 
 /**
  * An immutable imported source file. Bytes are stored unchanged; `sha256` is
@@ -68,7 +75,7 @@ export type SourceArtifact = {
   byteSize: number;
   sha256: string;
   importedAt: string;
-  /** Image Viewer plan-data class; absent until a reviewer classifies it. */
+  /** Plan-data intake class; absent until a reviewer classifies it. */
   documentClass?: DocumentClass;
   /** Set when an identical file was already present for this case. */
   duplicateOf?: string;
