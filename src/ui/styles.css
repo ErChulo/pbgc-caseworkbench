@@ -767,6 +767,42 @@ button.secondary:hover:not(:disabled) {
   font-weight: 600;
 }
 
+.document-class-group {
+  margin-top: var(--space-4);
+}
+
+.document-class-group:first-of-type {
+  margin-top: var(--space-3);
+}
+
+.document-class-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.document-class-group-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.document-class-group-count {
+  color: var(--color-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.document-class-group-description {
+  margin: 2px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .document-class-list {
   display: grid;
   gap: 0;
@@ -804,6 +840,10 @@ button.secondary:hover:not(:disabled) {
 
 .document-class-status.present {
   color: var(--color-success);
+}
+
+.document-class-group .document-class-list {
+  margin-top: var(--space-2);
 }
 
 /* ------------------------------------------------------------ catalog ----- */

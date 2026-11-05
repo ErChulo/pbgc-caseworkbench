@@ -89,7 +89,24 @@ test("completes the plan-field slice end to end", async ({ page }) => {
     });
   await expect(page.locator(".artifact-name")).toHaveText("synthetic-plan-summary.txt");
   await expect(page.locator(".artifact-card")).toContainText("Plan document set");
-  await expect(page.getByText("1 of 13 classes added")).toBeVisible();
+  await expect(page.getByText("1 of 18 classes added")).toBeVisible();
+  const documentSet = page.locator("#document-set");
+  await expect(
+    documentSet.getByRole("heading", { name: "Image Viewer plan documents" }),
+  ).toBeVisible();
+  await expect(
+    documentSet.getByRole("heading", { name: "PBGC plan record" }),
+  ).toBeVisible();
+  await expect(
+    documentSet.getByRole("heading", { name: "Participant data" }),
+  ).toBeVisible();
+  await expect(
+    documentSet.getByText("PIP (Pension Information Profile)", { exact: true }),
+  ).toBeVisible();
+  await expect(documentSet.getByText("Salary data", { exact: true })).toBeVisible();
+  await expect(
+    page.getByLabel("Document type for new files").locator("option"),
+  ).toHaveCount(19);
   await expect(page.getByText(/SHA-256 [0-9a-f]{20}/)).toBeVisible();
   await expect(page.getByText("Not linked")).toBeVisible();
 

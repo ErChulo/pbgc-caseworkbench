@@ -1,7 +1,7 @@
 /**
  * Evidence intake — import source files, hash them locally, detect duplicates,
- * classify them by Image Viewer plan-data class, and link artifacts to
- * plan-level fields.
+ * classify them by plan-data intake class, and link artifacts to plan-level
+ * fields.
  *
  * Intake is deliberately separate from interpretation: this stage records what
  * the file is and proves it has not changed. It does not extract values, and a
@@ -14,7 +14,7 @@ import type { DerivedFieldEntry } from "../../domain/case/types";
 import type { DocumentClass } from "../../domain/evidence/types";
 import {
   DOCUMENT_CLASSES,
-  documentClassCoverage,
+  documentClassGroupCoverage,
   documentClassLabel,
   unclassifiedArtifactCount,
 } from "../../domain/evidence/documentClasses";
@@ -50,8 +50,11 @@ export function EvidenceStage({ state, actions, fields }: Props) {
   const linksFor = (artifactId: string) =>
     state.links.filter((link) => link.artifactId === artifactId);
 
-  const coverage = documentClassCoverage(state.artifacts);
-  const presentClasses = coverage.filter((entry) => entry.count > 0).length;
+  const groups = documentClassGroupCoverage(state.artifacts);
+  const presentClasses = groups.reduce(
+    (total, group) => total + group.presentClasses,
+    0,
+  );
   const unclassified = unclassifiedArtifactCount(state.artifacts);
 
   async function handleFiles(files: FileList | null) {
@@ -261,35 +264,58 @@ export function EvidenceStage({ state, actions, fields }: Props) {
       <Panel
         id="document-set"
         eyebrow="Document set"
-        title="Image Viewer document classes"
-        description="Track which classes of plan data are present. A class marked added means at least one file was assigned to it."
+        title="Plan-data classes"
+        description="Track which classes of plan data are present, grouped by source. A class marked added means at least one file was assigned to it."
         aside={
           <StatusPill tone={presentClasses === 0 ? "muted" : "success"}>
             {presentClasses} of {DOCUMENT_CLASSES.length} classes added
           </StatusPill>
         }
       >
-        <ul className="document-class-list" aria-label="Document set completeness">
-          {coverage.map((entry) => (
-            <li key={entry.id}>
-              <div>
-                <p className="document-class-name">{entry.label}</p>
-                <p className="document-class-description">{entry.description}</p>
-              </div>
-              <span
-                className={
-                  entry.count > 0
-                    ? "document-class-status present"
-                    : "document-class-status"
-                }
+        {groups.map((group) => (
+          <section
+            key={group.id}
+            className="document-class-group"
+            aria-labelledby={`document-class-group-${group.id}`}
+          >
+            <div className="document-class-group-head">
+              <h3
+                id={`document-class-group-${group.id}`}
+                className="document-class-group-title"
               >
-                {entry.count > 0
-                  ? `${entry.count} ${entry.count === 1 ? "file" : "files"}`
-                  : "Not added"}
+                {group.label}
+              </h3>
+              <span className="document-class-group-count">
+                {group.presentClasses} of {group.classes.length} added
               </span>
-            </li>
-          ))}
-        </ul>
+            </div>
+            <p className="document-class-group-description">{group.description}</p>
+            <ul
+              className="document-class-list"
+              aria-label={`${group.label} completeness`}
+            >
+              {group.classes.map((entry) => (
+                <li key={entry.id}>
+                  <div>
+                    <p className="document-class-name">{entry.label}</p>
+                    <p className="document-class-description">{entry.description}</p>
+                  </div>
+                  <span
+                    className={
+                      entry.count > 0
+                        ? "document-class-status present"
+                        : "document-class-status"
+                    }
+                  >
+                    {entry.count > 0
+                      ? `${entry.count} ${entry.count === 1 ? "file" : "files"}`
+                      : "Not added"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
 
         {unclassified > 0 ? (
           <p className="spec-blocker">
@@ -305,7 +331,8 @@ export function EvidenceStage({ state, actions, fields }: Props) {
         <p className="panel-prose">
           Presence tracks intake, not applicability or completeness. Whether a
           class applies to this plan, and whether a file is complete and
-          authoritative, remains a reviewer determination.
+          authoritative, remains a reviewer determination. Salary data is an
+          intake label only; no salary fields are imported or assessed here.
         </p>
       </Panel>
 

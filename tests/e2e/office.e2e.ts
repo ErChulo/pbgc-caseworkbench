@@ -153,14 +153,26 @@ test("runs a realistic plan offline with zero external requests", async ({ page,
     );
   await expect(page.locator(".artifact-card")).toHaveCount(3);
   await expect(page.getByText(/SHA-256 [0-9a-f]{20}/)).toHaveCount(3);
-  await expect(page.getByText("1 of 13 classes added")).toBeVisible();
+  await expect(page.getByText("1 of 18 classes added")).toBeVisible();
 
   // A batch can be one class; a file can be corrected without changing bytes.
   const censusCard = page.locator(".artifact-card").nth(1);
   await censusCard.getByLabel("Document type").selectOption("census");
   await expect(censusCard.getByLabel("Document type")).toHaveValue("census");
-  await expect(page.getByText("2 of 13 classes added")).toBeVisible();
+  await expect(page.getByText("2 of 18 classes added")).toBeVisible();
+  const documentSet = page.locator("#document-set");
+  await expect(
+    documentSet.getByRole("heading", { name: "PBGC plan record" }),
+  ).toBeVisible();
+  await expect(
+    documentSet.getByRole("heading", { name: "Participant data" }),
+  ).toBeVisible();
   await shotOf(page, "office-document-set", "#document-set");
+  await shotOf(
+    page,
+    "office-document-set-participant",
+    "#document-class-group-participant-data",
+  );
 
   const targets = [
     "Plan Name of Customer Plan",
