@@ -35,7 +35,11 @@ import type {
   PlanFact,
   ReviewerDecision,
 } from "../../domain/case/types";
-import type { EvidenceLink, SourceArtifact } from "../../domain/evidence/types";
+import type {
+  DocumentClass,
+  EvidenceLink,
+  SourceArtifact,
+} from "../../domain/evidence/types";
 import type { ParticipantRecord } from "../../domain/population/types";
 import { generateId, nowIso } from "../../domain/case/validation";
 import { isFileOrigin } from "../../app/environment";
@@ -69,7 +73,11 @@ export type WorkbenchActions = {
   openCase: (caseId: string) => Promise<void>;
   closeCase: () => void;
   savePlanFields: (values: Record<string, unknown>) => Promise<void>;
-  importFiles: (files: File[]) => Promise<void>;
+  importFiles: (files: File[], documentClass?: DocumentClass) => Promise<void>;
+  classifyArtifact: (
+    artifactId: string,
+    documentClass: DocumentClass,
+  ) => Promise<void>;
   importPopulation: (file: File) => Promise<void>;
   linkEvidence: (artifactId: string, fieldId: string) => Promise<void>;
   runAge: (dateOfBirth: string, asOfDate: string) => Promise<void>;
@@ -338,44 +346,76 @@ export function useWorkbench(): {
     }
   }, []);
 
-  const importFiles = useCallback(async (files: File[]) => {
-    const caseId = activeCaseIdRef.current;
-    if (!caseId) return;
-    if (files.length === 0) return;
-    setState((previous) => ({ ...previous, error: null, notice: null }));
-    const messages: string[] = [];
-    try {
-      for (const file of files) {
-        const bytes = await file.arrayBuffer();
-        const outcome = await services.evidenceService.importFile(caseId, {
-          fileName: file.name,
-          mediaType: file.type,
-          bytes,
-        });
-        messages.push(
-          outcome.status === "duplicate"
-            ? `${file.name}: already imported (identical SHA-256).`
-            : `${file.name}: imported.`,
-        );
+  const importFiles = useCallback(
+    async (files: File[], documentClass?: DocumentClass) => {
+      const caseId = activeCaseIdRef.current;
+      if (!caseId) return;
+      if (files.length === 0) return;
+      setState((previous) => ({ ...previous, error: null, notice: null }));
+      const messages: string[] = [];
+      try {
+        for (const file of files) {
+          const bytes = await file.arrayBuffer();
+          const outcome = await services.evidenceService.importFile(caseId, {
+            fileName: file.name,
+            mediaType: file.type,
+            bytes,
+            ...(documentClass ? { documentClass } : {}),
+          });
+          messages.push(
+            outcome.status === "duplicate"
+              ? `${file.name}: already imported (identical SHA-256).`
+              : `${file.name}: imported.`,
+          );
+        }
+        const [artifacts, auditEvents] = await Promise.all([
+          services.evidenceService.listArtifacts(caseId),
+          services.caseService.getAuditEvents(caseId),
+        ]);
+        setState((previous) => ({
+          ...previous,
+          artifacts,
+          auditEvents,
+          notice: messages.join(" "),
+        }));
+      } catch (error) {
+        setState((previous) => ({
+          ...previous,
+          error: messageOf(error),
+          notice: messages.join(" ") || null,
+        }));
       }
-      const [artifacts, auditEvents] = await Promise.all([
-        services.evidenceService.listArtifacts(caseId),
-        services.caseService.getAuditEvents(caseId),
-      ]);
-      setState((previous) => ({
-        ...previous,
-        artifacts,
-        auditEvents,
-        notice: messages.join(" "),
-      }));
-    } catch (error) {
-      setState((previous) => ({
-        ...previous,
-        error: messageOf(error),
-        notice: messages.join(" ") || null,
-      }));
-    }
-  }, []);
+    },
+    [],
+  );
+
+  const classifyArtifact = useCallback(
+    async (artifactId: string, documentClass: DocumentClass) => {
+      const caseId = activeCaseIdRef.current;
+      if (!caseId) return;
+      try {
+        await services.evidenceService.classifyArtifact({
+          caseId,
+          artifactId,
+          documentClass,
+        });
+        const [artifacts, auditEvents] = await Promise.all([
+          services.evidenceService.listArtifacts(caseId),
+          services.caseService.getAuditEvents(caseId),
+        ]);
+        setState((previous) => ({
+          ...previous,
+          artifacts,
+          auditEvents,
+          error: null,
+          notice: "Document type saved.",
+        }));
+      } catch (error) {
+        setState((previous) => ({ ...previous, error: messageOf(error) }));
+      }
+    },
+    [],
+  );
 
   const linkEvidence = useCallback(async (artifactId: string, fieldId: string) => {
     const caseId = activeCaseIdRef.current;
@@ -731,6 +771,7 @@ export function useWorkbench(): {
       closeCase,
       savePlanFields,
       importFiles,
+      classifyArtifact,
       importPopulation,
       linkEvidence,
       runAge,

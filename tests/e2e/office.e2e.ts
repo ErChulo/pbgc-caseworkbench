@@ -137,8 +137,11 @@ test("runs a realistic plan offline with zero external requests", async ({ page,
   await expect(page.getByText("Reviewed", { exact: true })).toHaveCount(4);
   await shot(page, "office-plan-summary");
 
-  // Evidence: three files, hashed locally, each linked to a field.
+  // Evidence: three classified files, hashed locally, each linked to a field.
   await openStage(page, /Documents/);
+  await page
+    .getByLabel("Document type for new files")
+    .selectOption("plan-documents");
   await page
     .getByLabel("Choose evidence files to import")
     .setInputFiles(
@@ -150,6 +153,14 @@ test("runs a realistic plan offline with zero external requests", async ({ page,
     );
   await expect(page.locator(".artifact-card")).toHaveCount(3);
   await expect(page.getByText(/SHA-256 [0-9a-f]{20}/)).toHaveCount(3);
+  await expect(page.getByText("1 of 13 classes added")).toBeVisible();
+
+  // A batch can be one class; a file can be corrected without changing bytes.
+  const censusCard = page.locator(".artifact-card").nth(1);
+  await censusCard.getByLabel("Document type").selectOption("census");
+  await expect(censusCard.getByLabel("Document type")).toHaveValue("census");
+  await expect(page.getByText("2 of 13 classes added")).toBeVisible();
+  await shotOf(page, "office-document-set", "#document-set");
 
   const targets = [
     "Plan Name of Customer Plan",

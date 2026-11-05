@@ -36,8 +36,29 @@ export type ReviewedFact<T> = {
 };
 
 /**
+ * Image Viewer plan-data classes. This is an intake taxonomy, not a statement
+ * that every class applies to every plan or that a present file is complete.
+ */
+export type DocumentClass =
+  | "census"
+  | "plan-documents"
+  | "actuarial-valuation"
+  | "aftaps"
+  | "form-5500"
+  | "paid-lump-sums"
+  | "loans"
+  | "check-registry"
+  | "section-204h"
+  | "benefit-determinations"
+  | "benefit-selections"
+  | "qdros"
+  | "disabled";
+
+/**
  * An immutable imported source file. Bytes are stored unchanged; `sha256` is
- * the integrity anchor and the duplicate-detection key within a case.
+ * the integrity anchor and the duplicate-detection key within a case. The
+ * document class is intake metadata and may be corrected without touching the
+ * bytes or the hash.
  */
 export type SourceArtifact = {
   artifactId: string;
@@ -47,6 +68,8 @@ export type SourceArtifact = {
   byteSize: number;
   sha256: string;
   importedAt: string;
+  /** Image Viewer plan-data class; absent until a reviewer classifies it. */
+  documentClass?: DocumentClass;
   /** Set when an identical file was already present for this case. */
   duplicateOf?: string;
   note?: string;

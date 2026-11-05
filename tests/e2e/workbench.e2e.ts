@@ -75,8 +75,11 @@ test("completes the plan-field slice end to end", async ({ page }) => {
     "2024-06-30",
   );
 
-  // Evidence: import, hash, and link.
+  // Evidence: classify, import, hash, and link.
   await openStage(page, /Documents/);
+  await page
+    .getByLabel("Document type for new files")
+    .selectOption("plan-documents");
   await page
     .getByLabel("Choose evidence files to import")
     .setInputFiles({
@@ -85,6 +88,8 @@ test("completes the plan-field slice end to end", async ({ page }) => {
       buffer: Buffer.from("Synthetic plan summary for the office test.\n"),
     });
   await expect(page.locator(".artifact-name")).toHaveText("synthetic-plan-summary.txt");
+  await expect(page.locator(".artifact-card")).toContainText("Plan document set");
+  await expect(page.getByText("1 of 13 classes added")).toBeVisible();
   await expect(page.getByText(/SHA-256 [0-9a-f]{20}/)).toBeVisible();
   await expect(page.getByText("Not linked")).toBeVisible();
 

@@ -60,6 +60,29 @@ export class IndexedDBEvidenceStore implements ArtifactStore {
     });
   }
 
+  async updateArtifact(artifact: SourceArtifact): Promise<SourceArtifact> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_ARTIFACTS, "readwrite");
+      const store = tx.objectStore(STORE_ARTIFACTS);
+      const request = store.get(artifact.artifactId);
+      request.onerror = () =>
+        reject(request.error ?? new Error("Failed to read artifact metadata."));
+      request.onsuccess = () => {
+        const record = request.result as ArtifactRecord | undefined;
+        if (!record) {
+          reject(new Error(`Artifact not found: ${artifact.artifactId}`));
+          tx.abort();
+          return;
+        }
+        store.put({ ...artifact, bytes: record.bytes });
+      };
+      tx.onabort = () =>
+        reject(new Error("Local storage aborted while updating evidence metadata."));
+      tx.oncomplete = () => resolve({ ...artifact });
+    });
+  }
+
   async listArtifacts(caseId: string): Promise<SourceArtifact[]> {
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
