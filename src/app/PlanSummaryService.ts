@@ -14,6 +14,7 @@ import {
   type PlanSummaryDocument,
   type PlanSummaryFactLookup,
 } from "../domain/work-products/r5/summaryDocument";
+import type { R5SyntheticResolution } from "../domain/work-products/r5/syntheticInputs";
 
 export type PlanSummaryDraft = {
   fileName: string;
@@ -27,12 +28,14 @@ export async function buildPlanSummaryDraft(args: {
   generatedAt: string;
   facts: PlanSummaryFactLookup;
   decisions: PlanSummaryDecisionLookup;
+  synthetic?: R5SyntheticResolution | null;
 }): Promise<PlanSummaryDraft> {
   const document = buildPlanSummaryDocument({
     caseAlias: args.caseAlias,
     generatedAt: args.generatedAt,
     facts: args.facts,
     decisions: args.decisions,
+    synthetic: args.synthetic ?? null,
   });
   const bytes = renderPlanSummaryDocx(document);
   const buffer = bytes.buffer.slice(

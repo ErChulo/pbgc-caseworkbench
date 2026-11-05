@@ -225,6 +225,41 @@ describe("Plan-field vertical slice integration", () => {
     expect(r2.alias).toBe("CW-0002");
   });
 
+  it("creates the reserved synthetic R5 demo case with its four facts", async () => {
+    const record = await service.createSyntheticDemoCase();
+    expect(record.alias).toBe("CW-DEMO-0001");
+
+    const facts = await service.getLatestPlanFacts(record.caseId);
+    expect(facts["cust-dopt"]?.value).toBe("2024-06-30");
+    expect(facts["cust-case-nmbr"]?.value).toBe(9001);
+    expect(facts["cust-plan-nm"]?.value).toContain("fictional");
+    expect(facts.case?.value).toBe("DEMO0001");
+
+    await expect(service.createSyntheticDemoCase()).rejects.toThrow(
+      /already exists/,
+    );
+  });
+
+  it("creates the 2023 synthetic demo case with its own facts", async () => {
+    const first = await service.createSyntheticDemoCase();
+    const second = await service.createSyntheticDemoCase("CW-DEMO-0002");
+    expect(first.alias).toBe("CW-DEMO-0001");
+    expect(second.alias).toBe("CW-DEMO-0002");
+
+    const facts = await service.getLatestPlanFacts(second.caseId);
+    expect(facts["cust-dopt"]?.value).toBe("2023-06-30");
+    expect(facts["cust-case-nmbr"]?.value).toBe(9002);
+    expect(facts["cust-plan-nm"]?.value).toContain("Cedar Ridge");
+    expect(facts.case?.value).toBe("DEMO0002");
+
+    await expect(
+      service.createSyntheticDemoCase("CW-DEMO-0002"),
+    ).rejects.toThrow(/already exists/);
+    await expect(service.createSyntheticDemoCase("not-a-demo")).rejects.toThrow(
+      /Unknown synthetic demo case/,
+    );
+  });
+
   it("saves plan fields and records audit events", async () => {
     const record = await service.createCase();
     const facts = await service.savePlanFields(record.caseId, {

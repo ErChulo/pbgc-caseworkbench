@@ -24,6 +24,10 @@ import {
   nowIso,
   validatePlanFields,
 } from "../domain/case/validation";
+import {
+  findSyntheticR5DemoCase,
+  SYNTHETIC_R5_CASE_ALIAS,
+} from "../domain/demo/r5SyntheticProfile";
 
 export type SavePlanFieldsOptions = {
   /** Restrict validation and writes to these catalog fields. */
@@ -74,6 +78,48 @@ export class CaseService {
       refs: {},
     });
     return record;
+  }
+
+  /**
+   * Create an explicit synthetic R5 demo case and seed its four catalog facts.
+   * This is development data only; each alias is reserved and cannot be created
+   * twice. The facts go through the normal validated, audited save path.
+   */
+  async createSyntheticDemoCase(
+    profileAlias: string = SYNTHETIC_R5_CASE_ALIAS,
+  ): Promise<CaseRecord> {
+    const demo = findSyntheticR5DemoCase(profileAlias);
+    if (!demo) {
+      throw new Error(`Unknown synthetic demo case ${profileAlias}.`);
+    }
+    const alias = demo.profile.caseAlias;
+    const existing = await this.store.listCases();
+    if (existing.some((record) => record.alias === alias)) {
+      throw new Error(
+        `The synthetic demo case ${alias} already exists on this workstation.`,
+      );
+    }
+    const now = nowIso();
+    const record: CaseRecord = {
+      caseId: generateId(),
+      alias,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    };
+    await this.store.createCaseWithAudit(record, {
+      eventId: generateId(),
+      caseId: record.caseId,
+      eventType: "case-created",
+      actor: "local-user",
+      component: "CaseService.createSyntheticDemoCase",
+      at: now,
+      refs: {},
+    });
+    await this.savePlanFields(record.caseId, { ...demo.facts }, {
+      component: "CaseService.createSyntheticDemoCase",
+    });
+    return (await this.store.getCase(record.caseId)) ?? record;
   }
 
   /**

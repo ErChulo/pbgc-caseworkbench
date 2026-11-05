@@ -60,7 +60,11 @@ function paragraph(
 function tableRow(field: PlanSummaryField): string {
   const value = field.value ?? "Not recorded";
   const valueRun = field.value
-    ? run(value)
+    ? `${run(value)}${
+        field.status === "filled-synthetic"
+          ? run(" (synthetic demo input)", { italics: true, color: "7A4B00" })
+          : ""
+      }`
     : run(value, { italics: true, color: "808080" });
   return `<w:tr>
 <w:tc><w:tcPr><w:tcW w:w="3200" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:pStyle w:val="TableText"/></w:pPr>${run(
@@ -101,6 +105,14 @@ function documentXml(document: PlanSummaryDocument, planName: string | null): st
 
   const body: string[] = [];
   body.push(paragraph("Plan Summary", { style: "Title" }));
+  if (document.synthetic) {
+    body.push(
+      paragraph("SYNTHETIC DEMO — NOT A REAL PLAN", {
+        bold: true,
+        color: "7A4B00",
+      }),
+    );
+  }
   if (planName) body.push(paragraph(planName, { style: "Subtitle" }));
   body.push(
     paragraph(`Case ${document.caseAlias}`, { style: "Small" }),

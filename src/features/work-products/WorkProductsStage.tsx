@@ -17,6 +17,10 @@ import { downloadTextFile, openHtmlInNewTab } from "../../app/download";
 import { sha256HexOfText } from "../../adapters/hashing/sha256";
 import { buildCaseSnapshot, freezeCaseSnapshot } from "../../app/WorkProductService";
 import { nowIso } from "../../domain/case/validation";
+import {
+  isSyntheticR5DemoCase,
+  syntheticR5DemoResolutionForCase,
+} from "../../domain/demo/r5SyntheticProfile";
 import { reviewDocumentClasses } from "../../domain/evidence/documentClassApplicability";
 import { requiredClassPolicyStates } from "../../domain/work-products/requiredClassPolicy";
 import {
@@ -32,7 +36,10 @@ import type {
 } from "../../domain/work-products/spec";
 import type { ReadinessCheck } from "../../domain/work-products/readiness";
 import { evaluateR5Coverage } from "../../domain/work-products/r5/coverage";
-import { R5_TEMPLATE_ID } from "../../domain/work-products/r5/manifest";
+import {
+  R5_TEMPLATE_ID,
+  R5_TEMPLATE_MANIFEST,
+} from "../../domain/work-products/r5/manifest";
 import { R5CoveragePanel } from "./R5CoveragePanel";
 import { RequiredClassPolicyPanel } from "./RequiredClassPolicyPanel";
 import type { WorkbenchState } from "../workbench/useWorkbench";
@@ -234,7 +241,19 @@ export function WorkProductsStage({ state, onWorkProductCreated, onRecordDecisio
   for (const decision of state.decisions) {
     latestDecisionByKey[decision.decisionKey] = decision.value;
   }
-  const r5Coverage = evaluateR5Coverage(state.planFacts, latestDecisionByKey);
+  const synthetic =
+    state.activeCase && isSyntheticR5DemoCase(state.activeCase.alias)
+      ? syntheticR5DemoResolutionForCase(
+          state.activeCase.alias,
+          state.planFacts["cust-dopt"]?.value,
+        )
+      : null;
+  const r5Coverage = evaluateR5Coverage(
+    state.planFacts,
+    latestDecisionByKey,
+    R5_TEMPLATE_MANIFEST,
+    synthetic,
+  );
   const documentClassReviews = reviewDocumentClasses(
     state.artifacts,
     state.decisions,

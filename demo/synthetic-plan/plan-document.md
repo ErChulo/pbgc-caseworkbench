@@ -91,6 +91,13 @@ of plan termination, subject to the applicable requirements of Title IV of ERISA
 and the PBGC. This document does not state those requirements and must not be
 read as doing so.
 
+## PP-11 Benefit freeze
+
+Effective January 1, 2021, the plan ceased accruing benefits for all participants.
+The freeze does not change a participant's accrued benefit as of December 31,
+2020, and does not terminate the plan. This synthetic amendment supplies the
+Date of Benefit Freeze used by the R5 header.
+
 ## What this document deliberately does not contain
 
 - No PBGC guarantee table, priority-category rule, or maximum guaranteeable

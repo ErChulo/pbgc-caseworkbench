@@ -6,12 +6,14 @@
  */
 
 import type { CaseRecord } from "../../domain/case/types";
+import { SYNTHETIC_R5_DEMO_CASES } from "../../domain/demo/r5SyntheticProfile";
 import { EmptyState, Panel, StatusPill } from "../../ui/components";
 
 type Props = {
   cases: CaseRecord[];
   activeCase: CaseRecord | null;
   onCreateCase: () => void;
+  onCreateDemoCase: (profileAlias: string) => void;
   onOpenCase: (caseId: string) => void;
   onCloseCase: () => void;
 };
@@ -30,6 +32,7 @@ export function CaseHome({
   cases,
   activeCase,
   onCreateCase,
+  onCreateDemoCase,
   onOpenCase,
   onCloseCase,
 }: Props) {
@@ -47,6 +50,16 @@ export function CaseHome({
           <button className="primary" type="button" onClick={onCreateCase}>
             Create new case
           </button>
+          {SYNTHETIC_R5_DEMO_CASES.map((demo) => (
+            <button
+              key={demo.profile.caseAlias}
+              className="secondary"
+              type="button"
+              onClick={() => onCreateDemoCase(demo.profile.caseAlias)}
+            >
+              Create {demo.label} synthetic demo case
+            </button>
+          ))}
           {activeCase ? (
             <button className="secondary" type="button" onClick={onCloseCase}>
               Close {activeCase.alias}
@@ -68,7 +81,9 @@ export function CaseHome({
         {cases.length === 0 ? (
           <EmptyState title="Nothing to reopen yet">
             <p>
-              Create a case to start the plan-field slice. Each case gets a
+              Create a case to start the plan-field slice, or use a synthetic
+              demo case to see the R5 header cells resolved from fictional plan
+              inputs and cited reference data. Each ordinary case gets a
               synthetic alias such as <code>CW-0001</code>.
             </p>
           </EmptyState>

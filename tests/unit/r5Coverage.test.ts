@@ -5,6 +5,7 @@ import {
   R5_TEMPLATE_MANIFEST,
 } from "../../src/domain/work-products/r5/manifest";
 import { evaluateR5Coverage } from "../../src/domain/work-products/r5/coverage";
+import { syntheticR5DemoResolution } from "../../src/domain/demo/r5SyntheticProfile";
 import {
   R5_COVERAGE_SPEC_ID,
   REVIEW_COPY_SPEC_ID,
@@ -158,6 +159,29 @@ describe("R5 coverage", () => {
       ]),
     );
     for (const row of blocked) expect(row.detail.length).toBeGreaterThan(20);
+  });
+
+  it("resolves the seven demo-header cells without making the notice producible", () => {
+    const synthetic = syntheticR5DemoResolution();
+    expect(synthetic.ok).toBe(true);
+    const coverage = evaluateR5Coverage(
+      {
+        ...reviewedFacts,
+        "cust-dopt": { value: "2024-06-30" },
+      },
+      {},
+      R5_TEMPLATE_MANIFEST,
+      synthetic,
+    );
+    expect(coverage.resolvedSynthetic).toBe(7);
+    expect(coverage.resolved).toBe(10);
+    expect(coverage.blocked).toBe(0);
+    expect(coverage.pending).toBe(71);
+    expect(coverage.unresolved).toBe(71);
+    expect(coverage.ready).toBe(false);
+    expect(
+      coverage.rows.find((row) => row.placeholderId === "r5.dotr"),
+    ).toMatchObject({ status: "resolved-synthetic", synthetic: true });
   });
 
   it("records the shell sample values as needing replacement", () => {

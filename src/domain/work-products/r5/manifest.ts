@@ -209,16 +209,18 @@ const HEADER: R5Placeholder[] = [
   {
     placeholderId: "r5.lump-sum-immediate-rate",
     section: "PBGC Lump Sum Rates",
-    label: "Immediate Rate:",
+    label: "First Segment:",
     source: { kind: "calculation", calculationId: "calculation.r5-lump-sum-immediate" },
     required: true,
   },
   {
     placeholderId: "r5.lump-sum-deferral-rate",
     section: "PBGC Lump Sum Rates",
-    label: "Deferral Rate:",
+    label: "Second and Third Segments:",
     source: { kind: "calculation", calculationId: "calculation.r5-lump-sum-deferral" },
     required: true,
+    note:
+      "The shell's modern lump-sum header has three segments. This cell records the second and third segments together; it does not represent the legacy Immediate/Deferral two-rate structure.",
   },
   {
     placeholderId: "r5.annuity-rate",

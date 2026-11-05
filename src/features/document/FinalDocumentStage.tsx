@@ -13,6 +13,10 @@ import { buildPlanSummaryDraft } from "../../app/PlanSummaryService";
 import type { StageId } from "../../app/stages";
 import type { DecisionCitation } from "../../domain/case/types";
 import { nowIso } from "../../domain/case/validation";
+import {
+  isSyntheticR5DemoCase,
+  syntheticR5DemoResolutionForCase,
+} from "../../domain/demo/r5SyntheticProfile";
 import { R5_TEMPLATE_MANIFEST } from "../../domain/work-products/r5/manifest";
 import {
   r5DecisionSections,
@@ -83,13 +87,26 @@ export function FinalDocumentStage({
     citationByKey[decision.decisionKey] = decision.citation;
   }
 
+  const synthetic = isSyntheticR5DemoCase(caseRecord.alias)
+    ? syntheticR5DemoResolutionForCase(
+        caseRecord.alias,
+        state.planFacts["cust-dopt"]?.value,
+      )
+    : null;
   const document = buildPlanSummaryDocument({
     caseAlias: caseRecord.alias,
     generatedAt,
     facts: state.planFacts,
     decisions: latestDecisionByKey,
+    synthetic,
   });
   const header = headerFields(document);
+  const syntheticLabels = new Map(
+    R5_TEMPLATE_MANIFEST.placeholders.map((placeholder) => [
+      placeholder.placeholderId,
+      placeholder.label.replace(/:$/, ""),
+    ]),
+  );
   const sections = provisionSections(document);
   const questionSections = r5DecisionSections(latestDecisionByKey);
   const questionTotals = r5QuestionTotals(questionSections);
@@ -142,6 +159,7 @@ export function FinalDocumentStage({
         generatedAt,
         facts: state.planFacts,
         decisions: latestDecisionByKey,
+        synthetic,
       });
       downloadBytes(
         draft.fileName,
@@ -203,6 +221,13 @@ export function FinalDocumentStage({
           <div className="doc-layout">
             <section className="doc-paper" aria-label="Plan summary preview">
               <p className="doc-paper-eyebrow">Plan Summary</p>
+              {document.synthetic ? (
+                <p className="spec-blocker">
+                  <strong>SYNTHETIC DEMO — NOT A REAL PLAN.</strong> The header
+                  values marked synthetic come from the fictional demo profile and
+                  cited reference tables. They are not reviewed case data.
+                </p>
+              ) : null}
               <h3>
                 {header.find((row) => row.placeholderId === "r5.plan-name")?.value ??
                   "Plan name not recorded"}
@@ -242,6 +267,26 @@ export function FinalDocumentStage({
             </section>
 
             <div className="doc-side">
+              {synthetic?.ok ? (
+                <section aria-labelledby="synthetic-inputs-title">
+                  <h3 id="synthetic-inputs-title" className="doc-side-title">
+                    Synthetic demo inputs
+                  </h3>
+                  <p className="doc-side-note">
+                    Fictional plan inputs and cited reference values. They are not
+                    reviewed case data and never make the notice producible.
+                  </p>
+                  <dl className="key-value-list">
+                    {Object.entries(synthetic.cells).map(([placeholderId, cell]) => (
+                      <div key={placeholderId} className="key-value">
+                        <dt>{syntheticLabels.get(placeholderId) ?? placeholderId}</dt>
+                        <dd>{cell.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+              ) : null}
+
               <section aria-labelledby="doc-ready-title">
                 <h3 id="doc-ready-title" className="doc-side-title">
                   Before you download

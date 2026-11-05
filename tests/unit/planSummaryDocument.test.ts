@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  SYNTHETIC_R5_2023_PROFILE,
+  syntheticR5DemoResolution,
+} from "../../src/domain/demo/r5SyntheticProfile";
+import {
   buildPlanSummaryDocument,
   headerFields,
   provisionSections,
@@ -76,6 +80,57 @@ describe("plan summary document model", () => {
     expect(document_.totals.total).toBeGreaterThan(60);
     expect(document_.sections[0]?.label).toBe("Header");
     expect(document_.totals.filled).toBe(4);
+  });
+
+  it("marks synthetic demo values as synthetic and keeps totals distinct", () => {
+    const syntheticDocument = buildPlanSummaryDocument({
+      caseAlias: "CW-DEMO-0001",
+      generatedAt,
+      facts: {
+        ...facts,
+        "cust-dopt": { value: "2024-06-30" },
+      },
+      decisions,
+      synthetic: syntheticR5DemoResolution(),
+    });
+    const header = headerFields(syntheticDocument);
+
+    expect(syntheticDocument.synthetic).toBe(true);
+    expect(syntheticDocument.totals.synthetic).toBe(7);
+    expect(syntheticDocument.totals.filled).toBe(11);
+    expect(syntheticDocument.totals.blocked).toBe(0);
+    const dotr = header.find((row) => row.placeholderId === "r5.dotr");
+    expect(dotr).toMatchObject({
+      value: "2024-10-31",
+      status: "filled-synthetic",
+    });
+    expect(dotr?.note).toContain("Synthetic demo input");
+  });
+
+  it("resolves the second demo profile's own dates and rates", () => {
+    const priorDocument = buildPlanSummaryDocument({
+      caseAlias: "CW-DEMO-0002",
+      generatedAt,
+      facts: {
+        ...facts,
+        "cust-dopt": { value: "2023-06-30" },
+      },
+      decisions,
+      synthetic: syntheticR5DemoResolution(SYNTHETIC_R5_2023_PROFILE),
+    });
+    const header = headerFields(priorDocument);
+
+    expect(priorDocument.totals.synthetic).toBe(7);
+    expect(header.find((row) => row.placeholderId === "r5.dotr")).toMatchObject({
+      value: "2023-10-31",
+      status: "filled-synthetic",
+    });
+    expect(header.find((row) => row.placeholderId === "r5.dobf")?.value).toBe(
+      "No benefit freeze recorded",
+    );
+    expect(header.find((row) => row.placeholderId === "r5.sparr")?.value).toBe(
+      "7.79% (FY2023)",
+    );
   });
 
   it("is deterministic for the same case state", () => {
