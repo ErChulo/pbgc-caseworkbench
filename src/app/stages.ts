@@ -1,6 +1,11 @@
 /**
  * Stage definitions for the case rail.
  *
+ * The rail is deliberately two-tier. Four guided steps cover the work a new
+ * actuary does in order; the rule, calculation, reconciliation, and export
+ * stages live behind "Review details" because they are evidence for a reviewer,
+ * not steps in preparing the plan summary.
+ *
  * `implemented: false` marks a stage whose governing rule or schema is not yet
  * authorized. Those stages are shown, but disabled with the reason attached:
  * a stage that silently does nothing is worse than one that says why.
@@ -11,6 +16,7 @@ export type StageId =
   | "evidence"
   | "plan"
   | "population"
+  | "document"
   | "rules"
   | "calculations"
   | "reconciliation"
@@ -25,33 +31,49 @@ export type StageDefinition = {
   blockedBy: string | null;
 };
 
+export type GuidedStep = {
+  number: number;
+  label: string;
+  description: string;
+  /** Stages this step covers; the rail marks the step current for any of them. */
+  stageIds: readonly StageId[];
+  /** Stage opened when the step is selected. */
+  defaultStage: StageId;
+};
+
 export const STAGES: readonly StageDefinition[] = [
   {
     id: "home",
-    label: "Case home",
+    label: "Case",
     purpose: "Create, open, or close a local case.",
     implemented: true,
     blockedBy: null,
   },
   {
     id: "evidence",
-    label: "Evidence",
-    purpose: "Import source files, verify their hashes, and link them to fields.",
+    label: "Documents",
+    purpose: "Add the plan document and other source files, with their hashes.",
     implemented: true,
     blockedBy: null,
   },
   {
     id: "plan",
     label: "Plan summary",
-    purpose: "Capture reviewed plan-level fields with dictionary provenance.",
+    purpose: "Record the plan-level facts the summary needs.",
     implemented: true,
     blockedBy: null,
   },
   {
     id: "population",
-    label: "Population",
-    purpose:
-      "Import participant records with source provenance and see which determinations remain blocked by unresolved rules.",
+    label: "People",
+    purpose: "Import the participant census and see which people still need review.",
+    implemented: true,
+    blockedBy: null,
+  },
+  {
+    id: "document",
+    label: "Final document",
+    purpose: "Preview the plan summary and download it with the plan data inserted.",
     implemented: true,
     blockedBy: null,
   },
@@ -92,8 +114,53 @@ export const STAGES: readonly StageDefinition[] = [
   },
 ];
 
+export const GUIDED_STEPS: readonly GuidedStep[] = [
+  {
+    number: 1,
+    label: "Case",
+    description: "Create or open a local case.",
+    stageIds: ["home"],
+    defaultStage: "home",
+  },
+  {
+    number: 2,
+    label: "Documents",
+    description: "Add the source documents for this plan.",
+    stageIds: ["evidence"],
+    defaultStage: "evidence",
+  },
+  {
+    number: 3,
+    label: "Plan & people",
+    description: "Record the plan facts and import the census.",
+    stageIds: ["plan", "population"],
+    defaultStage: "plan",
+  },
+  {
+    number: 4,
+    label: "Final document",
+    description: "Preview and download the filled plan summary.",
+    stageIds: ["document"],
+    defaultStage: "document",
+  },
+];
+
+/** Reviewer and audit stages, kept out of the guided sequence. */
+export const TECHNICAL_STAGE_IDS: readonly StageId[] = [
+  "rules",
+  "calculations",
+  "reconciliation",
+  "work-products",
+  "review",
+];
+
 export function stageById(id: StageId): StageDefinition {
   const stage = STAGES.find((entry) => entry.id === id);
   if (!stage) throw new Error(`Unknown stage: ${id}`);
   return stage;
+}
+
+/** The guided step containing a stage, or undefined for a review stage. */
+export function guidedStepForStage(stage: StageId): GuidedStep | undefined {
+  return GUIDED_STEPS.find((step) => step.stageIds.includes(stage));
 }

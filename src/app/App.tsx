@@ -15,8 +15,14 @@ import { CalculationsStage } from "../features/calculations/CalculationsStage";
 import { ReconciliationStage } from "../features/reconciliation/ReconciliationStage";
 import { WorkProductsStage } from "../features/work-products/WorkProductsStage";
 import { ReviewStage } from "../features/review/ReviewStage";
+import { FinalDocumentStage } from "../features/document/FinalDocumentStage";
 import { useWorkbench } from "../features/workbench/useWorkbench";
-import { STAGES } from "./stages";
+import {
+  GUIDED_STEPS,
+  STAGES,
+  TECHNICAL_STAGE_IDS,
+  guidedStepForStage,
+} from "./stages";
 import { BlockedNotice, StatusPill } from "../ui/components";
 import logoUrl from "../assets/brand/pbgc-logo-text-banner-wt.png";
 import { FILE_ORIGIN_MESSAGE, isFileOrigin } from "./environment";
@@ -99,6 +105,14 @@ export function App() {
         );
       case "reconciliation":
         return <ReconciliationStage state={state} fields={catalog.fields} />;
+      case "document":
+        return (
+          <FinalDocumentStage
+            state={state}
+            onWorkProductCreated={actions.recordWorkProduct}
+            onSetStage={actions.setStage}
+          />
+        );
       case "work-products":
         return (
           <WorkProductsStage
@@ -132,31 +146,60 @@ export function App() {
           <span className="brand-sub">Case Workbench</span>
         </div>
 
-        <nav aria-label="Case stage navigation">
+        <nav aria-label="Case steps">
           <ol className="stage-list">
-            {STAGES.map((stage, index) => {
-              const current = stage.id === state.stage;
-              const disabled = !stage.implemented;
+            {GUIDED_STEPS.map((step) => {
+              const current = step.stageIds.includes(state.stage);
               return (
-                <li key={stage.id}>
+                <li key={step.number}>
                   <button
                     className={current ? "stage active" : "stage"}
                     type="button"
                     aria-current={current ? "step" : undefined}
-                    aria-disabled={disabled || undefined}
-                    disabled={disabled}
-                    title={disabled ? stage.blockedBy ?? "Not available" : stage.purpose}
-                    onClick={() => actions.setStage(stage.id)}
+                    title={step.description}
+                    onClick={() => actions.setStage(step.defaultStage)}
                   >
-                    <span className="stage-number">{index + 1}</span>
-                    <span className="stage-label">{stage.label}</span>
-                    {disabled ? <span className="stage-flag">planned</span> : null}
+                    <span className="stage-number">{step.number}</span>
+                    <span className="stage-label">{step.label}</span>
                   </button>
                 </li>
               );
             })}
           </ol>
         </nav>
+
+        <details className="rail-details">
+          <summary>Review details</summary>
+          <p className="rail-hint">
+            Rules, calculations, reconciliation, work products, and export.
+          </p>
+          <nav aria-label="Review and audit stages">
+            <ol className="stage-list">
+              {STAGES.filter((stage) =>
+                TECHNICAL_STAGE_IDS.includes(stage.id),
+              ).map((stage) => {
+                const current = stage.id === state.stage;
+                const disabled = !stage.implemented;
+                return (
+                  <li key={stage.id}>
+                    <button
+                      className={current ? "stage active" : "stage"}
+                      type="button"
+                      aria-current={current ? "step" : undefined}
+                      aria-disabled={disabled || undefined}
+                      disabled={disabled}
+                      title={disabled ? stage.blockedBy ?? "Not available" : stage.purpose}
+                      onClick={() => actions.setStage(stage.id)}
+                    >
+                      <span className="stage-label">{stage.label}</span>
+                      {disabled ? <span className="stage-flag">planned</span> : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
+        </details>
 
         <div className="rail-footer">
           <p>Local only</p>
@@ -232,6 +275,28 @@ export function App() {
               aria-label="Dismiss message"
             >
               ×
+            </button>
+          </div>
+        ) : null}
+
+        {state.activeCase &&
+        (state.stage === "plan" || state.stage === "population") ? (
+          <div className="step-switch" role="group" aria-label="Plan and people">
+            <button
+              type="button"
+              aria-pressed={state.stage === "plan"}
+              className={state.stage === "plan" ? "active" : undefined}
+              onClick={() => actions.setStage("plan")}
+            >
+              Plan details
+            </button>
+            <button
+              type="button"
+              aria-pressed={state.stage === "population"}
+              className={state.stage === "population" ? "active" : undefined}
+              onClick={() => actions.setStage("population")}
+            >
+              People
             </button>
           </div>
         ) : null}

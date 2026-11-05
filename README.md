@@ -25,6 +25,7 @@ to produce one and says why.
 | Aggregate limit on PBGC funds | Implemented: cited §4022B arithmetic; the guarantee table itself is a required, provenanced input |
 | Other PBGC provisions (§4022(c), guarantee table, §4044 tiers) | Listed and **blocked** |
 | Population stage | Working: CSV import, per-record provenance, calendar age; benefit amounts **blocked** |
+| Guided flow and final document | Four steps — Case, Documents, Plan & people, Final document. The final document inserts the case's plan data into the transcribed R5 shell structure and downloads a real `.docx`; every unrecorded cell is marked "Not recorded". It is generated from the manifest, not a byte-preserving fill of the corpus shell file. |
 | Work products | 15 contracts registered: review copy, R5 template coverage, and participant register producible; R1/R5 notice/V1/DEL/PF/BSRS/§436/EBA/AMB/closeout/memo blocked with reasons; reviewer decisions recordable per cell |
 | Field dictionary | 1,172 records across 12 tables |
 | Bundle export / restore | Working, hashed manifest, restores as a new case |
@@ -49,22 +50,22 @@ fallback to unbranded text when the machine is offline.
 
 ## The office test walkthrough
 
-1. **Case home** — create a case. It receives a synthetic alias such as `CW-0001`.
-2. **Evidence** — drop plan documents. Each file is hashed locally with SHA-256 and
+1. **Case** — create a case. It receives a synthetic alias such as `CW-0001`.
+2. **Documents** — drop plan documents. Each file is hashed locally with SHA-256 and
    stored once; importing identical content again is refused and reported. Link each
    artifact to the field it supports.
-3. **Plan summary** — the four dictionary-mapped fields. Validation is per field, and
+3. **Plan & people → Plan details** — the four dictionary-mapped fields. Validation is per field, and
    each value carries its Data Dictionary row, workbook hash, review status, and the
    catalog version that produced it. `Browse field dictionary` opens the full 1,172-record
    index with search and table/classification filters.
-4. **Population** — import a participant CSV (one row per person, synthetic or
+4. **Plan & people → People** — import a participant CSV (one row per person, synthetic or
    pseudonymous keys only). The file is stored as evidence first, every record keeps its
    artifact hash and row number, and an invalid row rejects the whole file. Ages at the
    DOPT are computed; every benefit amount is shown as blocked by the unresolved rules.
    Download the participant register from here.
-5. **Rules & assumptions** — every rule the workbench may run, with its citation, and
+5. **Review details → Rules & assumptions** — every rule the workbench may run, with its citation, and
    every provision that is blocked with the reason.
-6. **Calculations** — three runnable provision runs plus a BCV add-in tool. Age at a date is a calendar identity. The
+6. **Review details → Calculations** — three runnable provision runs plus a BCV add-in tool. Age at a date is a calendar identity. The
    Earliest PBGC Retirement Date applies the cited age-55 floor: the earlier of the plan's
    Earliest Annuity Date and age 55, with the facts-and-circumstances exception left as a
    reviewer decision. The Aggregate Limit applies ERISA §4022B to a payee with two or more
@@ -78,11 +79,19 @@ fallback to unbranded text when the machine is offline.
    RETDATE, COMPM, COMPYM, COMPAYM, G515V) and shows the source page, formula, rule
    ids, intermediates and warnings; refusals carry the add-in's own error code where
    the page documents one, and every run is audited.
-7. **Reconciliation** — required fields reviewed, evidence linked, facts with
+7. **Review details → Reconciliation** — required fields reviewed, evidence linked, facts with
    provenance, blocked provisions, control totals.
-8. **Work products** — generate the plan summary review copy (HTML) with its own
+8. **Review details → Work products** — generate the plan summary review copy (HTML) with its own
    SHA-256, and see which work products remain blocked.
-9. **Review & export** — the append-only audit trail, bundle export, and bundle restore.
+9. **Review details → Review & export** — the append-only audit trail, bundle export, and bundle restore.
+
+**Final document** is the output step. It previews the plan summary with the recorded
+plan name, case number, termination date, and every reviewer decision already inserted,
+shows what is still missing in plain language, and downloads
+`CW-NNNN-plan-summary-draft.docx`. The Word file contains the transcribed R5 header and
+all 60 plan provisions; a cell without a recorded value says "Not recorded" rather than
+borrowing the shell's sample text. Technical template ids, hashes, rules, and formulas
+live under **Review details**, so they never obscure the document itself.
 
 Reloading the page reopens the last case without writing audit events. Closing a case
 returns to the case list and deletes nothing.
@@ -241,16 +250,18 @@ is finished.
   and interval identities,
   validation, rule and
   predicate registry integrity, work-product contract/readiness/snapshot identity,
-  R5 manifest transcription and coverage, reviewer decisions, participant CSV parsing
+  R5 manifest transcription and coverage, the plan-summary document model and its
+  Word package (ZIP structure, escaping, inserted values, byte reproducibility),
+  reviewer decisions, participant CSV parsing
   and determination, derived catalog integrity.
 - `tests/contract` — `CaseStore` and `PopulationStore` behavior across the in-memory and
   IndexedDB adapters.
 - `tests/integration` — the plan-field slice end to end, and bundle round trip.
 - `tests/e2e` — Playwright in real Chromium against the production build: create, validate,
   save, reload, import and link evidence, refuse a duplicate by hash, run a calculation
-  and a BCV add-in function,
-  generate a review copy, export a bundle, restore it as a new case, and confirm that a
-  reload writes no audit events.
+  and a BCV add-in function, download the filled Word plan summary, generate a review
+  copy, export a bundle, restore it as a new case, and confirm that a reload writes no
+  audit events.
 - `tests/e2e/office.e2e.ts` — the handover conditions: every request outside the app's
   own origin is aborted and asserted to be zero, the browser is taken offline for the
   interactive flow, a realistic synthetic plan runs through entry, validation, evidence,
@@ -285,7 +296,11 @@ artifacts; the audit log is append-only.
   by design, and no parser decision has been recorded.
 - Single browser profile: no multi-user access, no server-side share, no sync.
 - IndexedDB quota applies; large evidence sets need a workstation with room to spare.
-- The review copy is HTML for review and printing, not a faithful R5 workbook.
+- The final document reproduces the transcribed R5 shell's sections, labels, and
+  placeholders from `src/domain/work-products/r5/manifest.ts`; it does not modify the
+  corpus `.docx` itself, which is not in this repository. The shell's header rates and
+  seven calculation cells stay "Not recorded" until those rules are authorized.
+- The review copy remains HTML for review and printing, not a faithful R5 workbook.
 - The EPRD facts-and-circumstances determination is a PBGC judgment; the workbench only
   computes and validates the age-55 floor and accepts a reviewer-recorded earlier date.
   Pre-2002 DOPTs and plan-specific trusteed-date distinctions are refused, not valued.

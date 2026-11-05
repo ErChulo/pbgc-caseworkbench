@@ -667,7 +667,7 @@ export function useWorkbench(): {
         setState((previous) => ({
           ...previous,
           auditEvents,
-          notice: `Generated ${info.fileName} from snapshot ${info.snapshotSha256.slice(0, 12)}.`,
+          notice: `Added ${info.fileName} to the case record.`,
         }));
       } catch (error) {
         setState((previous) => ({ ...previous, error: messageOf(error) }));

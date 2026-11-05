@@ -11,7 +11,11 @@ import { expect, test, type Page } from "@playwright/test";
 const SCREENSHOTS = "artifacts/screenshots";
 
 async function openStage(page: Page, name: RegExp): Promise<void> {
-  await page.getByRole("button", { name }).click();
+  const button = page.getByRole("button", { name });
+  if (!(await button.isVisible())) {
+    await page.locator("summary", { hasText: "Review details" }).click();
+  }
+  await button.click();
 }
 
 /** Viewport screenshot from the top of the stage, for documentation. */
@@ -33,11 +37,11 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Case workbench" })).toBeVisible();
   await expect(page.getByRole("img", { name: "PBGC" })).toBeVisible();
   await expect(page.getByText("Create or open a case to begin")).toBeVisible();
-  await expect(page.getByRole("button", { name: /Population/ })).toBeEnabled();
+  await expect(page.getByRole("button", { name: /Plan & people/ })).toBeEnabled();
 
   await page.getByRole("button", { name: "Create new case" }).click();
   await expect(page.getByRole("heading", { name: "Plan-level fields" })).toBeVisible();
-  await expect(page.locator(".stage[aria-current='step']")).toHaveText(/Plan summary/);
+  await expect(page.locator(".stage[aria-current='step']")).toHaveText(/Plan & people/);
 
   // Empty submit reports every required field, per field.
   await page.getByRole("button", { name: "Save plan fields" }).click();
@@ -71,7 +75,7 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   );
 
   // Evidence: import, hash, and link.
-  await openStage(page, /Evidence/);
+  await openStage(page, /Documents/);
   await page
     .getByLabel("Choose evidence files to import")
     .setInputFiles({
@@ -99,7 +103,8 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await expect(page.getByText(/already imported \(identical SHA-256\)/)).toBeVisible();
 
   // Population: import participant records, see the age, keep benefits blocked.
-  await openStage(page, /Population/);
+  await openStage(page, /Plan & people/);
+  await page.getByRole("button", { name: "People", exact: true }).click();
   await page.getByLabel("Choose participant CSV to import").setInputFiles({
     name: "synthetic-participants.csv",
     mimeType: "text/csv",
@@ -118,6 +123,21 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await page.getByRole("button", { name: "Download participant register" }).click();
   expect((await registerDownload).suggestedFilename()).toMatch(/participant-register\.html$/);
   await shot(page, "population");
+
+  // Final document: plan data is inserted, and the Word draft downloads.
+  await openStage(page, /Final document/);
+  await expect(page.getByRole("heading", { name: "Your plan summary" })).toBeVisible();
+  await expect(page.locator(".doc-paper")).toContainText("Synthetic Office Test Plan");
+  await expect(page.locator(".doc-paper")).toContainText("1001");
+  await expect(page.locator(".doc-paper")).toContainText("2024-06-30");
+  await expect(page.getByText("Census imported")).toBeVisible();
+  const documentDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download plan summary (Word)" }).click();
+  expect((await documentDownload).suggestedFilename()).toMatch(
+    /plan-summary-draft\.docx$/,
+  );
+  await expect(page.getByText("Downloaded.")).toBeVisible();
+  await shot(page, "final-document");
 
   // Rules: the blocked provisions are visible and labelled.
   await openStage(page, /Rules & assumptions/);
@@ -202,7 +222,7 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await expect(page.locator(".audit-table tbody tr")).toHaveCount(auditRows + 1);
 
   // Close returns to the case list without deleting anything.
-  await openStage(page, /Case home/);
+  await openStage(page, /Case$/);
   await page.getByRole("button", { name: /Close CW-0001/ }).click();
   await expect(page.getByText("Create or open a case to begin")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Cases on this workstation" })).toBeVisible();
@@ -232,7 +252,7 @@ test("restores a bundle into a new case without overwriting the open one", async
 
   // The restore is a new case with a new alias, and the facts came with it.
   await expect(page.getByText("Active case")).toBeVisible();
-  await openStage(page, /Case home/);
+  await openStage(page, /Case$/);
   await expect(page.locator(".case-list-item")).toHaveCount(2);
   await expect(page.locator(".case-list-item", { hasText: "CW-0002" })).toBeVisible();
 });

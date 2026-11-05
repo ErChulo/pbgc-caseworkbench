@@ -35,7 +35,11 @@ async function blockExternal(context: BrowserContext): Promise<string[]> {
 }
 
 async function openStage(page: Page, name: RegExp): Promise<void> {
-  await page.getByRole("button", { name }).click();
+  const button = page.getByRole("button", { name });
+  if (!(await button.isVisible())) {
+    await page.locator("summary", { hasText: "Review details" }).click();
+  }
+  await button.click();
 }
 
 async function shot(page: Page, name: string): Promise<void> {
@@ -134,7 +138,7 @@ test("runs a realistic plan offline with zero external requests", async ({ page,
   await shot(page, "office-plan-summary");
 
   // Evidence: three files, hashed locally, each linked to a field.
-  await openStage(page, /Evidence/);
+  await openStage(page, /Documents/);
   await page
     .getByLabel("Choose evidence files to import")
     .setInputFiles(
