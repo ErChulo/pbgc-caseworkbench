@@ -282,7 +282,8 @@ is finished.
 - `tests/contract` — `CaseStore` and `PopulationStore` behavior across the in-memory and
   IndexedDB adapters.
 - `tests/integration` — the plan-field slice end to end, and bundle round trip
-  including a document-class applicability decision.
+  including a document-class applicability decision and a superseded required-class
+  policy that remains current after restore.
 - `tests/e2e` — Playwright in real Chromium against the production build: create, validate,
   save, reload, import classified evidence, reclassify a file, link evidence, refuse a
   duplicate by hash, run a calculation

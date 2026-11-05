@@ -21,6 +21,12 @@ import { EvidenceService } from "../../src/app/EvidenceService";
 import { InMemoryCaseStore } from "../../src/adapters/storage/InMemoryCaseStore";
 import type { ArtifactStore } from "../../src/domain/ports/ArtifactStore";
 import type { EvidenceLink, SourceArtifact } from "../../src/domain/evidence/types";
+import { REVIEW_COPY_SPEC_ID } from "../../src/domain/work-products/registry";
+import {
+  REQUIRED_CLASS_POLICY_SPEC_ID,
+  requiredClassPolicyDecisionKey,
+  requiredClassPolicyStates,
+} from "../../src/domain/work-products/requiredClassPolicy";
 
 class InMemoryArtifactStore implements ArtifactStore {
   private readonly artifacts = new Map<string, SourceArtifact>();
@@ -222,6 +228,71 @@ describe("case bundle round trip", () => {
     for (let i = 1; i < events.length; i += 1) {
       expect(events[i]!.sequence!).toBeGreaterThan(events[i - 1]!.sequence!);
     }
+  });
+
+  it("restores a superseded required-class policy and keeps its latest value current", async () => {
+    const { cases, artifacts, caseService, record, bytes, links } = await buildFixture();
+    const decisionKey = requiredClassPolicyDecisionKey(REVIEW_COPY_SPEC_ID);
+    const first = await caseService.recordDecision({
+      caseId: record.caseId,
+      decisionKey,
+      specId: REQUIRED_CLASS_POLICY_SPEC_ID,
+      value: "census",
+      rationale: "Synthetic basis: the review copy requires census data.",
+    });
+    const current = await caseService.recordDecision({
+      caseId: record.caseId,
+      decisionKey,
+      specId: REQUIRED_CLASS_POLICY_SPEC_ID,
+      value: "plan-documents",
+      rationale: "Synthetic superseding basis: the review copy requires plan documents.",
+    });
+    expect(current.supersedes).toBe(first.decisionId);
+
+    const bundle = await buildCaseBundle({
+      caseRecord: record,
+      planFacts: await caseService.getPlanFacts(record.caseId),
+      evidenceLinks: links,
+      auditEvents: await caseService.getAuditEvents(record.caseId),
+      decisions: await caseService.getDecisions(record.caseId),
+      artifacts: [
+        { artifact: (await artifacts.listArtifacts(record.caseId))[0]!, bytes },
+      ],
+    });
+
+    const parsed = parseCaseBundle(serializeBundle(bundle));
+    expect(parsed.schemaVersion).toBe(BUNDLE_SCHEMA_VERSION);
+    expect(parsed.manifest.find((entry) => entry.part === "decisions")?.itemCount).toBe(
+      2,
+    );
+    const restored = await applyCaseBundle(parsed, { cases, artifacts });
+
+    const restoredDecisions = await caseService.getDecisions(restored.caseId);
+    expect(restoredDecisions.map((decision) => decision.value)).toEqual([
+      "census",
+      "plan-documents",
+    ]);
+    expect(restoredDecisions[0]?.decisionId).not.toBe(first.decisionId);
+    expect(restoredDecisions[1]?.decisionId).not.toBe(current.decisionId);
+    expect(restoredDecisions[1]?.supersedes).toBe(restoredDecisions[0]?.decisionId);
+
+    const restoredPolicy = requiredClassPolicyStates(restoredDecisions)[
+      REVIEW_COPY_SPEC_ID
+    ];
+    if (restoredPolicy?.status !== "recorded") {
+      throw new Error("Expected the restored required-class policy to be recorded.");
+    }
+    expect(restoredPolicy.classes).toEqual(["plan-documents"]);
+    expect(restoredPolicy.decision.value).toBe("plan-documents");
+    expect(restoredPolicy.decision.decisionId).toBe(restoredDecisions[1]?.decisionId);
+    expect(restoredPolicy.decision.supersedes).toBe(restoredDecisions[0]?.decisionId);
+
+    const decisionEvents = (await caseService.getAuditEvents(restored.caseId)).filter(
+      (event) => event.eventType === "reviewer-decision-recorded",
+    );
+    expect(decisionEvents.map((event) => event.refs.decisionId)).toEqual(
+      restoredDecisions.map((decision) => decision.decisionId),
+    );
   });
 
   it("classifies an artifact without changing its bytes and records the prior class", async () => {
