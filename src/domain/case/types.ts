@@ -133,6 +133,19 @@ export type AuditEvent = {
 };
 
 /**
+ * A reviewer-selected pointer to the evidence behind a decision. This is not
+ * an excerpt: it records the artifact and a human location only. The artifact
+ * must belong to the same case, and a correction is a new decision.
+ */
+export type DecisionCitation = {
+  artifactId: string;
+  /** Positive integer page number, when the artifact is paginated. */
+  page?: number;
+  /** Article, section, or sheet label, trimmed. */
+  section?: string;
+};
+
+/**
  * A reviewer's recorded decision for one work-product cell, provision prompt,
  * or intake applicability question.
  *
@@ -150,6 +163,8 @@ export type ReviewerDecision = {
   specId: string;
   value: string;
   rationale: string;
+  /** Optional structured source pointer; never an extracted excerpt. */
+  citation?: DecisionCitation;
   recordedAt: string; // ISO 8601
   supersedes?: string; // decisionId of the record this replaces
   /** Per-case monotonic sequence assigned by the storage adapter. */

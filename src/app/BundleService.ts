@@ -171,6 +171,34 @@ export async function applyCaseBundle(
   bundle: CaseBundle,
   ports: { cases: CaseStore; artifacts: ArtifactStore; population?: PopulationStore },
 ): Promise<CaseRecord> {
+  // Validate every decision citation before creating or writing anything. A
+  // dangling pointer must reject the restore, not leave a partial case behind.
+  const bundledArtifactIds = new Set(
+    bundle.artifacts.map((entry) => entry.artifact.artifactId),
+  );
+  for (const decision of bundle.decisions ?? []) {
+    const citation = decision.citation;
+    if (!citation) continue;
+    if (!bundledArtifactIds.has(citation.artifactId)) {
+      throw new Error(
+        "A reviewer decision cites an evidence file that is missing from this bundle, so no case data was restored.",
+      );
+    }
+    if (
+      citation.page !== undefined &&
+      (!Number.isInteger(citation.page) || citation.page < 1)
+    ) {
+      throw new Error(
+        "A reviewer decision has an invalid citation page, so no case data was restored.",
+      );
+    }
+    if (citation.page === undefined && !citation.section?.trim()) {
+      throw new Error(
+        "A reviewer decision citation has no page or section, so no case data was restored.",
+      );
+    }
+  }
+
   const existing = await ports.cases.listCases();
   const now = nowIso();
   const caseRecord: CaseRecord = {
@@ -229,10 +257,20 @@ export async function applyCaseBundle(
   const decisions: ReviewerDecision[] = (bundle.decisions ?? []).map((decision) => {
     const decisionId = generateId();
     decisionIdMap.set(decision.decisionId, decisionId);
+    const citation = decision.citation
+      ? {
+          ...decision.citation,
+          artifactId: artifactIdMap.get(decision.citation.artifactId)!,
+          ...(decision.citation.section
+            ? { section: decision.citation.section.trim() }
+            : {}),
+        }
+      : undefined;
     return {
       ...decision,
       decisionId,
       caseId: caseRecord.caseId,
+      ...(citation ? { citation } : {}),
       ...(decision.supersedes
         ? { supersedes: decisionIdMap.get(decision.supersedes) ?? decision.supersedes }
         : {}),

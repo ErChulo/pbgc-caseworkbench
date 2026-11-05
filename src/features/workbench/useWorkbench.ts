@@ -33,6 +33,7 @@ import type { PlanDataSnapshotRecord } from "../../domain/plan-data/types";
 import type {
   AuditEvent,
   CaseRecord,
+  DecisionCitation,
   PlanFact,
   ReviewerDecision,
 } from "../../domain/case/types";
@@ -130,6 +131,7 @@ export type WorkbenchActions = {
     specId: string;
     value: string;
     rationale: string;
+    citation?: DecisionCitation;
   }) => Promise<void>;
   setStage: (stage: StageId) => void;
   clearError: () => void;
@@ -809,6 +811,7 @@ export function useWorkbench(): {
       specId: string;
       value: string;
       rationale: string;
+      citation?: DecisionCitation;
     }) => {
       const caseId = activeCaseIdRef.current;
       if (!caseId) throw new Error("No active case.");
@@ -818,6 +821,7 @@ export function useWorkbench(): {
         specId: input.specId,
         value: input.value,
         rationale: input.rationale,
+        ...(input.citation ? { citation: input.citation } : {}),
       });
       const [decisions, auditEvents, updated] = await Promise.all([
         services.caseService.getDecisions(caseId),

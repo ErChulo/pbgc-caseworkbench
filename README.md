@@ -16,6 +16,7 @@ to produce one and says why.
 | Area | State |
 | --- | --- |
 | Plan-field slice (4 dictionary-mapped fields) | Working, validated, audited |
+| R5 plan-data mapping | Working: synthetic repository snapshot import, three versioned header bindings, per-value confirmation and correction, and source locators. The 71 reviewer decisions and 7 blocked/calculation cells are unchanged; the R5 notice remains blocked. |
 | Evidence intake (hash, duplicate detection, linking) | Working |
 | Plan-data classes | Working: 18 intake classes in three groups — 13 Image Viewer classes, 4 PBGC plan-record classes, and salary data. Batch or per-file classification, reclassification audited, and a grouped checklist with separate `X of 18 classes added` and `X of 18 applicability reviewed` totals. Each class applicability decision requires a basis and is append-only; class-level readiness is distinct from presence. Salary data is intake only. |
 | Calendar age and calendar interval identities | Working, 138 tests |
@@ -26,7 +27,7 @@ to produce one and says why.
 | Aggregate limit on PBGC funds | Implemented: cited §4022B arithmetic; the guarantee table itself is a required, provenanced input |
 | Other PBGC provisions (§4022(c), guarantee table, §4044 tiers) | Listed and **blocked** |
 | Population stage | Working: CSV import, per-record provenance, calendar age; benefit amounts **blocked** |
-| Guided flow and final document | Four steps — Case, Documents, Plan & people, Final document. The final document inserts the case's plan data into the transcribed R5 shell structure and downloads a real `.docx`; every unrecorded cell is marked "Not recorded". Its Plan provisions view asks all 71 reviewer questions in plain language with a required source. It is generated from the manifest, not a byte-preserving fill of the corpus shell file. |
+| Guided flow and final document | Four steps — Case, Documents, Plan & people, Final document. The final document inserts the case's plan data into the transcribed R5 shell structure and downloads a real `.docx`; every unrecorded cell is marked "Not recorded". Its Plan provisions view asks all 71 reviewer questions in plain language with a required source, plus an optional citation to an imported file and page or section. It is generated from the manifest, not a byte-preserving fill of the corpus shell file. |
 | Work products | 15 contracts registered: review copy, R5 template coverage, and participant register producible; R1/R5 notice/V1/DEL/PF/BSRS/§436/EBA/AMB/closeout/memo blocked with reasons; reviewer decisions recordable per cell. Each implemented product can have an optional, reviewer-recorded required-class policy; no policy leaves the gate inactive. |
 | Field dictionary | 1,172 records across 12 tables |
 | Bundle export / restore | Working, hashed manifest, restores as a new case |
@@ -68,7 +69,11 @@ fallback to unbranded text when the machine is offline.
 3. **Plan & people → Plan details** — the four dictionary-mapped fields. Validation is per field, and
    each value carries its Data Dictionary row, workbook hash, review status, and the
    catalog version that produced it. `Browse field dictionary` opens the full 1,172-record
-   index with search and table/classification filters.
+   index with search and table/classification filters. Below the fields, import a
+   synthetic plan-data repository snapshot to review the three authorized R5 header
+   candidates. The snapshot is stored as immutable evidence; each value must be
+   confirmed or corrected individually, with its source locator. This does not fill
+   any reviewer decision or calculation cell.
 4. **Plan & people → People** — import a participant CSV (one row per person, synthetic or
    pseudonymous keys only). The file is stored as evidence first, every record keeps its
    artifact hash and row number, and an invalid row rejects the whole file. Ages at the
@@ -108,8 +113,11 @@ all 60 plan provisions; a cell without a recorded value says "Not recorded" rath
 borrowing the shell's sample text. The **Plan provisions** view inside step 4 asks those
 60 questions plus the header decisions in plain language (71 in all). Every answer needs
 a source, is saved as an append-only reviewer decision, and appears in the document and
-the downloaded Word file immediately. Technical template ids, hashes, rules, and formulas
-live under **Review details**, so they never obscure the document itself.
+the downloaded Word file immediately. An answer can also point to an imported evidence
+file and a page or section; that citation travels with the append-only decision and the
+bundle, but the workbench does not read, extract, or verify the cited file. Technical
+template ids, hashes, rules, and formulas live under **Review details**, so they never
+obscure the document itself.
 
 Reloading the page reopens the last case without writing audit events. Closing a case
 returns to the case list and deletes nothing.
@@ -350,6 +358,12 @@ artifacts; the audit log is append-only.
   The guarantee table, its phase-in, and the §4022.23 age/form adjustments are not
   transcribed; prior-plan amounts must arrive already normalized; and the de minimis
   lump-sum exclusion is not modeled. A payee with one plan is refused.
+- Plan-data repository intake is a synthetic JSON snapshot only. There is no production
+  repository connector, live refresh, credential handling, or automatic mapping; only
+  the three R5 header facts are bound. The 71 reviewer decisions and 7 blocked or
+  calculation cells remain unchanged. Plan-provision sources remain reviewer-entered;
+  an optional citation identifies an imported file and page or section, but it is a
+  pointer rather than an extracted or verified quotation.
 - The authorized plan-level dictionary exposes four fields (case, case number, plan
   name, date of plan termination). Employer identification numbers, plan numbers, plan
   effective dates, and normal retirement age are not plan-level fields in that dictionary

@@ -11,6 +11,7 @@ import { useState } from "react";
 import { downloadBytes } from "../../app/download";
 import { buildPlanSummaryDraft } from "../../app/PlanSummaryService";
 import type { StageId } from "../../app/stages";
+import type { DecisionCitation } from "../../domain/case/types";
 import { nowIso } from "../../domain/case/validation";
 import { R5_TEMPLATE_MANIFEST } from "../../domain/work-products/r5/manifest";
 import {
@@ -38,6 +39,7 @@ type RecordDecision = (input: {
   specId: string;
   value: string;
   rationale: string;
+  citation?: DecisionCitation;
 }) => Promise<void>;
 
 type Props = {
@@ -74,9 +76,11 @@ export function FinalDocumentStage({
 
   const latestDecisionByKey: Record<string, string> = {};
   const rationaleByKey: Record<string, string> = {};
+  const citationByKey: Record<string, DecisionCitation | undefined> = {};
   for (const decision of state.decisions) {
     latestDecisionByKey[decision.decisionKey] = decision.value;
     rationaleByKey[decision.decisionKey] = decision.rationale;
+    citationByKey[decision.decisionKey] = decision.citation;
   }
 
   const document = buildPlanSummaryDocument({
@@ -338,6 +342,8 @@ export function FinalDocumentStage({
           <PlanProvisions
             sections={questionSections}
             sources={rationaleByKey}
+            citations={citationByKey}
+            artifacts={state.artifacts}
             onRecord={onRecordDecision}
           />
           <div className="button-row">

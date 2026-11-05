@@ -6,10 +6,12 @@
  * validation, and audit event recording.
  */
 
+import type { ArtifactStore } from "../domain/ports/ArtifactStore";
 import type { CaseStore } from "../domain/ports/CaseStore";
 import type {
   AuditEvent,
   CaseRecord,
+  DecisionCitation,
   DerivedCatalog,
   PlanFact,
   PlanFactValue,
@@ -40,6 +42,8 @@ export class CaseService {
   constructor(
     private readonly store: CaseStore,
     private readonly catalog: DerivedCatalog,
+    /** Required only when a decision supplies a structured citation. */
+    private readonly artifacts?: ArtifactStore,
   ) {}
 
   /**
@@ -290,6 +294,7 @@ export class CaseService {
     specId: string;
     value: string;
     rationale: string;
+    citation?: DecisionCitation;
   }): Promise<ReviewerDecision> {
     const decisionKey = input.decisionKey.trim();
     const value = input.value.trim();
@@ -303,6 +308,7 @@ export class CaseService {
     const caseRecord = await this.store.getCase(input.caseId);
     if (!caseRecord) throw new Error(`Case not found: ${input.caseId}`);
 
+    const citation = await this.validateCitation(input.caseId, input.citation);
     const existing = await this.store.getDecisions(input.caseId);
     const previous = [...existing]
       .reverse()
@@ -316,6 +322,7 @@ export class CaseService {
       specId: input.specId,
       value,
       rationale,
+      ...(citation ? { citation } : {}),
       recordedAt: now,
       ...(previous ? { supersedes: previous.decisionId } : {}),
     };
@@ -328,12 +335,51 @@ export class CaseService {
       actor: "local-user",
       component: "CaseService.recordDecision",
       at: now,
-      refs: { decisionId: saved.decisionId },
+      refs: {
+        decisionId: saved.decisionId,
+        ...(citation ? { artifactId: citation.artifactId } : {}),
+      },
       ...(previous ? { before: previous.value } : {}),
       after: value,
     });
     await this.store.updateCase({ ...caseRecord, updatedAt: now });
     return saved;
+  }
+
+  private async validateCitation(
+    caseId: string,
+    citation: DecisionCitation | undefined,
+  ): Promise<DecisionCitation | undefined> {
+    if (!citation) return undefined;
+
+    const artifactId = citation.artifactId.trim();
+    if (artifactId === "") {
+      throw new Error("A decision citation needs an evidence file.");
+    }
+    if (
+      citation.page !== undefined &&
+      (!Number.isInteger(citation.page) || citation.page < 1)
+    ) {
+      throw new Error("A decision citation page must be a positive whole number.");
+    }
+    const section = citation.section?.trim();
+    if (citation.page === undefined && !section) {
+      throw new Error(
+        "A decision citation needs a page or a section so the source can be found.",
+      );
+    }
+    if (!this.artifacts) {
+      throw new Error("Evidence storage is unavailable, so the citation was not saved.");
+    }
+    const artifact = await this.artifacts.getArtifact(artifactId);
+    if (!artifact || artifact.caseId !== caseId) {
+      throw new Error("The cited evidence file is not part of this case.");
+    }
+    return {
+      artifactId,
+      ...(citation.page !== undefined ? { page: citation.page } : {}),
+      ...(section ? { section } : {}),
+    };
   }
 
   /** Get the reviewer decisions for a case, oldest first. */

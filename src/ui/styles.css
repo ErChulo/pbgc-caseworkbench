@@ -2313,7 +2313,8 @@ button.secondary:hover:not(:disabled) {
 }
 
 .provision-form input,
-.provision-form textarea {
+.provision-form textarea,
+.provision-form select {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--color-border-strong);
@@ -2341,6 +2342,59 @@ button.secondary:hover:not(:disabled) {
   font-size: 12px;
 }
 
+.provision-citation-fields {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.provision-citation-fields legend {
+  padding: 0 var(--space-1);
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.provision-citation-fields label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.provision-citation-grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.4fr) minmax(180px, 1fr);
+  gap: var(--space-2);
+}
+
+.provision-citation-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.provision-citation {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.provision-form select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+}
+
 .provision-error {
   margin: 0;
   color: var(--color-danger);
@@ -2358,6 +2412,10 @@ button.secondary:hover:not(:disabled) {
 
   .doc-paper {
     padding: var(--space-6);
+  }
+
+  .provision-citation-grid {
+    grid-template-columns: 1fr;
   }
 }
 

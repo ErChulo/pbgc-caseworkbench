@@ -101,7 +101,7 @@ function encode(text: string): ArrayBuffer {
 async function buildFixture() {
   const cases = new InMemoryCaseStore();
   const artifacts = new InMemoryArtifactStore();
-  const caseService = new CaseService(cases, catalog);
+  const caseService = new CaseService(cases, catalog, artifacts);
   const evidenceService = new EvidenceService(artifacts, cases);
 
   const record = await caseService.createCase();
@@ -156,12 +156,18 @@ describe("case bundle round trip", () => {
 
   it("restores facts, evidence bytes, decisions, and audit history as a new case", async () => {
     const { cases, artifacts, caseService, record, bytes, links } = await buildFixture();
+    const sourceArtifact = (await artifacts.listArtifacts(record.caseId))[0]!;
     const decision = await caseService.recordDecision({
       caseId: record.caseId,
       decisionKey: "document-class.plan-documents.applicability",
       specId: "evidence.document-class-applicability",
       value: "applies",
       rationale: "Synthetic plan document set applies to this test case.",
+      citation: {
+        artifactId: sourceArtifact.artifactId,
+        page: 12,
+        section: "Article 4.2",
+      },
     });
     const bundle = await buildCaseBundle({
       caseRecord: record,
@@ -223,10 +229,16 @@ describe("case bundle round trip", () => {
       rationale: "Synthetic plan document set applies to this test case.",
     });
     expect(restoredDecisions[0]?.decisionId).not.toBe(decision.decisionId);
+    expect(restoredDecisions[0]?.citation).toEqual({
+      artifactId: restoredArtifacts[0]?.artifactId,
+      page: 12,
+      section: "Article 4.2",
+    });
     const decisionEvent = events.find(
       (event) => event.eventType === "reviewer-decision-recorded",
     );
     expect(decisionEvent?.refs.decisionId).toBe(restoredDecisions[0]?.decisionId);
+    expect(decisionEvent?.refs.artifactId).toBe(restoredArtifacts[0]?.artifactId);
 
     // Sequences stay strictly increasing after restore.
     for (let i = 1; i < events.length; i += 1) {
@@ -473,5 +485,31 @@ describe("case bundle round trip", () => {
         }),
       ),
     ).toThrowError(/missing its plan facts, evidence links, or audit events/i);
+  });
+
+  it("rejects a decision citation whose artifact is missing from the bundle", async () => {
+    const { cases, artifacts, caseService, record, links } = await buildFixture();
+    const source = (await artifacts.listArtifacts(record.caseId))[0]!;
+    const decision = await caseService.recordDecision({
+      caseId: record.caseId,
+      decisionKey: "r5.decision.item-01",
+      specId: "wp.r5-plan-summary",
+      value: "Synthetic answer",
+      rationale: "Synthetic citation test.",
+      citation: { artifactId: source.artifactId, page: 1 },
+    });
+    const bundle = await buildCaseBundle({
+      caseRecord: record,
+      planFacts: await caseService.getPlanFacts(record.caseId),
+      evidenceLinks: links,
+      auditEvents: await caseService.getAuditEvents(record.caseId),
+      decisions: [decision],
+      artifacts: [],
+    });
+
+    await expect(applyCaseBundle(bundle, { cases, artifacts })).rejects.toThrow(
+      /missing from this bundle/,
+    );
+    expect(await cases.listCases()).toHaveLength(1);
   });
 });

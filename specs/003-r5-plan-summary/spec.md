@@ -2,7 +2,7 @@
 
 Status: notice blocked; template manifest and coverage work product implemented
 Depends on: 002 work-product contract
-Related: 017 R5 plan-data mapping (proposed; maps repository fields to plan facts, not decisions, calculations, or the notice)
+Related: 017 R5 plan-data mapping (implemented; maps repository fields to plan facts, not decisions, calculations, or the notice)
 Registry entries: `wp.r5-plan-summary` v0.1.0 (blocked), `wp.r5-plan-summary-coverage` v1.0.0 (implemented)
 
 ## Source artifacts in `pbgc-the-book-of-job`

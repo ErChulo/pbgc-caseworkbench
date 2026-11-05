@@ -200,10 +200,18 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await adoption.getByRole("button", { name: "Answer" }).click();
   await adoption.getByLabel("What the plan says").fill("January 1, 2005");
   await adoption
+    .getByLabel("Evidence file")
+    .selectOption({ label: "synthetic-plan-summary.txt" });
+  await adoption.getByLabel("Page").fill("1");
+  await adoption.getByLabel("Section").fill("Article 1");
+  await adoption
     .getByLabel("Where this comes from")
     .fill("Synthetic plan document, Article 1");
   await adoption.getByRole("button", { name: "Save answer" }).click();
   await expect(adoption).toContainText("January 1, 2005");
+  await expect(adoption).toContainText(
+    "File: synthetic-plan-summary.txt · page 1 · Article 1",
+  );
   await expect(
     page.getByText("Reviewer decision recorded and audited."),
   ).toBeVisible();

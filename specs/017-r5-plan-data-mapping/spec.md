@@ -1,9 +1,9 @@
 # 017 — R5 plan-data mapping layer
 
-Status: proposed (specification only)
+Status: implemented (2026-11-05)
 Depends on: 002 work-product contract, 003 R5 plan summary, 004 reviewer decisions
 Related: 016 optional required-class policy (unchanged)
-Blocks: the first source-to-cell mapping pilot; it does not unblock the R5 notice
+Delivers: the first source-to-cell mapping pilot; it does not unblock the R5 notice
 
 ## Problem
 
@@ -434,3 +434,21 @@ unchanged.
 - **Local-first privacy:** synthetic snapshots only in this slice; no network path.
 - **Proportional verification:** pure mapper tests, adapter contract tests, coverage
   integration, bundle round trip, and one browser flow.
+
+## Implementation record
+
+Implemented on `main` at commit `7f613ae` and pushed. Validation at completion:
+
+- `npm run check`: typecheck passed, 350 tests across 28 files passed, and the
+  single-file production build passed (931.73 kB, 193.93 kB gzip).
+- Playwright: 7 of 7 tests passed, including snapshot import, one-at-a-time
+  confirmation, correction with a required note, reload persistence, R5 source status,
+  bundle restore, and zero external requests.
+- No new project dependency was added. The browser shared libraries and fonts used to
+  run Playwright were environment setup only.
+- Scope remained three R5 header facts. The 71 reviewer-decision cells and 7 blocked or
+  calculation cells were unchanged, and the R5 notice remains blocked.
+
+No rate or benefit cell was inferred from the repository. Header-rate values still need
+an authorized lookup from the versioned rate table, and the blocked benefit cells still
+need authorized provisions before they can be calculated.

@@ -20,7 +20,7 @@ import { catalog } from "./catalog";
 const caseStore = new IndexedDBCaseStore();
 const artifactStore = new IndexedDBEvidenceStore();
 const populationStore = new IndexedDBPopulationStore();
-const caseService = new CaseService(caseStore, catalog);
+const caseService = new CaseService(caseStore, catalog, artifactStore);
 const evidenceService = new EvidenceService(artifactStore, caseStore);
 
 export const services = {
