@@ -4,6 +4,10 @@ Status: implemented
 Depends on: 013 document classes
 Registry effect: none; this is intake metadata, not a work-product contract
 
+> **Extended by spec 015.** Applicability decisions are recorded separately
+> from presence. The non-goal of a required-class or completeness policy
+> remains in force.
+
 ## Problem
 
 Spec 013 covered the 13 Image Viewer classes but not the per-plan records PBGC

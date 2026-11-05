@@ -1,9 +1,11 @@
 # Spec 013 — Image Viewer document classes and completeness
 
-> **Extended by spec 014.** This spec remains the record of the original 13
-> Image Viewer classes. Spec 014 adds four PBGC plan-record classes and a
-> salary-data intake class; it does not change the classification, audit, or
-> completeness semantics recorded here.
+> **Extended by spec 014 and spec 015.** This spec remains the record of the
+> original 13 Image Viewer classes. Spec 014 adds four PBGC plan-record classes
+> and a salary-data intake class; it does not change the classification, audit,
+> or completeness semantics recorded here. Spec 015 records reviewer
+> applicability separately from file presence without changing classification
+> or presence counts.
 
 ## Problem
 

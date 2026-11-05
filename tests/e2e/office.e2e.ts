@@ -167,6 +167,34 @@ test("runs a realistic plan offline with zero external requests", async ({ page,
   await expect(
     documentSet.getByRole("heading", { name: "Participant data" }),
   ).toBeVisible();
+
+  const planDocumentClass = documentSet.locator(
+    '[data-class-id="plan-documents"]',
+  );
+  await planDocumentClass.locator("summary").click();
+  await planDocumentClass
+    .getByLabel("Applicability for Plan document set")
+    .selectOption("applies");
+  await planDocumentClass
+    .getByLabel("Basis for this decision")
+    .fill("Synthetic plan document is the governing plan record for this test.");
+  await shotOf(
+    page,
+    "office-document-class-applicability",
+    '[data-class-id="plan-documents"]',
+  );
+  await planDocumentClass
+    .getByRole("button", { name: "Record decision" })
+    .click();
+  await expect(page.getByText("1 of 18 applicability reviewed")).toBeVisible();
+  await expect(planDocumentClass).toContainText("Ready for review");
+
+  await page.locator(".document-class-summary").evaluate((element) => {
+    element.scrollIntoView({ block: "center" });
+  });
+  await page.screenshot({
+    path: `${SHOTS}/office-document-set-summary.png`,
+  });
   await shotOf(page, "office-document-set", "#document-set");
   await shotOf(
     page,
@@ -229,12 +257,18 @@ test("runs a realistic plan offline with zero external requests", async ({ page,
     evidenceLinks: unknown[];
     artifacts: unknown[];
     auditEvents: unknown[];
+    decisions: { decisionKey: string; value: string }[];
   };
   expect(bundle.schemaVersion).toBe("1.0.0");
   expect(bundle.planFacts).toHaveLength(4);
   expect(bundle.evidenceLinks).toHaveLength(3);
   expect(bundle.artifacts).toHaveLength(3);
   expect(bundle.auditEvents.length).toBeGreaterThanOrEqual(9);
+  expect(bundle.decisions).toHaveLength(1);
+  expect(bundle.decisions[0]).toMatchObject({
+    decisionKey: "document-class.plan-documents.applicability",
+    value: "applies",
+  });
   await shot(page, "office-review");
 
   // Restore while still offline: a new case, evidence chain intact.
@@ -248,6 +282,17 @@ test("runs a realistic plan offline with zero external requests", async ({ page,
   await expect(
     page.locator(".key-value", { hasText: "Evidence artifacts" }).locator("dd"),
   ).toHaveText("3");
+
+  // The restored case keeps the reviewer's class applicability decision.
+  await openStage(page, /Documents/);
+  await expect(page.getByText("1 of 18 applicability reviewed")).toBeVisible();
+  await expect(
+    page.locator('[data-class-id="plan-documents"]'),
+  ).toContainText("Applies");
+  await expect(
+    page.locator('[data-class-id="plan-documents"]'),
+  ).toContainText("Ready for review");
+  await openStage(page, /Review & export/);
 
   const auditRows = await page.locator(".audit-table tbody tr").count();
   expect(auditRows).toBeGreaterThan(0);
