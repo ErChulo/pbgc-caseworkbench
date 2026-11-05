@@ -4,7 +4,7 @@ Status: implemented
 
 Depends on: 004 reviewer decisions, 013 document classes, 014 PBGC plan-data classes
 
-Registry effect: none; applicability is evidence-intake metadata, not a work-product contract
+Registry effect: none in this spec; spec 016 adds an optional per-product gate that consumes these decisions
 
 ## Problem
 
@@ -76,10 +76,13 @@ applicable that nonetheless have a file, and unrecognized recorded values.
 
 ## Non-goals
 
-- No required-class policy, no automatic applicability inference, and no
-  completeness or sufficiency determination.
-- No change to work-product readiness or release gates. A class-level state does
-  not make a work product producible.
+- No automatic required-class policy, no automatic applicability inference, and
+  no completeness or sufficiency determination. Spec 016 adds an optional,
+  reviewer-recorded policy that can gate an implemented work product; this spec
+  still requires no class by default.
+- No work-product gate in this spec. Class-level state does not make a work
+  product producible; spec 016's explicit policy is the only path from an
+  applicability decision to a work-product gate.
 - No document extraction, legal interpretation, or validation of the reviewer's
   basis.
 - No bulk applicability acceptance. Each class decision is recorded separately.

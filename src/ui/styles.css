@@ -1564,6 +1564,162 @@ button.secondary:hover:not(:disabled) {
   padding: 8px 0;
 }
 
+/* ------------------------------------------------- required classes ------ */
+
+.policy-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.policy-card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.policy-card > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+
+.policy-summary-title {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.policy-summary-state {
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.policy-summary-state.inactive {
+  color: var(--color-muted);
+}
+
+.policy-summary-state.configured {
+  color: var(--color-success, #7bd88f);
+}
+
+.policy-summary-state.none {
+  color: var(--color-accent);
+}
+
+.policy-summary-state.unrecognized {
+  color: var(--color-danger);
+}
+
+.policy-body {
+  padding: 0 14px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.policy-recorded-basis {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.policy-when {
+  color: var(--color-muted);
+}
+
+.policy-form {
+  margin-top: 12px;
+}
+
+.policy-class-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.policy-class-fieldset legend {
+  padding: 0;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.policy-class-group {
+  margin-top: 10px;
+}
+
+.policy-class-group-title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.policy-class-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(275px, 1fr));
+  gap: 4px 14px;
+}
+
+.policy-class-option {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 2px 8px;
+  align-items: start;
+  padding: 3px 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.policy-class-option input {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--color-accent);
+}
+
+.policy-class-hint {
+  grid-column: 2;
+  font-size: 11.5px;
+  color: var(--color-muted);
+}
+
+.policy-rationale {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.policy-rationale textarea {
+  width: 100%;
+  max-width: 760px;
+  resize: vertical;
+}
+
+.policy-form-hint {
+  max-width: 760px;
+  margin: 6px 0 10px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .policy-card > summary {
+    display: block;
+  }
+
+  .policy-summary-state {
+    display: block;
+    margin-top: 3px;
+    text-align: left;
+  }
+}
+
 .planned-list {
   margin: var(--space-4) 0 0;
   padding-left: var(--space-6);

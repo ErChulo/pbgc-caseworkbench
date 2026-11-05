@@ -287,6 +287,54 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await expect(page.locator(".checklist-row")).toHaveCount(5);
 
   await openStage(page, /Work products/);
+
+  // Required classes are opt-in. A recorded policy gates the review copy, and a
+  // superseding policy can correct it without erasing the first decision.
+  const reviewCopyPolicy = page.locator(
+    '[data-policy-spec="wp.plan-summary-review-copy"]',
+  );
+  await reviewCopyPolicy.locator("summary").click();
+  await reviewCopyPolicy
+    .getByRole("checkbox", { name: /Census at termination/ })
+    .check();
+  await reviewCopyPolicy
+    .getByLabel("Basis for required classes")
+    .fill("Synthetic policy test: census is required for this review copy.");
+  await reviewCopyPolicy
+    .getByRole("button", { name: "Record class policy" })
+    .click();
+  await expect(page.getByText("Reviewer decision recorded and audited.")).toBeVisible();
+  await expect(reviewCopyPolicy).toContainText("Requires Census at termination");
+
+  const reviewCopyPanel = page.locator("#work-product-generate");
+  const classPolicyCheck = reviewCopyPanel.locator(".checklist-row", {
+    hasText: "Required plan-data classes are applicable and present",
+  });
+  await expect(classPolicyCheck).toContainText("Blocking");
+  await expect(classPolicyCheck).toContainText("Census at termination");
+  await expect(page.getByRole("button", { name: "Generate review copy" })).toBeDisabled();
+  await reviewCopyPolicy.locator("summary").click();
+  await reviewCopyPolicy.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: `${SCREENSHOTS}/work-product-class-policy.png`,
+  });
+
+  await reviewCopyPolicy
+    .getByRole("checkbox", { name: /Census at termination/ })
+    .uncheck();
+  await reviewCopyPolicy
+    .getByRole("checkbox", { name: /Plan document set/ })
+    .check();
+  await reviewCopyPolicy
+    .getByLabel("Basis for required classes")
+    .fill("Synthetic policy test: the plan document set is the required class.");
+  await reviewCopyPolicy
+    .getByRole("button", { name: "Record class policy" })
+    .click();
+  await expect(reviewCopyPolicy).toContainText("Requires Plan document set");
+  await expect(classPolicyCheck).toContainText("Pass");
+  await expect(page.getByRole("button", { name: "Generate review copy" })).toBeEnabled();
+
   await page.getByRole("button", { name: "Generate review copy" }).click();
   await expect(page.getByText(/^[0-9a-f]{64}$/).first()).toBeVisible();
   await expect(page.getByText(/plan-summary-review-copy\.html/).first()).toBeVisible();

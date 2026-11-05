@@ -53,6 +53,16 @@ Each registry entry answers the four questions from the casework discovery metho
 A spec missing any of these fails validation, so a product cannot be added to the
 registry as a bare name.
 
+## Optional required-class gate
+
+The three implemented products also evaluate `pred.required-plan-data-classes`. A
+reviewer may record a required-class policy for a product in the Work products stage,
+with a basis. Once recorded, every selected class must be marked applicable and have at
+least one assigned file. No policy means the gate is inactive; the workbench never
+infers a required class from presence, the catalog, or the product type. A class that
+passes this gate is not thereby complete or authoritative. See
+`specs/016-required-class-policy`.
+
 ## Rules for adding a product
 
 - Put the contract in `registry.ts` first; the UI lists it automatically.

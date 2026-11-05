@@ -27,7 +27,7 @@ to produce one and says why.
 | Other PBGC provisions (§4022(c), guarantee table, §4044 tiers) | Listed and **blocked** |
 | Population stage | Working: CSV import, per-record provenance, calendar age; benefit amounts **blocked** |
 | Guided flow and final document | Four steps — Case, Documents, Plan & people, Final document. The final document inserts the case's plan data into the transcribed R5 shell structure and downloads a real `.docx`; every unrecorded cell is marked "Not recorded". Its Plan provisions view asks all 71 reviewer questions in plain language with a required source. It is generated from the manifest, not a byte-preserving fill of the corpus shell file. |
-| Work products | 15 contracts registered: review copy, R5 template coverage, and participant register producible; R1/R5 notice/V1/DEL/PF/BSRS/§436/EBA/AMB/closeout/memo blocked with reasons; reviewer decisions recordable per cell |
+| Work products | 15 contracts registered: review copy, R5 template coverage, and participant register producible; R1/R5 notice/V1/DEL/PF/BSRS/§436/EBA/AMB/closeout/memo blocked with reasons; reviewer decisions recordable per cell. Each implemented product can have an optional, reviewer-recorded required-class policy; no policy leaves the gate inactive. |
 | Field dictionary | 1,172 records across 12 tables |
 | Bundle export / restore | Working, hashed manifest, restores as a new case |
 
@@ -92,8 +92,12 @@ fallback to unbranded text when the machine is offline.
    the page documents one, and every run is audited.
 7. **Review details → Reconciliation** — required fields reviewed, evidence linked, facts with
    provenance, blocked provisions, control totals.
-8. **Review details → Work products** — generate the plan summary review copy (HTML) with its own
-   SHA-256, and see which work products remain blocked.
+8. **Review details → Work products** — optionally record a required-class policy for an
+   implemented product. No policy is inferred and no class is required until a reviewer
+   records one; each policy needs a basis, supersedes the earlier policy, and remains in
+   the audit trail. A recorded policy blocks production until every selected class is
+   marked applicable and has at least one file. Then generate the plan summary review copy
+   (HTML) with its own SHA-256, and see which work products remain blocked.
 9. **Review details → Review & export** — the append-only audit trail, bundle export, and bundle restore.
 
 **Final document** is the output step. It previews the plan summary with the recorded
@@ -194,8 +198,9 @@ base64, with a SHA-256 manifest entry per part. A restore re-identifies every ar
 link, fact, decision, participant record, and audit reference so the evidence chain
 stays intact, and always creates a new case and alias — importing a backup can never
 overwrite the case being reviewed. Reviewer decisions also carry per-class
-applicability (`document-class.<id>.applicability`); because they use the same
-append-only decision part, they export and restore without a schema change.
+applicability (`document-class.<id>.applicability`) and per-product required-class
+policies (`required-classes.<spec-id>`); because they use the same append-only decision
+part, they export and restore without a schema change.
 
 ## Privacy boundary
 
@@ -268,7 +273,8 @@ is finished.
   predicate registry integrity, work-product contract/readiness/snapshot identity,
   R5 manifest transcription and coverage, guided R5 questions (reviewer-decision
   filtering, header prompts, progress), document-class coverage, group counts and
-  unclassified handling, applicability keys, readiness states and summaries, the
+  unclassified handling, applicability keys, readiness states and summaries,
+  required-class policy parsing and every gate state, the
   plan-summary document model and its
   Word package (ZIP structure, escaping, inserted values, byte reproducibility),
   reviewer decisions, participant CSV parsing
@@ -281,8 +287,9 @@ is finished.
   save, reload, import classified evidence, reclassify a file, link evidence, refuse a
   duplicate by hash, run a calculation
   and a BCV add-in function, answer a plan provision and confirm it appears in the
-  downloaded Word plan summary, generate a review copy, export a bundle, restore it as
-  a new case, and confirm that a reload writes no audit events.
+  downloaded Word plan summary, record a required-class policy that blocks the review
+  copy and a superseding policy that unblocks it, generate the review copy, export a
+  bundle, restore it as a new case, and confirm that a reload writes no audit events.
 - `tests/e2e/office.e2e.ts` — the handover conditions: every request outside the app's
   own origin is aborted and asserted to be zero, the browser is taken offline for the
   interactive flow, a realistic synthetic plan runs through entry, validation, evidence,
@@ -318,8 +325,10 @@ artifacts; the audit log is append-only.
   by design, and no parser decision has been recorded. Document classes are intake
   labels; applicability is a reviewer decision with a required basis, and “ready for
   review” means only that an applicable class has a file. The checklist does not decide
-  completeness, authority, or sufficiency, does not require any class, and does not gate
-  work products. Salary data is classified for intake only: no participant salary
+  completeness, authority, or sufficiency and does not require any class by itself. A
+  separate optional policy can gate the three implemented work products, but only after
+  a reviewer records it with a basis; no class is required by default. Salary data is
+  classified for intake only: no participant salary
   fields, import, formula mapping, or accrued-benefit assessment are implemented. The
   PBGC plan-record classes do not call CMS or interpret trusteeship documents.
 - Single browser profile: no multi-user access, no server-side share, no sync.
