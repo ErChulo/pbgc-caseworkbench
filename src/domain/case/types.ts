@@ -131,18 +131,20 @@ export type AuditEvent = {
 };
 
 /**
- * A reviewer's recorded decision for one template cell or provision prompt.
+ * A reviewer's recorded decision for one work-product cell, provision prompt,
+ * or intake applicability question.
  *
  * Decisions are append-only: a correction adds a new record that supersedes the
- * previous one, and the audit trail keeps both. The work-product manifests refer
- * to decisions by `decisionKey`; the id is per recording.
+ * previous one, and the audit trail keeps both. Work-product manifests and
+ * domain decision families refer to decisions by `decisionKey`; the id is per
+ * recording.
  */
 export type ReviewerDecision = {
   decisionId: string;
   caseId: string;
   /** Stable manifest key, e.g. `r5.decision.actuary`. */
   decisionKey: string;
-  /** Work-product spec the decision belongs to. */
+  /** Decision family or work-product spec the decision belongs to. */
   specId: string;
   value: string;
   rationale: string;

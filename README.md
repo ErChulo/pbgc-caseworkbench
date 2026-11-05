@@ -17,7 +17,7 @@ to produce one and says why.
 | --- | --- |
 | Plan-field slice (4 dictionary-mapped fields) | Working, validated, audited |
 | Evidence intake (hash, duplicate detection, linking) | Working |
-| Plan-data classes | Working: 18 intake classes in three groups — 13 Image Viewer classes, 4 PBGC plan-record classes, and salary data. Batch or per-file classification, reclassification audited, and a grouped `X of 18` completeness checklist. Presence is not a finding that a class applies. Salary data is intake only. |
+| Plan-data classes | Working: 18 intake classes in three groups — 13 Image Viewer classes, 4 PBGC plan-record classes, and salary data. Batch or per-file classification, reclassification audited, and a grouped checklist with separate `X of 18 classes added` and `X of 18 applicability reviewed` totals. Each class applicability decision requires a basis and is append-only; class-level readiness is distinct from presence. Salary data is intake only. |
 | Calendar age and calendar interval identities | Working, 138 tests |
 | BCV add-in functions | 9 of 54 implemented (ANB, ATT, NRD, NRDA, RETDATE, COMPM, COMPYM, COMPAYM, G515V), each tested against the source's examples |
 | Synthetic demo case pack | `demo/synthetic-plan/`: fictional plan (PP-01 to PP-10), 12-record census, financials, metadata; validated and refused for real cases |
@@ -61,8 +61,10 @@ fallback to unbranded text when the machine is offline.
    locally with SHA-256 and stored once; importing identical content again is refused
    and reported.
    A class can be corrected on the file card without changing its bytes, and the
-   checklist shows which classes are present. Presence is not a finding that the class
-   applies. Link each artifact to the field it supports.
+   checklist shows which classes are present. Separately, record whether each class
+   applies and the basis; a change appends a superseding decision. “Ready for review”
+   means an applicable class has at least one file, not that the file is complete.
+   Link each artifact to the field it supports.
 3. **Plan & people → Plan details** — the four dictionary-mapped fields. Validation is per field, and
    each value carries its Data Dictionary row, workbook hash, review status, and the
    catalog version that produced it. `Browse field dictionary` opens the full 1,172-record
@@ -191,7 +193,9 @@ trail, reviewer decisions, participant records, and the original evidence bytes 
 base64, with a SHA-256 manifest entry per part. A restore re-identifies every artifact,
 link, fact, decision, participant record, and audit reference so the evidence chain
 stays intact, and always creates a new case and alias — importing a backup can never
-overwrite the case being reviewed.
+overwrite the case being reviewed. Reviewer decisions also carry per-class
+applicability (`document-class.<id>.applicability`); because they use the same
+append-only decision part, they export and restore without a schema change.
 
 ## Privacy boundary
 
@@ -264,13 +268,15 @@ is finished.
   predicate registry integrity, work-product contract/readiness/snapshot identity,
   R5 manifest transcription and coverage, guided R5 questions (reviewer-decision
   filtering, header prompts, progress), document-class coverage, group counts and
-  unclassified handling, the plan-summary document model and its
+  unclassified handling, applicability keys, readiness states and summaries, the
+  plan-summary document model and its
   Word package (ZIP structure, escaping, inserted values, byte reproducibility),
   reviewer decisions, participant CSV parsing
   and determination, derived catalog integrity.
 - `tests/contract` — `CaseStore` and `PopulationStore` behavior across the in-memory and
   IndexedDB adapters.
-- `tests/integration` — the plan-field slice end to end, and bundle round trip.
+- `tests/integration` — the plan-field slice end to end, and bundle round trip
+  including a document-class applicability decision.
 - `tests/e2e` — Playwright in real Chromium against the production build: create, validate,
   save, reload, import classified evidence, reclassify a file, link evidence, refuse a
   duplicate by hash, run a calculation
@@ -280,8 +286,9 @@ is finished.
 - `tests/e2e/office.e2e.ts` — the handover conditions: every request outside the app's
   own origin is aborted and asserted to be zero, the browser is taken offline for the
   interactive flow, a realistic synthetic plan runs through entry, validation, evidence,
-  calculation, reconciliation, review copy, export, and restore, a reload writes no audit
-  events, and a `file://` load shows the storage notice while still rendering the branding.
+  class applicability, calculation, reconciliation, review copy, export, and restore,
+  a reload writes no audit events, and a `file://` load shows the storage notice while
+  still rendering the branding.
 
 Playwright needs browser dependencies. On a normal desktop or CI image:
 
@@ -309,10 +316,12 @@ artifacts; the audit log is append-only.
   transcribed, and census reconciliation is not implemented.
 - No PDF, spreadsheet, or OCR extraction — intake and interpretation are separate steps
   by design, and no parser decision has been recorded. Document classes are intake
-  labels; the checklist does not decide whether a class applies or whether a file is
-  complete. Salary data is classified for intake only: no participant salary fields,
-  import, formula mapping, or accrued-benefit assessment are implemented. The PBGC
-  plan-record classes do not call CMS or interpret trusteeship documents.
+  labels; applicability is a reviewer decision with a required basis, and “ready for
+  review” means only that an applicable class has a file. The checklist does not decide
+  completeness, authority, or sufficiency, does not require any class, and does not gate
+  work products. Salary data is classified for intake only: no participant salary
+  fields, import, formula mapping, or accrued-benefit assessment are implemented. The
+  PBGC plan-record classes do not call CMS or interpret trusteeship documents.
 - Single browser profile: no multi-user access, no server-side share, no sync.
 - IndexedDB quota applies; large evidence sets need a workstation with room to spare.
 - The final document reproduces the transcribed R5 shell's sections, labels, and

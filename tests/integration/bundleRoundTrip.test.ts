@@ -144,13 +144,21 @@ describe("case bundle round trip", () => {
     expect(bundle.manifest.find((entry) => entry.part === "artifacts")?.itemCount).toBe(1);
   });
 
-  it("restores facts, evidence bytes, and audit history as a new case", async () => {
+  it("restores facts, evidence bytes, decisions, and audit history as a new case", async () => {
     const { cases, artifacts, caseService, record, bytes, links } = await buildFixture();
+    const decision = await caseService.recordDecision({
+      caseId: record.caseId,
+      decisionKey: "document-class.plan-documents.applicability",
+      specId: "evidence.document-class-applicability",
+      value: "applies",
+      rationale: "Synthetic plan document set applies to this test case.",
+    });
     const bundle = await buildCaseBundle({
       caseRecord: record,
       planFacts: await caseService.getPlanFacts(record.caseId),
       evidenceLinks: links,
       auditEvents: await caseService.getAuditEvents(record.caseId),
+      decisions: [decision],
       artifacts: [
         { artifact: (await artifacts.listArtifacts(record.caseId))[0]!, bytes },
       ],
@@ -195,6 +203,21 @@ describe("case bundle round trip", () => {
     expect(events.filter((event) => event.eventType === "case-created")).toHaveLength(1);
     expect(events.filter((event) => event.eventType === "bundle-imported")).toHaveLength(1);
     expect(events.filter((event) => event.eventType === "plan-fact-saved")).toHaveLength(4);
+
+    const restoredDecisions = await cases.getDecisions(restored.caseId);
+    expect(restoredDecisions).toHaveLength(1);
+    expect(restoredDecisions[0]).toMatchObject({
+      decisionKey: "document-class.plan-documents.applicability",
+      specId: "evidence.document-class-applicability",
+      value: "applies",
+      rationale: "Synthetic plan document set applies to this test case.",
+    });
+    expect(restoredDecisions[0]?.decisionId).not.toBe(decision.decisionId);
+    const decisionEvent = events.find(
+      (event) => event.eventType === "reviewer-decision-recorded",
+    );
+    expect(decisionEvent?.refs.decisionId).toBe(restoredDecisions[0]?.decisionId);
+
     // Sequences stay strictly increasing after restore.
     for (let i = 1; i < events.length; i += 1) {
       expect(events[i]!.sequence!).toBeGreaterThan(events[i - 1]!.sequence!);

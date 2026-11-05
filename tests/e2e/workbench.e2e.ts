@@ -110,6 +110,41 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await expect(page.getByText(/SHA-256 [0-9a-f]{20}/)).toBeVisible();
   await expect(page.getByText("Not linked")).toBeVisible();
 
+  // Applicability is a reviewer decision, separate from the file count.
+  const planDocumentClass = documentSet.locator(
+    '[data-class-id="plan-documents"]',
+  );
+  await planDocumentClass.locator("summary").click();
+  await planDocumentClass
+    .getByLabel("Applicability for Plan document set")
+    .selectOption("applies");
+  await planDocumentClass
+    .getByLabel("Basis for this decision")
+    .fill("Synthetic plan document set is the governing plan record for this test.");
+  await planDocumentClass
+    .getByRole("button", { name: "Record decision" })
+    .click();
+  await expect(page.getByText("Reviewer decision recorded and audited.")).toBeVisible();
+  await expect(page.getByText("1 of 18 applicability reviewed")).toBeVisible();
+  await expect(planDocumentClass).toContainText("Ready for review");
+  await expect(planDocumentClass).toContainText("1 file");
+
+  const qdrosClass = documentSet.locator('[data-class-id="qdros"]');
+  await qdrosClass.locator("summary").click();
+  await qdrosClass
+    .getByLabel("Applicability for QDROs")
+    .selectOption("does-not-apply");
+  await qdrosClass
+    .getByLabel("Basis for this decision")
+    .fill("Synthetic case record contains no QDRO for this test.");
+  await qdrosClass.getByRole("button", { name: "Record decision" }).click();
+  await expect(page.getByText("2 of 18 applicability reviewed")).toBeVisible();
+  await expect(qdrosClass).toContainText("Not applicable");
+  await expect(documentSet.locator(".document-class-summary")).toContainText(
+    "2 of 18 classes have a recorded applicability decision",
+  );
+  await expect(page.getByText("1 of 18 classes added")).toBeVisible();
+
   await page.getByLabel("Supports field").selectOption({ label: "Plan Name of Customer Plan" });
   await page.getByRole("button", { name: "Link evidence" }).click();
   await expect(page.getByText("Linked to 1 field")).toBeVisible();

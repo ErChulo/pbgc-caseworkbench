@@ -14,12 +14,11 @@ import type { DerivedFieldEntry } from "../../domain/case/types";
 import type { DocumentClass } from "../../domain/evidence/types";
 import {
   DOCUMENT_CLASSES,
-  documentClassGroupCoverage,
   documentClassLabel,
-  unclassifiedArtifactCount,
 } from "../../domain/evidence/documentClasses";
 import { formatByteSize } from "../../adapters/hashing/sha256";
 import { EmptyState, Panel, StatusPill } from "../../ui/components";
+import { DocumentClassChecklist } from "./DocumentClassChecklist";
 
 type Props = {
   state: WorkbenchState;
@@ -49,13 +48,6 @@ export function EvidenceStage({ state, actions, fields }: Props) {
 
   const linksFor = (artifactId: string) =>
     state.links.filter((link) => link.artifactId === artifactId);
-
-  const groups = documentClassGroupCoverage(state.artifacts);
-  const presentClasses = groups.reduce(
-    (total, group) => total + group.presentClasses,
-    0,
-  );
-  const unclassified = unclassifiedArtifactCount(state.artifacts);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -261,80 +253,11 @@ export function EvidenceStage({ state, actions, fields }: Props) {
         )}
       </Panel>
 
-      <Panel
-        id="document-set"
-        eyebrow="Document set"
-        title="Plan-data classes"
-        description="Track which classes of plan data are present, grouped by source. A class marked added means at least one file was assigned to it."
-        aside={
-          <StatusPill tone={presentClasses === 0 ? "muted" : "success"}>
-            {presentClasses} of {DOCUMENT_CLASSES.length} classes added
-          </StatusPill>
-        }
-      >
-        {groups.map((group) => (
-          <section
-            key={group.id}
-            className="document-class-group"
-            aria-labelledby={`document-class-group-${group.id}`}
-          >
-            <div className="document-class-group-head">
-              <h3
-                id={`document-class-group-${group.id}`}
-                className="document-class-group-title"
-              >
-                {group.label}
-              </h3>
-              <span className="document-class-group-count">
-                {group.presentClasses} of {group.classes.length} added
-              </span>
-            </div>
-            <p className="document-class-group-description">{group.description}</p>
-            <ul
-              className="document-class-list"
-              aria-label={`${group.label} completeness`}
-            >
-              {group.classes.map((entry) => (
-                <li key={entry.id}>
-                  <div>
-                    <p className="document-class-name">{entry.label}</p>
-                    <p className="document-class-description">{entry.description}</p>
-                  </div>
-                  <span
-                    className={
-                      entry.count > 0
-                        ? "document-class-status present"
-                        : "document-class-status"
-                    }
-                  >
-                    {entry.count > 0
-                      ? `${entry.count} ${entry.count === 1 ? "file" : "files"}`
-                      : "Not added"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-
-        {unclassified > 0 ? (
-          <p className="spec-blocker">
-            <strong>
-              {unclassified} imported {unclassified === 1 ? "file is" : "files are"}{" "}
-              unclassified.
-            </strong>{" "}
-            Choose a document type on each file card so it counts toward the
-            document set.
-          </p>
-        ) : null}
-
-        <p className="panel-prose">
-          Presence tracks intake, not applicability or completeness. Whether a
-          class applies to this plan, and whether a file is complete and
-          authoritative, remains a reviewer determination. Salary data is an
-          intake label only; no salary fields are imported or assessed here.
-        </p>
-      </Panel>
+      <DocumentClassChecklist
+        artifacts={state.artifacts}
+        decisions={state.decisions}
+        onRecordDecision={actions.recordDecision}
+      />
 
       <Panel
         id="evidence-preview"

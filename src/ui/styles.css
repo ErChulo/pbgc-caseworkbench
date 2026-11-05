@@ -793,7 +793,7 @@ button.secondary:hover:not(:disabled) {
 .document-class-group-count {
   color: var(--color-muted);
   font-size: 12px;
-  white-space: nowrap;
+  text-align: right;
 }
 
 .document-class-group-description {
@@ -812,11 +812,202 @@ button.secondary:hover:not(:disabled) {
 }
 
 .document-class-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--color-border);
+}
+
+.document-class-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.document-class-copy {
+  min-width: min(100%, 360px);
+  flex: 1 1 360px;
+}
+
+.document-class-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.document-class-presence,
+.document-class-applicability {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.document-class-presence {
+  color: var(--color-muted);
+}
+
+.document-class-presence.present {
+  border-color: currentColor;
+  color: var(--color-success);
+}
+
+.document-class-applicability.unreviewed {
+  border-color: currentColor;
+  color: var(--color-warning);
+}
+
+.document-class-applicability.applies {
+  border-color: currentColor;
+  color: var(--color-success);
+}
+
+.document-class-applicability.does-not-apply {
+  color: var(--color-muted);
+}
+
+.document-class-applicability.unrecognized {
+  border-color: currentColor;
+  color: var(--color-danger);
+}
+
+.document-class-readiness {
+  max-width: 85ch;
+  margin: var(--space-2) 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.document-class-readiness strong {
+  color: var(--color-text);
+}
+
+.document-class-readiness.readiness-ready-for-review strong {
+  color: var(--color-success);
+}
+
+.document-class-readiness.readiness-evidence-needed strong,
+.document-class-readiness.readiness-applicability-unreviewed strong {
+  color: var(--color-warning);
+}
+
+.document-class-readiness.readiness-not-applicable-with-file strong,
+.document-class-readiness.readiness-decision-unrecognized strong {
+  color: var(--color-danger);
+}
+
+.document-class-rationale {
+  max-width: 85ch;
+  margin: var(--space-2) 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.document-class-rationale strong {
+  color: var(--color-text);
+}
+
+.document-class-when {
+  white-space: nowrap;
+}
+
+.document-class-decision {
+  margin-top: var(--space-2);
+}
+
+.document-class-decision > summary {
+  width: fit-content;
+  color: var(--color-accent);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.document-class-decision-form {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 680px;
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.document-class-decision-form label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.document-class-decision-form select,
+.document-class-decision-form textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.document-class-decision-form textarea {
+  min-height: 64px;
+  resize: vertical;
+}
+
+.document-class-decision-form .button-row {
+  margin-top: 0;
+}
+
+.document-class-form-hint,
+.document-class-append-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.document-class-form-hint {
+  color: var(--color-muted);
+}
+
+.document-class-append-note {
+  color: var(--color-info);
+}
+
+.document-class-summary {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-info);
+  border-radius: var(--radius-control);
+  background: var(--color-raised);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.document-class-summary p {
+  margin: 0;
+}
+
+.document-class-summary p + p {
+  margin-top: var(--space-1);
+}
+
+.document-class-summary-notes {
+  color: var(--color-muted);
 }
 
 .document-class-name {
@@ -830,16 +1021,6 @@ button.secondary:hover:not(:disabled) {
   color: var(--color-muted);
   font-size: 12px;
   line-height: 1.45;
-}
-
-.document-class-status {
-  color: var(--color-muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.document-class-status.present {
-  color: var(--color-success);
 }
 
 .document-class-group .document-class-list {
