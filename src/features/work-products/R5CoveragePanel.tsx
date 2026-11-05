@@ -16,6 +16,10 @@ import { downloadTextFile } from "../../app/download";
 import { sha256HexOfText } from "../../adapters/hashing/sha256";
 import { nowIso } from "../../domain/case/validation";
 import {
+  isSyntheticR5DemoCase,
+  syntheticR5DemoResolutionForDopt,
+} from "../../domain/demo/r5SyntheticProfile";
+import {
   R5_TEMPLATE_ID,
   R5_TEMPLATE_MANIFEST,
 } from "../../domain/work-products/r5/manifest";
@@ -52,6 +56,7 @@ type Props = {
 
 const statusTone: Record<R5CoverageStatus, StatusTone> = {
   resolved: "success",
+  "resolved-synthetic": "info",
   missing: "danger",
   pending: "warning",
   blocked: "warning",
@@ -59,6 +64,7 @@ const statusTone: Record<R5CoverageStatus, StatusTone> = {
 
 const statusLabel: Record<R5CoverageStatus, string> = {
   resolved: "Resolved",
+  "resolved-synthetic": "Synthetic demo input",
   missing: "Missing",
   pending: "Pending decision",
   blocked: "Blocked",
@@ -120,6 +126,7 @@ function buildCoverageHtml(
   th { background: #f3f3f3; }
   tr.missing td, tr.blocked td { color: #7a1f1f; }
   tr.pending td { color: #6b4a00; }
+  tr.resolved-synthetic td { color: #4a3f00; }
   .footer { margin-top: 28px; font-size: 12px; color: #555; border-top: 1px solid #ccc; padding-top: 10px; }
 </style>
 </head>
@@ -129,7 +136,7 @@ function buildCoverageHtml(
 <p>Template ${escapeHtml(R5_TEMPLATE_MANIFEST.fileName)} v${escapeHtml(R5_TEMPLATE_MANIFEST.version)}, document SHA-256
 <span>${escapeHtml(R5_TEMPLATE_MANIFEST.documentSha256)}</span>. Item list SHA-256
 <span>${escapeHtml(R5_TEMPLATE_MANIFEST.itemListSha256)}</span>.</p>
-<p>This is a coverage worksheet, not the notice. Cells marked Pending decision or Blocked must not be filled with plausible content.</p>
+<p>This is a coverage worksheet, not the notice. Cells marked Pending decision or Blocked must not be filled with plausible content. A Synthetic demo input is fictional demo data, not reviewed case evidence.</p>
 <table>
 <thead><tr><th scope="col">Shell label</th><th scope="col">Section</th><th scope="col">Status</th><th scope="col">Why</th></tr></thead>
 <tbody>
@@ -214,7 +221,15 @@ export function R5CoveragePanel({ state, onWorkProductCreated, onRecordDecision 
     latestDecisionByKey[decision.decisionKey] = decision.value;
   }
 
-  const coverage = evaluateR5Coverage(state.planFacts, latestDecisionByKey);
+  const synthetic = state.activeCase && isSyntheticR5DemoCase(state.activeCase.alias)
+    ? syntheticR5DemoResolutionForDopt(state.planFacts["cust-dopt"]?.value)
+    : null;
+  const coverage = evaluateR5Coverage(
+    state.planFacts,
+    latestDecisionByKey,
+    R5_TEMPLATE_MANIFEST,
+    synthetic,
+  );
   const repositoryCandidates = state.planDataSnapshot
     ? mapPlanDataCandidates({
         snapshot: state.planDataSnapshot.snapshot,
@@ -247,9 +262,6 @@ export function R5CoveragePanel({ state, onWorkProductCreated, onRecordDecision 
   }
   const manualDecisionCells = coverage.rows.filter(
     (row) => row.sourceKind === "reviewer-decision",
-  ).length;
-  const blockedCalculationCells = coverage.rows.filter(
-    (row) => row.sourceKind === "blocked" || row.sourceKind === "calculation",
   ).length;
   const sectionNames: string[] = [];
   for (const row of coverage.rows) {
@@ -316,7 +328,8 @@ export function R5CoveragePanel({ state, onWorkProductCreated, onRecordDecision 
           {manualDecisionCells} reviewer-decision cells remain manual
         </li>
         <li className="chip">
-          {blockedCalculationCells} calculation or blocked cells remain blocked
+          {coverage.blocked} calculation or blocked cells remain blocked;{" "}
+          {coverage.resolvedSynthetic} synthetic demo cell(s) resolved
         </li>
       </ul>
 
@@ -324,13 +337,17 @@ export function R5CoveragePanel({ state, onWorkProductCreated, onRecordDecision 
         <strong>The notice is not producible.</strong> {coverage.unresolved} placeholders are
         unresolved: {coverage.missing} missing fact(s), {coverage.pending} pending reviewer
         decision(s), {coverage.blocked} blocked by an unauthorized calculation or absent
-        field. Recording a decision below resolves that cell and is appended to the audit
-        trail; it never overwrites an earlier decision.
+        field. {coverage.resolvedSynthetic} synthetic demo cell(s) are resolved for the
+        fictional demo only and never make the notice producible. Recording a decision
+        below resolves that cell and is appended to the audit trail; it never overwrites
+        an earlier decision.
       </p>
 
       {sectionNames.map((section) => {
         const rows = coverage.rows.filter((row) => row.section === section);
-        const sectionResolved = rows.filter((row) => row.status === "resolved").length;
+        const sectionResolved = rows.filter(
+          (row) => row.status === "resolved" || row.status === "resolved-synthetic",
+        ).length;
         return (
           <details
             key={section}

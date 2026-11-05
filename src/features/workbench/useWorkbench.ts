@@ -75,6 +75,7 @@ export type WorkbenchState = {
 
 export type WorkbenchActions = {
   createCase: () => Promise<void>;
+  createSyntheticDemoCase: () => Promise<void>;
   openCase: (caseId: string) => Promise<void>;
   closeCase: () => void;
   savePlanFields: (values: Record<string, unknown>) => Promise<void>;
@@ -293,6 +294,24 @@ export function useWorkbench(): {
         error: messageOf(error),
         saveStatus: "error",
       }));
+    }
+  }, [loadCase]);
+
+  const createSyntheticDemoCase = useCallback(async () => {
+    try {
+      setState((previous) => ({ ...previous, error: null, notice: null }));
+      const record = await services.caseService.createSyntheticDemoCase();
+      const list = await services.caseService.listCases();
+      setState((previous) => ({ ...previous, cases: list }));
+      await loadCase(record.caseId);
+      setState((previous) => ({
+        ...previous,
+        stage: "document",
+        notice:
+          "Synthetic demo case created. The R5 header values are synthetic demo inputs, not a real plan.",
+      }));
+    } catch (error) {
+      setState((previous) => ({ ...previous, error: messageOf(error) }));
     }
   }, [loadCase]);
 
@@ -858,6 +877,7 @@ export function useWorkbench(): {
     dictionaryIndex,
     actions: {
       createCase,
+      createSyntheticDemoCase,
       openCase,
       closeCase,
       savePlanFields,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderPlanSummaryDocx } from "../../src/adapters/docx/planSummary";
 import { buildPlanSummaryDocument } from "../../src/domain/work-products/r5/summaryDocument";
+import { syntheticR5DemoResolution } from "../../src/domain/demo/r5SyntheticProfile";
 
 const documentModel = buildPlanSummaryDocument({
   caseAlias: "CW-0001",
@@ -73,6 +74,27 @@ describe("plan summary Word document", () => {
     expect(xml).toContain("Not recorded");
     expect(xml).not.toContain("Synthetic Plan & Co <Retirement>");
     expect(xml).toContain("<w:tbl>");
+  });
+
+  it("shows the synthetic demo banner and labels resolved cells", () => {
+    const syntheticModel = buildPlanSummaryDocument({
+      caseAlias: "CW-DEMO-0001",
+      generatedAt: "2026-11-04T12:00:00.000Z",
+      facts: {
+        "cust-plan-nm": { value: "Synthetic Plan & Co" },
+        "cust-case-nmbr": { value: "1200045" },
+        "cust-dopt": { value: "2024-06-30" },
+      },
+      synthetic: syntheticR5DemoResolution(),
+    });
+    const xml = new TextDecoder().decode(
+      readEntries(renderPlanSummaryDocx(syntheticModel)).get("word/document.xml"),
+    );
+
+    expect(xml).toContain("SYNTHETIC DEMO — NOT A REAL PLAN");
+    expect(xml).toContain("2024-10-31");
+    expect(xml).toContain("synthetic demo input");
+    expect(xml).toContain("5.18% for the first 5 years");
   });
 
   it("is byte-for-byte reproducible for the same model", () => {

@@ -50,6 +50,7 @@ export function App() {
           cases={state.cases}
           activeCase={state.activeCase}
           onCreateCase={() => void actions.createCase()}
+          onCreateDemoCase={() => void actions.createSyntheticDemoCase()}
           onOpenCase={(caseId) => void actions.openCase(caseId)}
           onCloseCase={actions.closeCase}
         />

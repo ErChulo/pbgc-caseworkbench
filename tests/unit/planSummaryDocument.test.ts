@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { syntheticR5DemoResolution } from "../../src/domain/demo/r5SyntheticProfile";
 import {
   buildPlanSummaryDocument,
   headerFields,
@@ -76,6 +77,31 @@ describe("plan summary document model", () => {
     expect(document_.totals.total).toBeGreaterThan(60);
     expect(document_.sections[0]?.label).toBe("Header");
     expect(document_.totals.filled).toBe(4);
+  });
+
+  it("marks synthetic demo values as synthetic and keeps totals distinct", () => {
+    const syntheticDocument = buildPlanSummaryDocument({
+      caseAlias: "CW-DEMO-0001",
+      generatedAt,
+      facts: {
+        ...facts,
+        "cust-dopt": { value: "2024-06-30" },
+      },
+      decisions,
+      synthetic: syntheticR5DemoResolution(),
+    });
+    const header = headerFields(syntheticDocument);
+
+    expect(syntheticDocument.synthetic).toBe(true);
+    expect(syntheticDocument.totals.synthetic).toBe(7);
+    expect(syntheticDocument.totals.filled).toBe(11);
+    expect(syntheticDocument.totals.blocked).toBe(0);
+    const dotr = header.find((row) => row.placeholderId === "r5.dotr");
+    expect(dotr).toMatchObject({
+      value: "2024-10-31",
+      status: "filled-synthetic",
+    });
+    expect(dotr?.note).toContain("Synthetic demo input");
   });
 
   it("is deterministic for the same case state", () => {

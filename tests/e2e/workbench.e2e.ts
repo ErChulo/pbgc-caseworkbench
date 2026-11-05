@@ -519,6 +519,27 @@ test("restores a bundle into a new case without overwriting the open one", async
   await expect(page.locator(".case-list-item", { hasText: "CW-0002" })).toBeVisible();
 });
 
+test("creates the synthetic R5 demo case without making the notice producible", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create synthetic demo case" }).click();
+
+  await expect(page.getByRole("heading", { name: "Your plan summary" })).toBeVisible();
+  await expect(page.getByText(/SYNTHETIC DEMO — NOT A REAL PLAN/)).toBeVisible();
+  await expect(page.getByText("Draft · 10 of 81 items filled")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Synthetic demo inputs" })).toBeVisible();
+  await expect(page.getByText("2024-10-31")).toBeVisible();
+  await expect(page.getByText("5.18% for the first 5 years")).toBeVisible();
+
+  await openStage(page, /Work products/);
+  const coverage = page.locator("#work-product-r5-coverage");
+  await expect(coverage).toContainText("10 of 81 resolved");
+  await expect(coverage).toContainText("7 synthetic demo cell(s) resolved");
+  await expect(coverage).toContainText("71 reviewer-decision cells remain manual");
+  await expect(coverage).toContainText("The notice is not producible.");
+});
+
 test("is usable at a narrow viewport", async ({ page }) => {
   await page.setViewportSize({ width: 480, height: 900 });
   await page.goto("/");

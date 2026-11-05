@@ -19,8 +19,14 @@ import {
   type R5PlaceholderSource,
   type R5TemplateManifest,
 } from "./manifest";
+import type { R5SyntheticResolution } from "./syntheticInputs";
 
-export type R5CoverageStatus = "resolved" | "missing" | "pending" | "blocked";
+export type R5CoverageStatus =
+  | "resolved"
+  | "resolved-synthetic"
+  | "missing"
+  | "pending"
+  | "blocked";
 
 export type R5CoverageRow = {
   placeholderId: string;
@@ -32,6 +38,8 @@ export type R5CoverageRow = {
   decisionKey: string | null;
   status: R5CoverageStatus;
   detail: string;
+  /** True when the value came from the explicit synthetic demo profile. */
+  synthetic: boolean;
 };
 
 export type R5SectionCoverage = {
@@ -46,6 +54,7 @@ export type R5CoverageSummary = {
   templateVersion: string;
   total: number;
   resolved: number;
+  resolvedSynthetic: number;
   missing: number;
   pending: number;
   blocked: number;
@@ -85,6 +94,7 @@ function evaluateRow(
   placeholder: R5Placeholder,
   facts: R5FactLookup,
   decisions: R5DecisionLookup,
+  synthetic: R5SyntheticResolution | null,
 ): R5CoverageRow {
   const base = {
     placeholderId: placeholder.placeholderId,
@@ -96,7 +106,20 @@ function evaluateRow(
       placeholder.source.kind === "reviewer-decision"
         ? placeholder.source.decisionId
         : null,
+    synthetic: false,
   };
+
+  if (synthetic?.ok) {
+    const cell = synthetic.cells[placeholder.placeholderId];
+    if (cell) {
+      return {
+        ...base,
+        status: "resolved-synthetic",
+        detail: `Synthetic demo input: ${cell.value}. ${cell.detail} Source: ${cell.source}`,
+        synthetic: true,
+      };
+    }
+  }
 
   switch (placeholder.source.kind) {
     case "fact": {
@@ -153,12 +176,18 @@ export function evaluateR5Coverage(
   facts: R5FactLookup,
   decisions: R5DecisionLookup = {},
   manifest: R5TemplateManifest = R5_TEMPLATE_MANIFEST,
+  synthetic: R5SyntheticResolution | null = null,
 ): R5CoverageSummary {
   const rows = manifest.placeholders.map((placeholder) =>
-    evaluateRow(placeholder, facts, decisions),
+    evaluateRow(placeholder, facts, decisions, synthetic),
   );
 
-  const resolved = rows.filter((row) => row.status === "resolved").length;
+  const resolved = rows.filter(
+    (row) => row.status === "resolved" || row.status === "resolved-synthetic",
+  ).length;
+  const resolvedSynthetic = rows.filter(
+    (row) => row.status === "resolved-synthetic",
+  ).length;
   const missing = rows.filter((row) => row.status === "missing").length;
   const pending = rows.filter((row) => row.status === "pending").length;
   const blocked = rows.filter((row) => row.status === "blocked").length;
@@ -171,7 +200,9 @@ export function evaluateR5Coverage(
 
   const sections = sectionNames.map((section) => {
     const inSection = rows.filter((row) => row.section === section);
-    const sectionResolved = inSection.filter((row) => row.status === "resolved").length;
+    const sectionResolved = inSection.filter(
+      (row) => row.status === "resolved" || row.status === "resolved-synthetic",
+    ).length;
     return {
       section,
       total: inSection.length,
@@ -185,11 +216,12 @@ export function evaluateR5Coverage(
     templateVersion: manifest.version,
     total: rows.length,
     resolved,
+    resolvedSynthetic,
     missing,
     pending,
     blocked,
     unresolved,
-    ready: unresolved === 0,
+    ready: unresolved === 0 && resolvedSynthetic === 0,
     rows,
     sections,
   };

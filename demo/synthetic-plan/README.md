@@ -23,7 +23,7 @@ Population stage is unaffected by these demo-only rules.
 | File | What it is |
 | --- | --- |
 | `case-metadata.json` | case alias `CW-DEMO-0001`, fictional plan name, synthetic plan number, DOPT 2024-06-30, plan year 2024 |
-| `plan-document.md` | the fictional plan, with provisions PP-01 to PP-10 |
+| `plan-document.md` | the fictional plan, with provisions PP-01 to PP-11 |
 | `census.csv` | 12 synthetic records in the workbench's documented CSV format |
 | `financials.json` | synthetic plan assets and present value of accrued benefits |
 
@@ -31,9 +31,11 @@ Population stage is unaffected by these demo-only rules.
 
 1. **Evidence** — import `plan-document.md` as a source artifact, so the plan
    provisions have provenance.
-2. **Plan summary** — enter the case number, plan name, and DOPT from
-   `case-metadata.json`. The values remain reviewer-entered unless linked to the
-   imported artifact.
+2. **Plan summary** — either create the built-in **synthetic demo case**
+   (`CW-DEMO-0001`) from the case home, or enter the case number, plan name, and
+   DOPT from `case-metadata.json`. The demo case seeds those four facts and uses
+   the versioned R5 profile in `src/domain/demo/r5SyntheticProfile.ts`; its seven
+   header values are labelled synthetic and never make the notice producible.
 3. **Population** — import `census.csv`. It uses the interchange headers
    `participant_key, record_type, status, date_of_birth, date_of_hire,
    date_of_termination, date_of_death`.
@@ -45,7 +47,7 @@ Population stage is unaffected by these demo-only rules.
 
 - Not a valuation, and not a template to copy values from. `financials.json` states
   its own lack of basis.
-- Not a source of PBGC rules. Provisions PP-01 to PP-10 are plan provisions of a
+- Not a source of PBGC rules. Provisions PP-01 to PP-11 are plan provisions of a
   fictional plan; the guarantee table, §4044 categories, and §4022(c) are external
   and remain unresolved in the rule registry.
 - Not anonymized real data. The sponsor, plan, and participants never existed. If

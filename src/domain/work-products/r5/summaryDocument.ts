@@ -15,8 +15,13 @@ import {
   R5_TEMPLATE_MANIFEST,
   type R5TemplateManifest,
 } from "./manifest";
+import type { R5SyntheticResolution } from "./syntheticInputs";
 
-export type PlanSummaryFieldStatus = "filled" | "needs-input" | "blocked";
+export type PlanSummaryFieldStatus =
+  | "filled"
+  | "filled-synthetic"
+  | "needs-input"
+  | "blocked";
 
 export type PlanSummaryField = {
   placeholderId: string;
@@ -41,8 +46,11 @@ export type PlanSummaryDocument = {
   caseAlias: string;
   generatedAt: string;
   sections: PlanSummarySection[];
+  /** True when at least one value came from the synthetic demo profile. */
+  synthetic: boolean;
   totals: {
     filled: number;
+    synthetic: number;
     needsInput: number;
     blocked: number;
     total: number;
@@ -83,10 +91,12 @@ export function buildPlanSummaryDocument(args: {
   facts: PlanSummaryFactLookup;
   decisions?: PlanSummaryDecisionLookup;
   manifest?: R5TemplateManifest;
+  synthetic?: R5SyntheticResolution | null;
 }): PlanSummaryDocument {
   const manifest = args.manifest ?? R5_TEMPLATE_MANIFEST;
   const decisions = args.decisions ?? {};
-  const coverage = evaluateR5Coverage(args.facts, decisions, manifest);
+  const synthetic = args.synthetic ?? null;
+  const coverage = evaluateR5Coverage(args.facts, decisions, manifest, synthetic);
   const placeholderById = new Map(
     manifest.placeholders.map((placeholder) => [placeholder.placeholderId, placeholder]),
   );
@@ -100,6 +110,8 @@ export function buildPlanSummaryDocument(args: {
       } else if (placeholder.source.kind === "reviewer-decision") {
         value = decisionValue(decisions, placeholder.source.decisionId);
       }
+    } else if (row.status === "resolved-synthetic" && synthetic?.ok) {
+      value = synthetic.cells[row.placeholderId]?.value ?? null;
     }
     return {
       placeholderId: row.placeholderId,
@@ -108,10 +120,17 @@ export function buildPlanSummaryDocument(args: {
       status:
         row.status === "resolved"
           ? "filled"
-          : row.status === "blocked"
-            ? "blocked"
-            : "needs-input",
-      note: row.status === "resolved" ? null : row.detail,
+          : row.status === "resolved-synthetic"
+            ? "filled-synthetic"
+            : row.status === "blocked"
+              ? "blocked"
+              : "needs-input",
+      note:
+        row.status === "resolved"
+          ? null
+          : row.status === "resolved-synthetic"
+            ? `Synthetic demo input — ${row.detail}`
+            : row.detail,
     };
   });
 
@@ -136,8 +155,10 @@ export function buildPlanSummaryDocument(args: {
     caseAlias: args.caseAlias,
     generatedAt: args.generatedAt,
     sections,
+    synthetic: coverage.resolvedSynthetic > 0,
     totals: {
       filled: coverage.resolved,
+      synthetic: coverage.resolvedSynthetic,
       needsInput: coverage.missing + coverage.pending,
       blocked: coverage.blocked,
       total: coverage.total,

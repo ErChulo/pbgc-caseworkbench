@@ -12,6 +12,7 @@ type Props = {
   cases: CaseRecord[];
   activeCase: CaseRecord | null;
   onCreateCase: () => void;
+  onCreateDemoCase: () => void;
   onOpenCase: (caseId: string) => void;
   onCloseCase: () => void;
 };
@@ -30,6 +31,7 @@ export function CaseHome({
   cases,
   activeCase,
   onCreateCase,
+  onCreateDemoCase,
   onOpenCase,
   onCloseCase,
 }: Props) {
@@ -46,6 +48,9 @@ export function CaseHome({
         <div className="button-row">
           <button className="primary" type="button" onClick={onCreateCase}>
             Create new case
+          </button>
+          <button className="secondary" type="button" onClick={onCreateDemoCase}>
+            Create synthetic demo case
           </button>
           {activeCase ? (
             <button className="secondary" type="button" onClick={onCloseCase}>
@@ -68,7 +73,9 @@ export function CaseHome({
         {cases.length === 0 ? (
           <EmptyState title="Nothing to reopen yet">
             <p>
-              Create a case to start the plan-field slice. Each case gets a
+              Create a case to start the plan-field slice, or use the synthetic
+              demo case to see the R5 header cells resolved from fictional plan
+              inputs and cited reference data. Each ordinary case gets a
               synthetic alias such as <code>CW-0001</code>.
             </p>
           </EmptyState>
