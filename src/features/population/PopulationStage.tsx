@@ -13,8 +13,11 @@ import { downloadTextFile } from "../../app/download";
 import { sha256HexOfText } from "../../adapters/hashing/sha256";
 import { buildCaseSnapshot, freezeCaseSnapshot } from "../../app/WorkProductService";
 import { nowIso } from "../../domain/case/validation";
+import { compareCensusImports } from "../../domain/population/changes";
 import { evaluatePopulation, V1_REQUIRED_RULE_IDS } from "../../domain/population/determination";
+import { currentPopulation } from "../../domain/population/imports";
 import { POPULATION_CSV_HEADERS } from "../../domain/population/types";
+import { activeArtifacts } from "../../domain/evidence/types";
 import { POPULATION_REGISTER_SPEC_ID } from "../../domain/work-products/registry";
 import { buildPopulationRegisterHtml } from "../work-products/populationRegister";
 import type { WorkbenchActions, WorkbenchState } from "../workbench/useWorkbench";
@@ -37,10 +40,28 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
 
   const doptFact = state.planFacts["cust-dopt"];
   const asOfDate = doptFact ? String(doptFact.value) : null;
-  const determination = useMemo(
-    () => evaluatePopulation(state.population, asOfDate),
-    [state.population, asOfDate],
+  // Records are append-only, so the newest census import is the active
+  // population; rows from earlier imports stay stored and exported.
+  const activePopulation = useMemo(
+    () => currentPopulation(state.population),
+    [state.population],
   );
+  const supersededCount = state.population.length - activePopulation.length;
+  const imports = state.populationImports;
+  const authoritative = imports.find((entry) => entry.authoritative) ?? null;
+  const artifactName = (artifactId: string) =>
+    state.artifacts.find((artifact) => artifact.artifactId === artifactId)
+      ?.fileName ?? "removed import";
+  const determination = useMemo(
+    () => evaluatePopulation(activePopulation, asOfDate),
+    [activePopulation, asOfDate],
+  );
+  const comparison = useMemo(
+    () => compareCensusImports(state.population),
+    [state.population],
+  );
+  const differenceCount =
+    comparison.changed.length + comparison.added.length + comparison.removed.length;
   const blockedRules = determination.records[0]?.blockers ?? [];
 
   async function handleFile(file: File | null | undefined) {
@@ -68,7 +89,7 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
           ? [{ fieldId: fact.fieldId, factId: fact.factId, value: fact.value, status: fact.status }]
           : [],
       ),
-      evidence: state.artifacts.map((artifact) => ({
+      evidence: activeArtifacts(state.artifacts).map((artifact) => ({
         artifactId: artifact.artifactId,
         sha256: artifact.sha256,
       })),
@@ -78,7 +99,7 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
     const frozen = await freezeCaseSnapshot(snapshot);
     const html = buildPopulationRegisterHtml({
       caseRecord,
-      records: state.population,
+      records: activePopulation,
       determination,
       generatedAt,
       snapshot: { snapshotId: frozen.snapshot.snapshotId, sha256: frozen.sha256 },
@@ -102,10 +123,10 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
         id="population-import"
         eyebrow="Stage 4 · Population"
         title="Import participant records"
-        description="A CSV with one row per participant. The file is stored as evidence first; every record keeps its artifact hash and row number. Any invalid row rejects the whole file."
+        description="A CSV with one row per participant. The file is stored as evidence first; every record keeps its artifact hash and row number. Any invalid row rejects the whole file. A later import becomes the authoritative census; earlier rows stay stored and exported but are no longer counted."
         aside={
-          <StatusPill tone={state.population.length === 0 ? "muted" : "success"}>
-            {state.population.length} record{state.population.length === 1 ? "" : "s"}
+          <StatusPill tone={activePopulation.length === 0 ? "muted" : "success"}>
+            {activePopulation.length} record{activePopulation.length === 1 ? "" : "s"}
           </StatusPill>
         }
       >
@@ -116,7 +137,11 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
             onClick={() => inputRef.current?.click()}
             disabled={busy || !state.activeCase}
           >
-            {busy ? "Importing…" : "Choose participant CSV"}
+            {busy
+              ? "Importing…"
+              : activePopulation.length > 0
+                ? "Import a revised census…"
+                : "Choose participant CSV"}
           </button>
           <button
             className="secondary"
@@ -141,6 +166,23 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
           onChange={(event) => void handleFile(event.target.files?.[0])}
         />
 
+        {authoritative ? (
+          <p className="panel-prose">
+            Authoritative census:{" "}
+            <strong>{artifactName(authoritative.artifactId)}</strong> · imported{" "}
+            {authoritative.importedAt.slice(0, 19).replace("T", " ")} ·{" "}
+            {authoritative.recordCount} row
+            {authoritative.recordCount === 1 ? "" : "s"}.
+            {supersededCount > 0
+              ? ` ${supersededCount} row${
+                  supersededCount === 1 ? "" : "s"
+                } from ${imports.length - 1} earlier import${
+                  imports.length - 1 === 1 ? "" : "s"
+                } remain stored and exported but are excluded from the register, reconciliation, and readiness.`
+              : ""}
+          </p>
+        ) : null}
+
         <p className="panel-prose">
           Required columns: <span className="mono">participant_key, record_type, status,
           date_of_birth, date_of_hire</span>. Optional: <span className="mono">date_of_termination,
@@ -149,7 +191,7 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
           layout has not been transcribed.
         </p>
 
-        {state.population.length === 0 ? (
+        {activePopulation.length === 0 ? (
           <EmptyState title="No participant records imported">
             <p>
               Participant keys must be synthetic or pseudonymous — never a real SSN.
@@ -172,7 +214,7 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
               </tr>
             </thead>
             <tbody>
-              {state.population.map((record) => {
+              {activePopulation.map((record) => {
                 const result = determination.records.find(
                   (entry) => entry.recordId === record.recordId,
                 );
@@ -203,6 +245,129 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
           </table>
         )}
       </Panel>
+
+      {imports.length > 1 ? (
+        <Panel
+          id="population-imports"
+          eyebrow="History"
+          title="Census imports"
+          description="Every import is kept. The newest one is the authoritative census; earlier imports and their rows stay in the case, in the audit trail, and in every bundle."
+          aside={<StatusPill tone="info">{imports.length} imports</StatusPill>}
+        >
+          <div className="table-scroll">
+            <table className="data-table" aria-label="Census import history">
+              <thead>
+                <tr>
+                  <th scope="col">File</th>
+                  <th scope="col">Imported</th>
+                  <th scope="col">Rows</th>
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {imports.map((entry) => (
+                  <tr key={entry.artifactId}>
+                    <th scope="row">{artifactName(entry.artifactId)}</th>
+                    <td>{entry.importedAt.slice(0, 19).replace("T", " ")}</td>
+                    <td className="numeric">{entry.recordCount}</td>
+                    <td>
+                      {entry.authoritative ? (
+                        <StatusPill tone="success">Authoritative</StatusPill>
+                      ) : (
+                        <StatusPill tone="muted">Superseded</StatusPill>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
+
+      {imports.length > 1 ? (
+        <Panel
+          id="population-changes"
+          eyebrow="Revision"
+          title="What changed from the previous census"
+          description="Compares the authoritative import with the one it superseded, by participant key and recorded value. A difference is a fact about the two files; it is not a finding that either value is correct."
+          aside={
+            comparison.status === "compared" ? (
+              <StatusPill tone={differenceCount > 0 ? "warning" : "muted"}>
+                {comparison.changed.length} changed · {comparison.added.length} added ·{" "}
+                {comparison.removed.length} removed
+              </StatusPill>
+            ) : (
+              <StatusPill tone="warning">Not comparable</StatusPill>
+            )
+          }
+        >
+          {comparison.status === "blocked" ? (
+            <p className="panel-prose">{comparison.detail}</p>
+          ) : (
+            <>
+              <p className="panel-prose">{comparison.detail}</p>
+              {comparison.changed.length > 0 ? (
+                <div className="table-scroll">
+                  <table
+                    className="data-table"
+                    aria-label="Participant values that changed between census imports"
+                  >
+                    <thead>
+                      <tr>
+                        <th scope="col">Participant</th>
+                        <th scope="col">Field</th>
+                        <th scope="col">Superseded import</th>
+                        <th scope="col">Authoritative import</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comparison.changed.flatMap((entry) =>
+                        entry.changes.map((change) => (
+                          <tr key={`${entry.participantKey}-${change.field}`}>
+                            <th scope="row" className="mono">
+                              {entry.participantKey}
+                            </th>
+                            <td>{change.label}</td>
+                            <td>{change.before}</td>
+                            <td>{change.after}</td>
+                          </tr>
+                        )),
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+              {comparison.added.length > 0 ? (
+                <p className="panel-prose">
+                  Added by the authoritative import:{" "}
+                  <span className="mono">
+                    {comparison.added
+                      .map((record) => record.participantKey)
+                      .join(", ")}
+                  </span>
+                </p>
+              ) : null}
+              {comparison.removed.length > 0 ? (
+                <p className="panel-prose">
+                  Present only in the superseded import:{" "}
+                  <span className="mono">
+                    {comparison.removed
+                      .map((record) => record.participantKey)
+                      .join(", ")}
+                  </span>
+                </p>
+              ) : null}
+              {differenceCount === 0 ? (
+                <p className="panel-prose">
+                  The two imports hold the same participants and recorded values;
+                  only their files and provenance differ.
+                </p>
+              ) : null}
+            </>
+          )}
+        </Panel>
+      ) : null}
 
       <Panel
         id="population-determination"
@@ -242,7 +407,7 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
             className="secondary"
             type="button"
             onClick={() => void downloadRegister()}
-            disabled={state.population.length === 0}
+            disabled={activePopulation.length === 0}
           >
             Download participant register
           </button>

@@ -5,8 +5,16 @@
  * case, so restoring a backup can never overwrite the case being reviewed.
  */
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { WorkbenchActions, WorkbenchState } from "../workbench/useWorkbench";
+import { activeArtifacts, isArtifactRetired } from "../../domain/evidence/types";
+import {
+  EMPTY_AUDIT_FILTER,
+  auditEventTypeCounts,
+  filterAuditEvents,
+  isAuditFilterActive,
+} from "../../domain/audit/filter";
+import type { AuditEventTypeFilter } from "../../domain/audit/filter";
 import { EmptyState, Panel, StatusPill } from "../../ui/components";
 
 type Props = {
@@ -30,6 +38,8 @@ function describeRefs(refs: Record<string, string | undefined>): string {
   if (refs.factId) parts.push(`fact ${refs.factId.slice(0, 8)}`);
   if (refs.previousFactId) parts.push(`supersedes ${refs.previousFactId.slice(0, 8)}`);
   if (refs.artifactId) parts.push(`artifact ${refs.artifactId.slice(0, 8)}`);
+  if (refs.previousArtifactId)
+    parts.push(`supersedes artifact ${refs.previousArtifactId.slice(0, 8)}`);
   if (refs.linkId) parts.push(`link ${refs.linkId.slice(0, 8)}`);
   if (refs.runId) parts.push(`run ${refs.runId.slice(0, 8)}`);
   return parts.length > 0 ? parts.join(" · ") : "—";
@@ -39,6 +49,26 @@ export function ReviewStage({ state, actions }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [auditFilter, setAuditFilter] = useState(EMPTY_AUDIT_FILTER);
+
+  const eventTypes = useMemo(
+    () => auditEventTypeCounts(state.auditEvents),
+    [state.auditEvents],
+  );
+  const visibleEvents = useMemo(
+    () => filterAuditEvents(state.auditEvents, auditFilter),
+    [auditFilter, state.auditEvents],
+  );
+  const artifactOptions = useMemo(
+    () =>
+      [...state.artifacts].sort((a, b) => a.fileName.localeCompare(b.fileName)),
+    [state.artifacts],
+  );
+  const filtering = isAuditFilterActive(auditFilter);
+  const filteredArtifact = auditFilter.artifactId
+    ? (state.artifacts.find((artifact) => artifact.artifactId === auditFilter.artifactId) ??
+      null)
+    : null;
 
   async function handleImport(file: File | undefined) {
     if (!file) return;
@@ -116,20 +146,104 @@ export function ReviewStage({ state, actions }: Props) {
             <p>Create a case to record the first event.</p>
           </EmptyState>
         ) : (
-          <div className="table-scroll">
-            <table className="data-table audit-table">
-              <thead>
-                <tr>
-                  <th scope="col">Sequence</th>
-                  <th scope="col">When</th>
-                  <th scope="col">Event</th>
-                  <th scope="col">Component</th>
-                  <th scope="col">References</th>
-                  <th scope="col">Change</th>
-                </tr>
-              </thead>
-              <tbody>
-                {state.auditEvents.map((event) => (
+          <>
+            <div className="filter-bar">
+              <label className="inline-field grow">
+                <span>Search the trail</span>
+                <input
+                  type="search"
+                  value={auditFilter.text}
+                  placeholder="Event type, component, reference id, or recorded value"
+                  onChange={(input) =>
+                    setAuditFilter((current) => ({ ...current, text: input.target.value }))
+                  }
+                />
+              </label>
+              <label className="inline-field">
+                <span>Event type</span>
+                <select
+                  value={auditFilter.eventType}
+                  onChange={(input) =>
+                    setAuditFilter((current) => ({
+                      ...current,
+                      eventType: input.target.value as AuditEventTypeFilter,
+                    }))
+                  }
+                >
+                  <option value="all">All events ({state.auditEvents.length})</option>
+                  {eventTypes.map((entry) => (
+                    <option key={entry.eventType} value={entry.eventType}>
+                      {entry.eventType} ({entry.count})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="inline-field">
+                <span>Evidence file</span>
+                <select
+                  value={auditFilter.artifactId ?? "all"}
+                  onChange={(input) =>
+                    setAuditFilter((current) => ({
+                      ...current,
+                      artifactId: input.target.value === "all" ? null : input.target.value,
+                    }))
+                  }
+                >
+                  <option value="all">All files</option>
+                  {artifactOptions.map((artifact) => (
+                    <option key={artifact.artifactId} value={artifact.artifactId}>
+                      {artifact.fileName}
+                      {isArtifactRetired(artifact) ? " (retired)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {filtering ? (
+                <button
+                  className="secondary"
+                  type="button"
+                  onClick={() => setAuditFilter(EMPTY_AUDIT_FILTER)}
+                >
+                  Clear filters
+                </button>
+              ) : null}
+            </div>
+
+            <p className="result-count" role="status">
+              Showing {visibleEvents.length} of {state.auditEvents.length} event
+              {state.auditEvents.length === 1 ? "" : "s"}
+              {filteredArtifact ? ` · ${filteredArtifact.fileName}` : ""}
+              {filtering
+                ? ". Filtering changes this view only: every event stays in the case, the bundle, and its sequence."
+                : ""}
+            </p>
+
+            {visibleEvents.length === 0 ? (
+              <EmptyState title="No audit events match these filters">
+                <p>The case still holds all {state.auditEvents.length} events.</p>
+                <button
+                  className="secondary"
+                  type="button"
+                  onClick={() => setAuditFilter(EMPTY_AUDIT_FILTER)}
+                >
+                  Clear filters
+                </button>
+              </EmptyState>
+            ) : (
+              <div className="table-scroll">
+                <table className="data-table audit-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Sequence</th>
+                      <th scope="col">When</th>
+                      <th scope="col">Event</th>
+                      <th scope="col">Component</th>
+                      <th scope="col">References</th>
+                      <th scope="col">Change</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleEvents.map((event) => (
                   <tr key={event.eventId}>
                     <td className="numeric">{event.sequence ?? "—"}</td>
                     <td>{formatTime(event.at)}</td>
@@ -153,6 +267,8 @@ export function ReviewStage({ state, actions }: Props) {
               </tbody>
             </table>
           </div>
+            )}
+          </>
         )}
       </Panel>
 
@@ -172,9 +288,15 @@ export function ReviewStage({ state, actions }: Props) {
             </dd>
           </div>
           <div className="key-value">
-            <dt>Evidence artifacts</dt>
-            <dd>{state.artifacts.length}</dd>
+            <dt>Active evidence artifacts</dt>
+            <dd>{activeArtifacts(state.artifacts).length}</dd>
           </div>
+          {state.artifacts.some(isArtifactRetired) ? (
+            <div className="key-value">
+              <dt>Retired evidence (retained)</dt>
+              <dd>{state.artifacts.filter(isArtifactRetired).length}</dd>
+            </div>
+          ) : null}
           <div className="key-value">
             <dt>Evidence links</dt>
             <dd>{state.links.length}</dd>

@@ -22,6 +22,8 @@ import {
   syntheticR5DemoResolutionForCase,
 } from "../../domain/demo/r5SyntheticProfile";
 import { reviewDocumentClasses } from "../../domain/evidence/documentClassApplicability";
+import { activeArtifacts } from "../../domain/evidence/types";
+import { supportingLinks } from "../../domain/evidence/citations";
 import { requiredClassPolicyStates } from "../../domain/work-products/requiredClassPolicy";
 import {
   REVIEW_COPY_SPEC_ID,
@@ -29,6 +31,7 @@ import {
   getWorkProduct,
 } from "../../domain/work-products/registry";
 import { checkWorkProductReadiness } from "../../domain/work-products/readiness";
+import { currentPopulation } from "../../domain/population/imports";
 import { implementedPredicates } from "../../domain/validation/predicates";
 import type {
   WorkProductDependency,
@@ -137,13 +140,20 @@ function buildReviewCopyHtml(
   generatedAt: string,
   snapshot: { snapshotId: string; sha256: string },
 ): string {
+  // Retired files are retained in the case and the bundle but are not active
+  // evidence, so the review copy lists only the active set.
+  const active = activeArtifacts(state.artifacts);
   const caseRecord = state.activeCase;
   if (!caseRecord) throw new Error("No active case.");
+
+  // A retracted citation is history, so the copy counts only links that still
+  // support the values it lists.
+  const support = supportingLinks(state.links, state.planFacts);
 
   const rows = catalog.fields
     .map((field) => {
       const fact = state.planFacts[field.fieldId];
-      const links = state.links.filter((link) => link.fieldId === field.fieldId);
+      const links = support.filter((link) => link.fieldId === field.fieldId);
       const value = fact ? escapeHtml(String(fact.value)) : "";
       const status = fact ? "Reviewed" : "Missing";
       return `<tr>
@@ -165,14 +175,14 @@ function buildReviewCopyHtml(
           .map((field) => escapeHtml(field.label))
           .join(", ")}. This copy is incomplete.</p>`;
 
-  const artifacts = state.artifacts
+  const artifacts = active
     .map(
       (artifact) => `<tr>
   <th scope="row">${escapeHtml(artifact.fileName)}</th>
   <td>${escapeHtml(artifact.mediaType || "unknown")}</td>
   <td class="mono">${escapeHtml(artifact.sha256)}</td>
   <td>${escapeHtml(new Date(artifact.importedAt).toLocaleString("en-US"))}</td>
-  <td>${state.links.filter((link) => link.artifactId === artifact.artifactId).length}</td>
+  <td>${support.filter((link) => link.artifactId === artifact.artifactId).length}</td>
 </tr>`,
     )
     .join("\n");
@@ -213,8 +223,8 @@ ${rows}
 </table>
 <h2>Evidence</h2>
 ${
-  state.artifacts.length === 0
-    ? "<p>No evidence imported for this case. Every reviewed value above is reviewer-entered.</p>"
+  active.length === 0
+    ? "<p>No active evidence is attached to this case. Every reviewed value above is reviewer-entered.</p>"
     : `<table>
 <thead><tr><th scope="col">File</th><th scope="col">Type</th><th scope="col">SHA-256</th><th scope="col">Imported</th><th scope="col">Links</th></tr></thead>
 <tbody>
@@ -254,18 +264,24 @@ export function WorkProductsStage({ state, onWorkProductCreated, onRecordDecisio
     R5_TEMPLATE_MANIFEST,
     synthetic,
   );
+  // Retired files remain in the case and the bundle, but they are not active
+  // evidence for class coverage, readiness, or the review copy.
+  const activeEvidence = activeArtifacts(state.artifacts);
   const documentClassReviews = reviewDocumentClasses(
-    state.artifacts,
+    activeEvidence,
     state.decisions,
   ).classes;
   const requiredClassPolicies = requiredClassPolicyStates(state.decisions);
   const readinessContext = {
     facts: state.planFacts,
-    evidence: state.artifacts,
+    evidence: activeEvidence,
     implementedPredicateIds,
     templateCoverage: { [R5_TEMPLATE_ID]: r5Coverage },
     requiredClassPolicies,
     documentClasses: documentClassReviews,
+    // Amounts of rows from superseded census imports are not part of the case's
+    // active population, so readiness counts the authoritative import only.
+    population: { recordCount: currentPopulation(state.population).length },
   };
 
   const readinessBySpec = new Map(
@@ -299,7 +315,7 @@ export function WorkProductsStage({ state, onWorkProductCreated, onRecordDecisio
               ]
             : [],
         ),
-        evidence: state.artifacts.map((artifact) => ({
+        evidence: activeEvidence.map((artifact) => ({
           artifactId: artifact.artifactId,
           sha256: artifact.sha256,
         })),
@@ -510,7 +526,8 @@ export function WorkProductsStage({ state, onWorkProductCreated, onRecordDecisio
               <dt>Included</dt>
               <dd>
                 {catalog.fields.filter((field) => state.planFacts[field.fieldId]).length} of{" "}
-                {catalog.fields.length} plan fields · {state.artifacts.length} evidence artifact(s)
+                {catalog.fields.length} plan fields · {activeEvidence.length} active evidence
+                artifact(s)
               </dd>
             </div>
           </dl>

@@ -12,7 +12,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DerivedFieldEntry, PlanFact } from "../../domain/case/types";
-import type { EvidenceLink } from "../../domain/evidence/types";
+import type {
+  EvidenceLink,
+  SourceArtifact,
+} from "../../domain/evidence/types";
+import {
+  describeEvidenceLocator,
+  supportingLinksForField,
+} from "../../domain/evidence/citations";
 import { validatePlanFields } from "../../domain/case/validation";
 import { CatalogBrowser } from "../catalog/CatalogBrowser";
 import type { DictionaryIndex } from "../../domain/catalog/types";
@@ -23,9 +30,11 @@ type Props = {
   fields: DerivedFieldEntry[];
   facts: Record<string, PlanFact | undefined>;
   links: EvidenceLink[];
+  artifacts: readonly SourceArtifact[];
   saveStatus: SaveStatus;
   dictionaryIndex: DictionaryIndex;
   onSave: (values: Record<string, unknown>) => Promise<void>;
+  onRetractCitation: (linkId: string, reason: string) => Promise<void>;
 };
 
 function valuesFromFacts(
@@ -44,9 +53,11 @@ export function PlanSummary({
   fields,
   facts,
   links,
+  artifacts,
   saveStatus,
   dictionaryIndex,
   onSave,
+  onRetractCitation,
 }: Props) {
   const [values, setValues] = useState<Record<string, string>>(() =>
     valuesFromFacts(fields, facts),
@@ -107,7 +118,7 @@ export function PlanSummary({
             {fields.map((field) => {
               const fact = facts[field.fieldId];
               const error = errors[field.fieldId];
-              const linked = links.filter((link) => link.fieldId === field.fieldId);
+              const linked = supportingLinksForField(links, facts, field.fieldId);
               return (
                 <PlanFieldRow
                   key={field.fieldId}
@@ -115,7 +126,9 @@ export function PlanSummary({
                   fact={fact}
                   value={values[field.fieldId] ?? ""}
                   error={error}
-                  linkedCount={linked.length}
+                  sources={linked}
+                  artifacts={artifacts}
+                  onRetractCitation={onRetractCitation}
                   onChange={(next) => {
                     setValues((previous) => ({
                       ...previous,
@@ -166,16 +179,65 @@ function PlanFieldRow({
   fact,
   value,
   error,
-  linkedCount,
+  sources,
+  artifacts,
+  onRetractCitation,
   onChange,
 }: {
   field: DerivedFieldEntry;
   fact: PlanFact | undefined;
   value: string;
   error: string | undefined;
-  linkedCount: number;
+  sources: readonly EvidenceLink[];
+  artifacts: readonly SourceArtifact[];
+  onRetractCitation: (linkId: string, reason: string) => Promise<void>;
   onChange: (value: string) => void;
 }) {
+  const inputId = `field-${field.fieldId}`;
+  const helpId = `${inputId}-help`;
+  const errorId = `${inputId}-error`;
+  const sourcesId = `${inputId}-sources`;
+  const retractReasonId = `${inputId}-retract-reason`;
+
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [retractLinkId, setRetractLinkId] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const [retracting, setRetracting] = useState(false);
+  const reasonRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (retractLinkId !== null) reasonRef.current?.focus();
+  }, [retractLinkId]);
+
+  useEffect(() => {
+    if (
+      retractLinkId !== null &&
+      !sources.some((link) => link.linkId === retractLinkId)
+    ) {
+      setRetractLinkId(null);
+      setReason("");
+    }
+  }, [retractLinkId, sources]);
+
+  const linkedCount = sources.length;
+  const artifactName = (artifactId: string) =>
+    artifacts.find((artifact) => artifact.artifactId === artifactId)?.fileName ??
+    "removed evidence file";
+
+  async function confirmRetraction() {
+    if (retractLinkId === null || retracting) return;
+    const why = reason.trim();
+    if (why === "") return;
+    setRetracting(true);
+    try {
+      await onRetractCitation(retractLinkId, why);
+      setRetractLinkId(null);
+      setReason("");
+    } finally {
+      setRetracting(false);
+    }
+  }
+
   const inputType =
     field.canonical.type === "number"
       ? "number"
@@ -184,9 +246,6 @@ function PlanFieldRow({
         : "text";
 
   const status = fact ? "Reviewed" : "Missing";
-  const inputId = `field-${field.fieldId}`;
-  const helpId = `${inputId}-help`;
-  const errorId = `${inputId}-error`;
 
   return (
     <div className={error ? "plan-field has-error" : "plan-field"}>
@@ -207,6 +266,17 @@ function PlanFieldRow({
               No evidence link
             </StatusPill>
           )}
+          {linkedCount > 0 ? (
+            <button
+              type="button"
+              className="secondary field-sources-toggle"
+              aria-expanded={sourcesOpen}
+              aria-controls={sourcesId}
+              onClick={() => setSourcesOpen((current) => !current)}
+            >
+              {sourcesOpen ? "Hide sources" : "Review sources"}
+            </button>
+          ) : null}
           <StatusPill tone={fact ? "success" : "muted"}>{status}</StatusPill>
         </div>
       </div>
@@ -255,6 +325,87 @@ function PlanFieldRow({
           Recorded {new Date(fact.reviewedAt).toLocaleString("en-US")} · catalog{" "}
           {fact.catalogVersion} · status {fact.status}
         </p>
+      ) : null}
+
+      {sourcesOpen && sources.length > 0 ? (
+        <div id={sourcesId} className="field-sources">
+          <ul>
+            {sources.map((link) => {
+              const citation = link.observationId !== undefined;
+              const locator = describeEvidenceLocator(link.locator);
+              return (
+                <li key={link.linkId}>
+                  <span>
+                    {artifactName(link.artifactId)} · {locator}
+                    {citation ? " · cited passage" : " · file-level link"}
+                  </span>
+                  {citation ? (
+                    <button
+                      type="button"
+                      className="secondary citation-retract-button"
+                      aria-label={`Retract citation from ${field.label} at ${locator}`}
+                      disabled={retracting || retractLinkId !== null}
+                      onClick={() => {
+                        setRetractLinkId(link.linkId);
+                        setReason("");
+                      }}
+                    >
+                      Retract
+                    </button>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+          {retractLinkId !== null ? (
+            <div
+              className="field-source-retract"
+              role="group"
+              aria-label={`Retract citation from ${field.label}`}
+            >
+              <label className="inline-field" htmlFor={retractReasonId}>
+                <span>Why is this citation being retracted?</span>
+                <input
+                  id={retractReasonId}
+                  ref={reasonRef}
+                  type="text"
+                  value={reason}
+                  maxLength={300}
+                  onChange={(event) => setReason(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") event.preventDefault();
+                  }}
+                />
+              </label>
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={reason.trim() === "" || retracting}
+                  onClick={() => void confirmRetraction()}
+                >
+                  {retracting ? "Retracting…" : "Confirm retraction"}
+                </button>
+                <button
+                  type="button"
+                  className="quiet"
+                  disabled={retracting}
+                  onClick={() => {
+                    setRetractLinkId(null);
+                    setReason("");
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+              <p className="artifact-meta">
+                The value and the earlier fact stay recorded. The link remains
+                in history, and the audit trail records why it no longer
+                supports this field.
+              </p>
+            </div>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

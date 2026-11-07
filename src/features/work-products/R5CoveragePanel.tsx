@@ -29,6 +29,7 @@ import {
   type R5CoverageStatus,
 } from "../../domain/work-products/r5/coverage";
 import { mapPlanDataCandidates } from "../../domain/plan-data/mapSnapshot";
+import { supportingLinks } from "../../domain/evidence/citations";
 import type { PlanDataCandidateStatus } from "../../domain/plan-data/types";
 import {
   R5_COVERAGE_SPEC_ID,
@@ -234,13 +235,15 @@ export function R5CoveragePanel({ state, onWorkProductCreated, onRecordDecision 
     R5_TEMPLATE_MANIFEST,
     synthetic,
   );
+  // A retracted passage citation is history and cannot confirm a candidate.
+  const support = supportingLinks(state.links, state.planFacts);
   const repositoryCandidates = state.planDataSnapshot
     ? mapPlanDataCandidates({
         snapshot: state.planDataSnapshot.snapshot,
         artifactId: state.planDataSnapshot.artifact.artifactId,
         fields: catalog.fields,
         facts: state.planFacts,
-        links: state.links,
+        links: support,
       })
     : [];
   const repositoryByField = new Map(

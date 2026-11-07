@@ -13,7 +13,10 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  timeout: 60_000,
+  // The full case slice exercises every stage in one test and takes about two
+  // minutes on a workstation; the per-test limit must allow for that while still
+  // failing a genuinely hung page.
+  timeout: 180_000,
   expect: { timeout: 10_000 },
   reporter: [["list"]],
   use: {

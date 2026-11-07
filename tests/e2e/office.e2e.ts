@@ -234,9 +234,11 @@ test("runs a realistic plan offline with zero external requests", async ({ page,
   await shotOf(page, "office-calculation", ".result-hero");
 
   await openStage(page, /Reconciliation/);
-  await expect(page.locator(".checklist-row")).toHaveCount(5);
+  await expect(page.locator("#reconciliation .checklist-row")).toHaveCount(8);
   await expect(
-    page.locator(".checklist-row", { hasText: "Required plan fields reviewed" }),
+    page.locator("#reconciliation .checklist-row", {
+      hasText: "Required plan fields reviewed",
+    }),
   ).toContainText("Pass");
 
   await openStage(page, /Work products/);
@@ -258,9 +260,14 @@ test("runs a realistic plan offline with zero external requests", async ({ page,
     artifacts: unknown[];
     auditEvents: unknown[];
     decisions: { decisionKey: string; value: string }[];
+    calculationRuns: unknown[];
+    observations: unknown[];
   };
-  expect(bundle.schemaVersion).toBe("1.0.0");
+  expect(bundle.schemaVersion).toBe("1.2.0");
+  // This plan never had its evidence text read, so the part is present and empty.
+  expect(bundle.observations).toEqual([]);
   expect(bundle.planFacts).toHaveLength(4);
+  expect(bundle.calculationRuns.length).toBeGreaterThanOrEqual(1);
   expect(bundle.evidenceLinks).toHaveLength(3);
   expect(bundle.artifacts).toHaveLength(3);
   expect(bundle.auditEvents.length).toBeGreaterThanOrEqual(9);

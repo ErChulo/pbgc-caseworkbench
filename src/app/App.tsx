@@ -18,6 +18,14 @@ import { WorkProductsStage } from "../features/work-products/WorkProductsStage";
 import { ReviewStage } from "../features/review/ReviewStage";
 import { FinalDocumentStage } from "../features/document/FinalDocumentStage";
 import { useWorkbench } from "../features/workbench/useWorkbench";
+import { PrototypeTestPanel } from "../features/walkthrough/PrototypeTestPanel";
+import { usePrototypeTest } from "../features/walkthrough/usePrototypeTest";
+import { createSampleEvidenceFiles } from "../features/walkthrough/sampleEvidence";
+import {
+  serializeWalkthroughNotes,
+  walkthroughNotesFileName,
+} from "./walkthrough";
+import { downloadTextFile } from "./download";
 import {
   GUIDED_STEPS,
   STAGES,
@@ -30,8 +38,34 @@ import { FILE_ORIGIN_MESSAGE, isFileOrigin } from "./environment";
 
 export function App() {
   const { state, actions, catalog, dictionaryIndex } = useWorkbench();
+  const prototypeTest = usePrototypeTest();
   const activeStage = STAGES.find((stage) => stage.id === state.stage) ?? STAGES[0]!;
   const fileOrigin = isFileOrigin();
+
+  async function addSampleDocuments() {
+    await actions.importFiles(createSampleEvidenceFiles(), "plan-documents");
+  }
+
+  /** Starts the script at its first step, so the panel never opens on a later screen. */
+  function startPrototypeTest() {
+    prototypeTest.start();
+    actions.setStage("home");
+  }
+
+  function downloadPrototypeNotes() {
+    const record = prototypeTest.record;
+    if (!record) return;
+    const recordedAt = new Date().toISOString();
+    downloadTextFile(
+      walkthroughNotesFileName(recordedAt),
+      serializeWalkthroughNotes(record, {
+        buildStamp: __BUILD_STAMP__,
+        caseAlias: state.activeCase?.alias ?? null,
+        recordedAt,
+      }),
+      "text/plain;charset=utf-8",
+    );
+  }
 
   function renderStage() {
     if (state.loading) {
@@ -55,6 +89,12 @@ export function App() {
           }
           onOpenCase={(caseId) => void actions.openCase(caseId)}
           onCloseCase={actions.closeCase}
+          onStartPrototypeTest={startPrototypeTest}
+          prototypeTestBlockedReason={
+            fileOrigin
+              ? "Storage is unavailable on a file:// page, so a case cannot be created."
+              : undefined
+          }
         />
       );
     }
@@ -81,9 +121,11 @@ export function App() {
               fields={catalog.fields}
               facts={state.planFacts}
               links={state.links}
+              artifacts={state.artifacts}
               saveStatus={state.saveStatus}
               dictionaryIndex={dictionaryIndex}
               onSave={actions.savePlanFields}
+              onRetractCitation={actions.retractCitation}
             />
             <PlanDataMappingPanel
               fields={catalog.fields}
@@ -119,7 +161,13 @@ export function App() {
           />
         );
       case "reconciliation":
-        return <ReconciliationStage state={state} fields={catalog.fields} />;
+        return (
+          <ReconciliationStage
+            state={state}
+            actions={actions}
+            fields={catalog.fields}
+          />
+        );
       case "document":
         return (
           <FinalDocumentStage
@@ -220,6 +268,21 @@ export function App() {
         <div className="rail-footer">
           <p>Local only</p>
           <p>No account, no telemetry, no network calls at runtime.</p>
+          {prototypeTest.record === null ? (
+            <button
+              className="rail-test-button"
+              type="button"
+              disabled={fileOrigin}
+              title={
+                fileOrigin
+                  ? "Storage is unavailable on a file:// page, so a case cannot be created."
+                  : "Eight scripted steps through the whole workbench"
+              }
+              onClick={startPrototypeTest}
+            >
+              Prototype test
+            </button>
+          ) : null}
         </div>
       </aside>
 
@@ -293,6 +356,23 @@ export function App() {
               ×
             </button>
           </div>
+        ) : null}
+
+        {prototypeTest.record ? (
+          <PrototypeTestPanel
+            record={prototypeTest.record}
+            caseOpen={state.activeCase !== null}
+            onCreateCase={actions.createPrototypeTestCase}
+            onAddSampleDocuments={addSampleDocuments}
+            onOutcome={prototypeTest.setOutcome}
+            onNote={prototypeTest.setNote}
+            onNext={prototypeTest.next}
+            onBack={prototypeTest.back}
+            onGoToStage={actions.setStage}
+            onRestart={prototypeTest.restart}
+            onExit={prototypeTest.stop}
+            onDownloadNotes={downloadPrototypeNotes}
+          />
         ) : null}
 
         {state.activeCase &&

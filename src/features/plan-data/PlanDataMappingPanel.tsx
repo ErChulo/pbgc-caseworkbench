@@ -11,6 +11,7 @@
 import { useState } from "react";
 import type { DerivedFieldEntry, PlanFact } from "../../domain/case/types";
 import type { EvidenceLink } from "../../domain/evidence/types";
+import { supportingLinks } from "../../domain/evidence/citations";
 import { PLAN_DATA_FIELD_BINDINGS } from "../../domain/plan-data/bindings";
 import { mapPlanDataCandidates } from "../../domain/plan-data/mapSnapshot";
 import type {
@@ -84,13 +85,15 @@ export function PlanDataMappingPanel({
     note: string;
   } | null>(null);
 
+  // A retracted passage citation is history and cannot confirm a candidate.
+  const support = supportingLinks(links, facts);
   const candidates: PlanDataCandidate[] = snapshot
     ? mapPlanDataCandidates({
         snapshot: snapshot.snapshot,
         artifactId: snapshot.artifact.artifactId,
         fields,
         facts,
-        links,
+        links: support,
       })
     : [];
   const candidatesByField = new Map(

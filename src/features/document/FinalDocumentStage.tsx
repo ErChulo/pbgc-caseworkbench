@@ -12,11 +12,13 @@ import { downloadBytes } from "../../app/download";
 import { buildPlanSummaryDraft } from "../../app/PlanSummaryService";
 import type { StageId } from "../../app/stages";
 import type { DecisionCitation } from "../../domain/case/types";
+import { activeArtifacts } from "../../domain/evidence/types";
 import { nowIso } from "../../domain/case/validation";
 import {
   isSyntheticR5DemoCase,
   syntheticR5DemoResolutionForCase,
 } from "../../domain/demo/r5SyntheticProfile";
+import { currentPopulation } from "../../domain/population/imports";
 import { R5_TEMPLATE_MANIFEST } from "../../domain/work-products/r5/manifest";
 import {
   r5DecisionSections,
@@ -122,6 +124,9 @@ export function FinalDocumentStage({
       field: header.find((row) => row.placeholderId === placeholder.placeholderId),
     }));
 
+  const activeEvidence = activeArtifacts(state.artifacts);
+  // Only the authoritative census import counts; earlier imports stay stored.
+  const activePopulationCount = currentPopulation(state.population).length;
   const checks = [
     ...headerFacts.map((fact) => ({
       label:
@@ -131,19 +136,19 @@ export function FinalDocumentStage({
     })),
     {
       label: "Source documents added",
-      done: state.artifacts.length > 0,
+      done: activeEvidence.length > 0,
       detail:
-        state.artifacts.length === 0
+        activeEvidence.length === 0
           ? "None yet"
-          : `${state.artifacts.length} document${state.artifacts.length === 1 ? "" : "s"}`,
+          : `${activeEvidence.length} document${activeEvidence.length === 1 ? "" : "s"}`,
     },
     {
       label: "Census imported",
-      done: state.population.length > 0,
+      done: activePopulationCount > 0,
       detail:
-        state.population.length === 0
+        activePopulationCount === 0
           ? "None yet"
-          : `${state.population.length} ${state.population.length === 1 ? "person" : "people"}`,
+          : `${activePopulationCount} ${activePopulationCount === 1 ? "person" : "people"}`
     },
   ];
   const incomplete =
@@ -388,7 +393,7 @@ export function FinalDocumentStage({
             sections={questionSections}
             sources={rationaleByKey}
             citations={citationByKey}
-            artifacts={state.artifacts}
+            artifacts={activeEvidence}
             onRecord={onRecordDecision}
           />
           <div className="button-row">

@@ -6,8 +6,15 @@
  * the branded shell.
  */
 
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readFile, unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import {
+  createSyntheticDocx,
+  createSyntheticPdf,
+} from "../../src/app/syntheticDocuments";
 
 const SCREENSHOTS = "artifacts/screenshots";
 
@@ -110,6 +117,20 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await expect(page.getByText(/SHA-256 [0-9a-f]{20}/)).toBeVisible();
   await expect(page.getByText("Not linked")).toBeVisible();
 
+  // The stored copy is handed back from the case itself, with no server.
+  const storedCopyPromise = page.waitForEvent("download");
+  await page
+    .locator(".artifact-card", { hasText: "synthetic-plan-summary.txt" })
+    .getByRole("button", { name: "Download stored copy" })
+    .click();
+  const storedCopy = await storedCopyPromise;
+  expect(storedCopy.suggestedFilename()).toBe("synthetic-plan-summary.txt");
+  const storedCopyPath = await storedCopy.path();
+  expect(storedCopyPath).not.toBeNull();
+  expect(await readFile(storedCopyPath!, "utf8")).toBe(
+    "Synthetic plan summary for the office test.\n",
+  );
+
   // Applicability is a reviewer decision, separate from the file count.
   const planDocumentClass = documentSet.locator(
     '[data-class-id="plan-documents"]',
@@ -182,6 +203,17 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   expect((await registerDownload).suggestedFilename()).toMatch(/participant-register\.html$/);
   await shot(page, "population");
 
+  // Stored-byte integrity: the import hash is re-checked as an explicit action.
+  await openStage(page, /Documents/);
+  const censusCard = page.locator(".artifact-card", {
+    hasText: "synthetic-participants.csv",
+  });
+  await expect(censusCard).toContainText("Integrity: not checked");
+  await page.getByRole("button", { name: "Verify active evidence" }).click();
+  await expect(page.getByText("Verified 2 stored evidence files")).toBeVisible();
+  await expect(censusCard).toContainText("Integrity: Verified");
+  await expect(page.locator(".artifact-card")).toHaveCount(2);
+
   // Final document: plan data is inserted, questions can be answered, and the
   // answer travels into the downloaded Word file.
   await openStage(page, /Final document/);
@@ -248,7 +280,7 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await page.getByRole("button", { name: "Run age calculation" }).click();
   await expect(page.locator(".result-value")).toHaveText("74");
   await expect(page.getByText(/completed years/i).first()).toBeVisible();
-  await expect(page.getByText(/reviewer-entered value/)).toBeVisible();
+  await expect(page.getByText(/reviewer-entered value/).first()).toBeVisible();
   await shot(page, "calculation");
 
   // EPRD: the cited age-55 floor runs and flags the reviewer determination.
@@ -290,9 +322,92 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await expect(page.getByText(/bcv:anb/).first()).toBeVisible();
   await shot(page, "addin");
 
+  // Traces are durable: a reload keeps every run with its kind and value.
+  await page.reload();
+  await openStage(page, /Calculations/);
+  const runHistory = page.locator("#calculation-history");
+  await expect(runHistory).toContainText("4 runs stored");
+  await expect(runHistory).toContainText("Age at a date");
+  await expect(runHistory).toContainText("Earliest PBGC Retirement Date");
+  await expect(runHistory).toContainText("Aggregate limit");
+  await expect(runHistory).toContainText("BCV add-in");
+
   await openStage(page, /Reconciliation/);
   await expect(page.getByRole("heading", { name: "Readiness for a work product" })).toBeVisible();
-  await expect(page.locator(".checklist-row")).toHaveCount(5);
+  await expect(page.locator("#reconciliation .checklist-row")).toHaveCount(8);
+  await expect(
+    page.locator("#reconciliation .checklist-row", {
+      hasText: "Stored evidence matches recorded hashes",
+    }),
+  ).toContainText("Pass");
+
+  // Census control total: a mismatch is blocking, and a corrected control passes.
+  const censusPanel = page.locator("#census-reconciliation");
+  await expect(censusPanel).toContainText("Imported rows: 2");
+  const countMatch = censusPanel.locator(".checklist-row", {
+    hasText: "Imported row count matches the control",
+  });
+  await censusPanel.getByLabel("Expected census row count").fill("3");
+  await censusPanel
+    .getByLabel("Source and basis for the control total")
+    .fill("Synthetic plan sponsor census count supplied for this test.");
+  await censusPanel.getByRole("button", { name: "Record control total" }).click();
+  await expect(countMatch).toContainText("Blocking");
+  await expect(countMatch).toContainText("difference -1");
+
+  await censusPanel.getByLabel("Expected census row count").fill("2");
+  await censusPanel
+    .getByLabel("Source and basis for the control total")
+    .fill("Corrected synthetic control after reconciling the two imported rows.");
+  await censusPanel.getByRole("button", { name: "Record control total" }).click();
+  await expect(countMatch).toContainText("Pass");
+  await expect(censusPanel).toContainText("control: 2");
+
+  // A revised census supersedes the earlier import without deleting it: the
+  // register counts only the authoritative rows and the history keeps both.
+  await openStage(page, /Plan & people/);
+  await page.getByRole("button", { name: "People", exact: true }).click();
+  await page.getByLabel("Choose participant CSV to import").setInputFiles({
+    name: "synthetic-participants-revised.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "participant_key,record_type,status,date_of_birth,date_of_hire,date_of_termination,date_of_death\n" +
+        "P-0001,participant,retired,1950-01-15,1975-01-15,2011-06-30,\n" +
+        "P-0002,participant,separated-vested,1960-01-15,1985-01-15,,\n",
+    ),
+  });
+  await expect(page.getByText(/This import supersedes/)).toBeVisible();
+  await expect(
+    page.locator("#population-import .data-table tbody tr"),
+  ).toHaveCount(2);
+  const importHistory = page.locator("#population-imports");
+  await expect(importHistory.locator("tbody tr")).toHaveCount(2);
+  await expect(importHistory).toContainText("synthetic-participants-revised.csv");
+  await expect(importHistory).toContainText("synthetic-participants.csv");
+  await expect(importHistory.getByText("Authoritative", { exact: true })).toBeVisible();
+  await expect(importHistory.getByText("Superseded", { exact: true })).toBeVisible();
+
+  const revision = page.locator("#population-changes");
+  await expect(revision).toContainText("1 changed · 0 added · 0 removed");
+  await expect(revision).toContainText("P-0001");
+  await expect(revision).toContainText("Date of termination");
+  await expect(revision).toContainText("2010-12-31");
+  await expect(revision).toContainText("2011-06-30");
+
+  await openStage(page, /Reconciliation/);
+  await expect(censusPanel).toContainText("Imported rows: 2");
+  await expect(censusPanel).toContainText(
+    "Authoritative census: synthetic-participants-revised.csv",
+  );
+  await expect(censusPanel).toContainText(
+    "2 rows from 1 earlier import remain stored and exported",
+  );
+  await expect(censusPanel).toContainText("1 changed, 0 added, 0 removed");
+  await expect(censusPanel).toContainText("supersedes");
+  await expect(censusPanel).toContainText(
+    "The control total predates this census import",
+  );
+  await expect(countMatch).toContainText("Pass");
 
   await openStage(page, /Work products/);
 
@@ -519,6 +634,64 @@ test("restores a bundle into a new case without overwriting the open one", async
   await expect(page.locator(".case-list-item", { hasText: "CW-0002" })).toBeVisible();
 });
 
+test("refuses a bundle whose evidence bytes no longer match the recorded hash", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create new case" }).click();
+  await openStage(page, /Documents/);
+  await page.getByLabel("Document type for new files").selectOption("plan-documents");
+  await page
+    .getByLabel("Choose evidence files to import")
+    .setInputFiles({
+      name: "synthetic-integrity-bundle.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("Synthetic evidence for the payload verification test.\n"),
+    });
+  await expect(page.locator(".artifact-name")).toHaveText(
+    "synthetic-integrity-bundle.txt",
+  );
+
+  await openStage(page, /Review & export/);
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export review bundle" }).click();
+  const download = await downloadPromise;
+  const bundlePath = await download.path();
+  expect(bundlePath).toBeTruthy();
+
+  // Restamp the manifest so it matches the file. The manifest then passes, but
+  // the artifact's recorded SHA-256 no longer describes the bundled bytes.
+  const bundle = JSON.parse(await readFile(bundlePath!, "utf8"));
+  bundle.artifacts[0].artifact.sha256 = "a".repeat(64);
+  const artifactsEntry = bundle.manifest.find(
+    (entry: { part: string }) => entry.part === "artifacts",
+  );
+  artifactsEntry.sha256 = createHash("sha256")
+    .update(JSON.stringify(bundle.artifacts))
+    .digest("hex");
+  const tamperedPath = join(tmpdir(), `pbgc-tampered-bundle-${Date.now()}.json`);
+  await writeFile(tamperedPath, JSON.stringify(bundle, null, 2));
+
+  try {
+    await page.getByLabel("Choose a case bundle to restore").setInputFiles(tamperedPath);
+    await expect(page.locator(".error-banner")).toContainText(
+      /payload verification failed/i,
+    );
+    await expect(page.locator(".error-banner")).toContainText(
+      /recorded SHA-256/i,
+    );
+    await expect(page.locator(".error-banner")).toContainText(
+      /No case data was restored/i,
+    );
+  } finally {
+    await unlink(tamperedPath).catch(() => undefined);
+  }
+
+  // The refusal wrote nothing: the original case is still the only one.
+  await openStage(page, /Case$/);
+  await expect(page.locator(".case-list-item")).toHaveCount(1);
+});
+
 test("creates the synthetic R5 demo case without making the notice producible", async ({
   page,
 }) => {
@@ -563,6 +736,487 @@ test("creates the 2023 synthetic R5 demo case with its own published row", async
   await expect(coverage).toContainText("7 synthetic demo cell(s) resolved");
   await expect(coverage).toContainText("71 reviewer-decision cells remain manual");
   await expect(coverage).toContainText("The notice is not producible.");
+});
+
+test("retires, reinstates, and discards a stored copy without deleting the record", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("pageerror", (error) => consoleErrors.push(error.message));
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create new case" }).click();
+  await openStage(page, /Documents/);
+
+  await page.getByLabel("Choose evidence files to import").setInputFiles({
+    name: "synthetic-retired.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("Synthetic document to retire.\n"),
+  });
+  await expect(page.getByText("1 active document", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: /^Retire/ }).click();
+  await page
+    .getByLabel("Reason for retiring this file")
+    .fill("Synthetic duplicate upload.");
+  await page.getByRole("button", { name: "Retire file" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "Retired evidence" }),
+  ).toBeVisible();
+  await expect(page.getByText("0 active documents", { exact: true })).toBeVisible();
+  await expect(page.getByText("Reason: Synthetic duplicate upload.")).toBeVisible();
+  await expect(
+    page.getByText(/Retired "synthetic-retired.txt" from active evidence/),
+  ).toBeVisible();
+
+  // The retirement survives a reload, and the file is still stored and hashed.
+  await page.reload();
+  await openStage(page, /Documents/);
+  await expect(
+    page.getByRole("heading", { name: "Retired evidence" }),
+  ).toBeVisible();
+  await expect(page.getByText("0 active documents", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Return to active evidence" }).click();
+  await expect(page.getByText("1 active document", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Retired evidence" }),
+  ).toHaveCount(0);
+
+  // Retention: a second retirement may discard the stored copy, but only with
+  // a reason and the exact file name, and the record stays with its hash.
+  await page.getByRole("button", { name: /^Retire/ }).click();
+  await page
+    .getByLabel("Reason for retiring this file")
+    .fill("Synthetic retention review.");
+  await page.getByRole("button", { name: "Retire file" }).click();
+  await page.getByRole("button", { name: /^Discard stored copy/ }).click();
+  await page
+    .getByLabel("Reason for discarding the stored copy")
+    .fill("Synthetic source copy no longer needed.");
+  await page
+    .getByLabel("Type the file name to confirm")
+    .fill("synthetic-retired.txt");
+  await page.getByRole("button", { name: "Discard stored copy", exact: true }).click();
+
+  await expect(
+    page.getByText(/Discarded the stored copy of "synthetic-retired.txt"/),
+  ).toBeVisible();
+  await expect(page.getByText("Bytes discarded", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 copy discarded", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Stored evidence: 0 B/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Return to active evidence" }),
+  ).toHaveCount(0);
+
+  // The discard survives a reload and the record still carries its hash.
+  await page.reload();
+  await openStage(page, /Documents/);
+  await expect(page.getByText("Bytes discarded", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(/SHA-256 [0-9a-f]{20}/).first(),
+  ).toBeVisible();
+  await expect(page.getByText(/Stored evidence: 0 B/)).toBeVisible();
+
+  // Reattach is verified against the retained hash: a different file is
+  // refused, and the original file restores the bytes without reinstating it.
+  const reattachInput = page.getByLabel(
+    /Choose the original file to reattach for synthetic-retired.txt/,
+  );
+  await reattachInput.setInputFiles({
+    name: "synthetic-retired.txt",
+    mimeType: "text/plain",
+    // Same byte length as the original, different content: only the hash can
+    // distinguish them, and the record must not change.
+    buffer: Buffer.from("Synthetic document to retIre.\n"),
+  });
+  await expect(page.getByText(/does not hash to the SHA-256/)).toBeVisible();
+  await expect(page.getByText("Bytes discarded", { exact: true })).toBeVisible();
+
+  await reattachInput.setInputFiles({
+    name: "synthetic-retired.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("Synthetic document to retire.\n"),
+  });
+  await expect(
+    page.getByText(/Reattached the stored copy of "synthetic-retired.txt"/),
+  ).toBeVisible();
+  await expect(page.getByText("Bytes discarded", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Stored evidence: 30 B/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Return to active evidence" }),
+  ).toBeVisible();
+
+  await openStage(page, /Review & export/);
+  const audit = page.locator(".audit-table");
+  // Two retirements, one reinstatement, one discard, one reattach.
+  await expect(audit.getByText("artifact-retired", { exact: true })).toHaveCount(2);
+  await expect(audit.getByText("artifact-reinstated", { exact: true })).toHaveCount(1);
+  await expect(
+    audit.getByText("artifact-bytes-purged", { exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    audit.getByText("artifact-bytes-reattached", { exact: true }),
+  ).toHaveCount(1);
+
+  // The trail can be narrowed for review without changing what the case holds.
+  const totalRows = await audit.locator("tbody tr").count();
+  await page.getByLabel("Event type").selectOption("artifact-retired");
+  await expect(audit.locator("tbody tr")).toHaveCount(2);
+  await expect(page.getByText(/Showing 2 of \d+ events/)).toBeVisible();
+
+  await page.getByLabel("Search the trail").fill("reattach");
+  await expect(audit.locator("tbody tr")).toHaveCount(0);
+  await expect(page.getByText("No audit events match these filters")).toBeVisible();
+  await page.getByRole("button", { name: "Clear filters" }).first().click();
+  await expect(audit.locator("tbody tr")).toHaveCount(totalRows);
+
+  // Scoping to one file shows its events only, including the retirement that
+  // the file list marks as retired.
+  await page
+    .getByLabel("Evidence file")
+    .selectOption({ label: "synthetic-retired.txt (retired)" });
+  expect(await audit.locator("tbody tr").count()).toBeGreaterThan(0);
+  await expect(audit.getByText("case-created", { exact: true })).toHaveCount(0);
+  await expect(
+    audit.getByText("artifact-bytes-reattached", { exact: true }),
+  ).toHaveCount(1);
+  await expect(page.getByText(/· synthetic-retired\.txt/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(audit.locator("tbody tr")).toHaveCount(totalRows);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("reads a stored PDF's text layer and keeps it as observations", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("pageerror", (error) => consoleErrors.push(error.message));
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create new case" }).click();
+
+  // A citation supports a value the reviewer recorded first.
+  await page.getByLabel("Case Identification Number").fill("CASE0002");
+  await page.getByLabel("Case Number of Customer Plan").fill("2002");
+  await page.getByLabel("Date of Plan Termination for Customer Plan").fill("2024-06-30");
+  await page.getByLabel("Plan Name of Customer Plan").fill("Synthetic Cited Plan");
+  await page.getByRole("button", { name: "Save plan fields" }).click();
+  await expect(page.getByText("Plan fields saved and audited.")).toBeVisible();
+
+  await openStage(page, /Documents/);
+
+  // A generated PDF with a real text layer; no real document is involved.
+  await page.getByLabel("Choose evidence files to import").setInputFiles({
+    name: "synthetic-plan.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from(
+      createSyntheticPdf([
+        ["Synthetic plan page one"],
+        ["Synthetic page two"],
+      ]),
+    ),
+  });
+  await expect(page.getByText("1 active document", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Read text" }).click();
+  const panel = page.locator(".extracted-text");
+  await expect(panel.getByText("Text observed", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Page 1", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Synthetic plan page one")).toBeVisible();
+  await expect(panel.getByText("Page 2", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Synthetic page two")).toBeVisible();
+  await expect(panel.getByText(/Observed text, not a case fact/)).toBeVisible();
+
+  // Cite page one for the saved plan name and page two for the case number.
+  // Neither value is copied or changed; each field gains a source pointer.
+  await panel
+    .getByLabel("Cite a passage for")
+    .selectOption({ label: "Plan Name of Customer Plan" });
+  await panel.getByRole("button", { name: "Cite Page 1" }).click();
+  await expect(page.getByText(/The passage is cited for that field/)).toBeVisible();
+  await expect(panel.getByText("Cited for Plan Name of Customer Plan")).toBeVisible();
+  await expect(panel.getByText(/Observed text, not a case fact/)).toBeVisible();
+
+  await panel
+    .getByLabel("Cite a passage for")
+    .selectOption({ label: "Case Number of Customer Plan" });
+  await panel.getByRole("button", { name: "Cite Page 2" }).click();
+  await expect(panel.getByText("Cited for Case Number of Customer Plan")).toBeVisible();
+
+  // Reading the same bytes again keeps both passages' identities, so their
+  // citations still resolve instead of being orphaned by new observation ids.
+  await page.getByRole("button", { name: "Read text" }).click();
+  await expect(page.getByText(/Read 2 text units/)).toBeVisible();
+  await expect(panel.getByText("Cited for Plan Name of Customer Plan")).toBeVisible();
+  await expect(panel.getByText("Cited for Case Number of Customer Plan")).toBeVisible();
+
+  // The OOXML reader runs in the browser as well, through the same port.
+  await page.getByLabel("Choose evidence files to import").setInputFiles({
+    name: "synthetic-notes.docx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    buffer: Buffer.from(
+      createSyntheticDocx({ paragraphs: ["Synthetic Word paragraph"] }),
+    ),
+  });
+  const docxCard = page
+    .locator(".artifact-card")
+    .filter({ hasText: "synthetic-notes.docx" });
+  await docxCard.getByRole("button", { name: "Read text" }).click();
+  await expect(docxCard.getByText("Paragraph 1", { exact: true })).toBeVisible();
+  await expect(docxCard.getByText("Synthetic Word paragraph")).toBeVisible();
+
+  // The observations are case records: they survive a reload and are audited
+  // once, naming the file and the count rather than the text.
+  await page.reload();
+  await openStage(page, /Documents/);
+  const pdfCard = page
+    .locator(".artifact-card")
+    .filter({ hasText: "synthetic-plan.pdf" });
+  await expect(
+    pdfCard.locator(".extracted-text").getByText("Text observed", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    pdfCard.locator(".extracted-text").getByText("Synthetic plan page one"),
+  ).toBeVisible();
+  await expect(
+    pdfCard
+      .locator(".extracted-text")
+      .getByText("Cited for Plan Name of Customer Plan"),
+  ).toBeVisible();
+  await expect(
+    pdfCard
+      .locator(".extracted-text")
+      .getByText("Cited for Case Number of Customer Plan"),
+  ).toBeVisible();
+
+  await openStage(page, /Reconciliation/);
+  await expect(
+    page.getByText("Cited passages resolve to stored text", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/2 cited passages resolve to stored text/),
+  ).toBeVisible();
+
+  // The reviewed field lists its sources and offers the same retraction
+  // without a trip back to Documents.
+  await openStage(page, /Plan & people/);
+  const planNameRow = page
+    .locator(".plan-field")
+    .filter({ hasText: "Plan Name of Customer Plan" });
+  await planNameRow.getByRole("button", { name: "Review sources" }).click();
+  await expect(
+    planNameRow.getByText(/synthetic-plan\.pdf · page 1 · cited passage/),
+  ).toBeVisible();
+  await expect(
+    planNameRow.getByRole("button", {
+      name: "Retract citation from Plan Name of Customer Plan at page 1",
+    }),
+  ).toBeVisible();
+
+  // A citation can be withdrawn with a reason. The value, the earlier fact, and
+  // the recorded link stay; only the claim that the passage supports the value
+  // ends, and the audit trail says why.
+  await openStage(page, /Documents/);
+  const pdfPanel = pdfCard.locator(".extracted-text");
+  await pdfPanel
+    .getByRole("button", {
+      name: "Retract citation for Plan Name of Customer Plan at Page 1",
+    })
+    .click();
+  const retractForm = pdfPanel.getByRole("form", {
+    name: /Retract citation at Page 1/,
+  });
+  await expect(retractForm).toBeVisible();
+  await expect(
+    retractForm.getByRole("button", { name: "Confirm retraction" }),
+  ).toBeDisabled();
+  await retractForm
+    .getByLabel("Why is this citation being retracted?")
+    .fill("Wrong passage for the plan name.");
+  await retractForm.getByRole("button", { name: "Confirm retraction" }).click();
+  await expect(page.getByText(/The citation was retracted/)).toBeVisible();
+  await expect(
+    pdfPanel.getByText("Cited for Plan Name of Customer Plan"),
+  ).toHaveCount(0);
+  await expect(
+    pdfCard.getByText(/Former citation for Plan Name of Customer Plan/),
+  ).toBeVisible();
+
+  await openStage(page, /Plan & people/);
+  await expect(planNameRow.getByText("No evidence link")).toBeVisible();
+  await expect(
+    planNameRow.getByRole("button", { name: "Review sources" }),
+  ).toHaveCount(0);
+
+  // The second citation is withdrawn from the reviewed field itself: the same
+  // service and the same required reason, without a trip back to Documents.
+  const caseNumberRow = page
+    .locator(".plan-field")
+    .filter({ hasText: "Case Number of Customer Plan" });
+  await caseNumberRow.getByRole("button", { name: "Review sources" }).click();
+  await expect(
+    caseNumberRow.getByText(/synthetic-plan\.pdf · page 2 · cited passage/),
+  ).toBeVisible();
+  await caseNumberRow
+    .getByRole("button", {
+      name: "Retract citation from Case Number of Customer Plan at page 2",
+    })
+    .click();
+  const caseNumberForm = caseNumberRow.getByRole("group", {
+    name: "Retract citation from Case Number of Customer Plan",
+  });
+  await expect(
+    caseNumberForm.getByRole("button", { name: "Confirm retraction" }),
+  ).toBeDisabled();
+  await caseNumberForm
+    .getByLabel("Why is this citation being retracted?")
+    .fill("Wrong case-number passage.");
+  await caseNumberForm
+    .getByRole("button", { name: "Confirm retraction" })
+    .click();
+  await expect(page.getByText(/The citation was retracted/)).toBeVisible();
+  await expect(caseNumberRow.getByText("No evidence link")).toBeVisible();
+
+  // Retracting a field's last citation leaves it reviewer-entered rather than
+  // supported by evidence.
+  await openStage(page, /Reconciliation/);
+  await expect(
+    page.getByText(/No reviewed value cites an extracted passage/),
+  ).toBeVisible();
+
+  // The retraction is a stored record, not a transient view.
+  await page.reload();
+  await openStage(page, /Documents/);
+  const reloadedPdf = page
+    .locator(".artifact-card")
+    .filter({ hasText: "synthetic-plan.pdf" });
+  await expect(
+    reloadedPdf.getByText("Cited for Plan Name of Customer Plan"),
+  ).toHaveCount(0);
+  await expect(
+    reloadedPdf.getByText(/Former citation for Plan Name of Customer Plan/),
+  ).toBeVisible();
+
+  await openStage(page, /Review & export/);
+  const audit = page.locator(".audit-table");
+  await expect(audit.getByText("evidence-linked", { exact: true })).toHaveCount(2);
+  await expect(
+    audit.getByText("citation-retracted", { exact: true }),
+  ).toHaveCount(2);
+  await expect(audit.getByText(/Wrong passage for the plan name/)).toBeVisible();
+  await expect(audit.getByText(/Wrong case-number passage/)).toBeVisible();
+  await expect(
+    audit.getByText("evidence-text-extracted", { exact: true }),
+  ).toHaveCount(3);
+  await expect(audit.getByText(/2 observations$/)).toHaveCount(1);
+  await expect(audit.getByText(/2 previously read passages preserved/)).toBeVisible();
+  await expect(audit.getByText("Synthetic plan page one")).toHaveCount(0);
+
+  // The retraction is a case record, not a local view: it exports and restores
+  // with the retained link, the earlier fact, and its reason.
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export review bundle" }).click();
+  const download = await downloadPromise;
+  const bundlePath = await download.path();
+  expect(bundlePath).toBeTruthy();
+  await page.getByLabel("Choose a case bundle to restore").setInputFiles(bundlePath!);
+  await expect(page.getByText(/Restored CW-0002 from/)).toBeVisible();
+
+  await openStage(page, /Documents/);
+  const restoredPdf = page
+    .locator(".artifact-card")
+    .filter({ hasText: "synthetic-plan.pdf" });
+  await expect(restoredPdf.getByText("Synthetic plan page one")).toBeVisible();
+  await expect(
+    restoredPdf.getByText("Cited for Plan Name of Customer Plan"),
+  ).toHaveCount(0);
+  await expect(
+    restoredPdf.getByText(/Former citation for Plan Name of Customer Plan/),
+  ).toBeVisible();
+  await expect(
+    restoredPdf.getByText(/Former citation for Case Number of Customer Plan/),
+  ).toBeVisible();
+
+  await openStage(page, /Reconciliation/);
+  await expect(
+    page.getByText(/No reviewed value cites an extracted passage/),
+  ).toBeVisible();
+
+  await openStage(page, /Plan & people/);
+  await expect(page.getByLabel("Plan Name of Customer Plan")).toHaveValue(
+    "Synthetic Cited Plan",
+  );
+  await expect(
+    page
+      .locator(".plan-field")
+      .filter({ hasText: "Plan Name of Customer Plan" })
+      .getByText("No evidence link"),
+  ).toBeVisible();
+
+  await openStage(page, /Review & export/);
+  const restoredAudit = page.locator(".audit-table");
+  await expect(
+    restoredAudit.getByText("citation-retracted", { exact: true }),
+  ).toHaveCount(2);
+  await expect(
+    restoredAudit.getByText(/Wrong passage for the plan name/),
+  ).toBeVisible();
+  await expect(
+    restoredAudit.getByText(/Wrong case-number passage/),
+  ).toBeVisible();
+
+  // A withdrawal is not permanent. The retained passage can be cited again:
+  // a new link carries the support and the withdrawn one stays in history.
+  await openStage(page, /Documents/);
+  const citationPanel = restoredPdf.locator(".extracted-text");
+  await citationPanel
+    .getByLabel("Cite a passage for")
+    .selectOption({ label: "Plan Name of Customer Plan" });
+  await citationPanel.getByRole("button", { name: "Cite Page 1" }).click();
+  await expect(
+    page.getByText(/The passage is cited for that field/),
+  ).toBeVisible();
+  await expect(
+    citationPanel.getByText("Cited for Plan Name of Customer Plan"),
+  ).toBeVisible();
+  await expect(
+    restoredPdf.getByText(/Former citation for Plan Name of Customer Plan/),
+  ).toBeVisible();
+  // The card states the recorded reason for the withdrawal and marks the
+  // current citation as a re-citation, so the two entries read as one history.
+  await expect(
+    restoredPdf.getByText(/withdrawn: Wrong passage for the plan name\./),
+  ).toBeVisible();
+  await expect(
+    restoredPdf.getByText(
+      /cited again after an earlier citation of this passage ended/,
+    ),
+  ).toBeVisible();
+
+  await openStage(page, /Reconciliation/);
+  await expect(
+    page.getByText(/1 cited passage resolves to stored text/),
+  ).toBeVisible();
+
+  await openStage(page, /Review & export/);
+  const recitationAudit = page.locator(".audit-table");
+  await expect(
+    recitationAudit.getByText("evidence-linked", { exact: true }),
+  ).toHaveCount(3);
+  await expect(
+    recitationAudit.getByText("citation-retracted", { exact: true }),
+  ).toHaveCount(2);
+  await expect(
+    recitationAudit.getByText(/Wrong passage for the plan name/),
+  ).toBeVisible();
+
+  expect(consoleErrors).toEqual([]);
 });
 
 test("is usable at a narrow viewport", async ({ page }) => {

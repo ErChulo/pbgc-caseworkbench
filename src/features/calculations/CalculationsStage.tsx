@@ -10,12 +10,14 @@
 import { useState } from "react";
 import type { PlanFact } from "../../domain/case/types";
 import type { EvidenceLink } from "../../domain/evidence/types";
+import { supportingLinksForField } from "../../domain/evidence/citations";
 import type { WorkbenchActions, WorkbenchState } from "../workbench/useWorkbench";
 import {
   BCV_ADDIN_FUNCTIONS,
   type BcvAddInFunction,
   type BcvAddInInput,
 } from "../../domain/calculations/bcv";
+import { calculationRunLabel } from "../../domain/calculations/runs";
 import { EmptyState, KeyValue, Panel, StatusPill } from "../../ui/components";
 
 type Props = {
@@ -172,8 +174,9 @@ export function CalculationsStage({
     }
   }
 
-  const dobLinks = links.filter((link) => link.fieldId === "participant-dob");
+  const dobLinks = supportingLinksForField(links, facts, "participant-dob");
   const run = state.lastRun;
+  const recordedRuns = [...state.calculationRuns].reverse();
 
   async function handleRun(event: React.FormEvent) {
     event.preventDefault();
@@ -933,6 +936,86 @@ export function CalculationsStage({
               </div>
             ) : null}
           </>
+        )}
+      </Panel>
+
+      <Panel
+        id="calculation-history"
+        eyebrow="History"
+        title="Recorded calculation runs"
+        description="Every run is stored with the case, so a reload or a restored bundle keeps the trace. Newest first."
+        aside={
+          recordedRuns.length > 0 ? (
+            <StatusPill tone="success">
+              {recordedRuns.length} run{recordedRuns.length === 1 ? "" : "s"} stored
+            </StatusPill>
+          ) : undefined
+        }
+      >
+        {recordedRuns.length === 0 ? (
+          <EmptyState title="No stored runs yet">
+            <p>
+              A successful run is written with its audit event in one batch. A
+              refused run writes nothing, so this list only contains results the
+              workbench could justify.
+            </p>
+          </EmptyState>
+        ) : (
+          <ol className="run-list">
+            {recordedRuns.map((stored) => (
+              <li key={stored.runId}>
+                <details>
+                  <summary>
+                    <span className="run-kind">
+                      {calculationRunLabel(stored.kind)}
+                    </span>
+                    <span className="mono run-value">
+                      {String(stored.result.value)}
+                    </span>
+                    <span className="run-time">
+                      {new Date(stored.createdAt).toLocaleString("en-US")}
+                    </span>
+                  </summary>
+                  <dl className="key-value-list">
+                    <KeyValue label="Formula">
+                      <span className="mono">{stored.result.formula}</span>
+                    </KeyValue>
+                    <KeyValue label="Rules">
+                      <span className="mono">
+                        {stored.result.ruleIds.join(", ")}
+                      </span>
+                    </KeyValue>
+                    <KeyValue label="Engine">
+                      {stored.result.engineVersion}
+                    </KeyValue>
+                    <KeyValue label="Run id">
+                      <span className="mono">{stored.runId}</span>
+                    </KeyValue>
+                  </dl>
+                  <h3 className="subhead">Intermediates</h3>
+                  <ul className="trace-list">
+                    {Object.entries(stored.result.intermediates).map(
+                      ([key, value]) => (
+                        <li key={key}>
+                          <span className="mono">{key}</span> = {String(value)}
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                  {stored.result.warnings.length > 0 ? (
+                    <div className="warning-block" role="note">
+                      <strong>Warnings</strong>
+                      <ul>
+                        {stored.result.warnings.map((warning) => (
+                          <li key={warning}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </details>
+              </li>
+            ))}
+          </ol>
         )}
       </Panel>
     </>

@@ -16,6 +16,9 @@ type Props = {
   onCreateDemoCase: (profileAlias: string) => void;
   onOpenCase: (caseId: string) => void;
   onCloseCase: () => void;
+  onStartPrototypeTest: () => void;
+  /** Present when a `file://` page cannot store a case for the test. */
+  prototypeTestBlockedReason?: string | undefined;
 };
 
 function formatDate(iso: string): string {
@@ -35,6 +38,8 @@ export function CaseHome({
   onCreateDemoCase,
   onOpenCase,
   onCloseCase,
+  onStartPrototypeTest,
+  prototypeTestBlockedReason,
 }: Props) {
   return (
     <>
@@ -66,6 +71,32 @@ export function CaseHome({
             </button>
           ) : null}
         </div>
+      </section>
+
+      <section className="home-test" aria-labelledby="home-test-title">
+        <div>
+          <p className="eyebrow">New to the workbench</p>
+          <h2 id="home-test-title">Run the 15-minute prototype test</h2>
+          <p>
+            Eight steps through the whole path: create a case, add the sample
+            documents, read the text, cite a passage, review the plan summary,
+            download the document, export the bundle, and restore it. Each step
+            names the one button to press and what should appear.
+          </p>
+          <p className="artifact-meta">
+            The test records your pass or fail verdict and notes only. It does
+            not change the case, and nothing leaves this machine.
+          </p>
+        </div>
+        <button
+          className="primary"
+          type="button"
+          disabled={prototypeTestBlockedReason !== undefined}
+          title={prototypeTestBlockedReason}
+          onClick={onStartPrototypeTest}
+        >
+          Start the prototype test
+        </button>
       </section>
 
       <Panel
@@ -135,9 +166,10 @@ export function CaseHome({
           <div className="key-value">
             <dt>Calculation scope</dt>
             <dd>
-              Calendar age and calendar intervals are implemented. PBGC provisions
-              such as the earliest retirement date and §4022(c) amounts are listed
-              in Rules &amp; assumptions as unresolved and cannot be run.
+              Calendar age, the earliest PBGC retirement date, the aggregate limit,
+              and nine BCV add-in functions are implemented with cited rules and
+              recorded traces. §4022(c), the guarantee table, and the §4044 tiers
+              remain blocked in Rules &amp; assumptions.
             </dd>
           </div>
         </dl>
