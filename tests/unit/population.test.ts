@@ -6,6 +6,7 @@ import { PopulationService, PopulationImportError } from "../../src/app/Populati
 import { catalog } from "../../src/app/catalog";
 import { parsePopulationCsv } from "../../src/domain/population/csv";
 import { evaluatePopulation } from "../../src/domain/population/determination";
+import { supersededPopulation } from "../../src/domain/population/imports";
 import { POPULATION_CSV_HEADERS } from "../../src/domain/population/types";
 
 const HASH = "a".repeat(64);
@@ -15,6 +16,12 @@ P-0001,participant,retired,1950-03-01,1975-06-01,2010-12-31,
 P-0002,participant,separated-vested,1960-01-15,1985-01-15,,
 "P-0003",beneficiary,not-in-population,1970-07-04,1990-07-04,,2030-01-01
 `;
+
+const CORRECTED_CSV = `participant_key,record_type,status,date_of_birth,date_of_hire,date_of_termination,date_of_death
+P-0001,participant,retired,1950-03-01,1975-06-01,2011-06-30,
+P-0002,participant,separated-vested,1960-01-15,1985-01-15,,
+`;
+const HASH_B = "b".repeat(64);
 
 describe("participant CSV parsing", () => {
   it("parses valid rows with their source row numbers", () => {
@@ -185,6 +192,60 @@ describe("PopulationService", () => {
     expect(imported).toBeDefined();
     expect(imported?.refs.artifactId).toBe("artifact-1");
     expect(imported?.after).toBe("3 participant records");
+  });
+
+  it("keeps the earlier census and makes the revised import authoritative", async () => {
+    const { cases, service, caseId } = await setup();
+    const first = await service.importCsv({
+      caseId,
+      artifactId: "artifact-1",
+      sha256: HASH,
+      text: VALID_CSV,
+    });
+    expect(first.superseded).toBeNull();
+
+    const second = await service.importCsv({
+      caseId,
+      artifactId: "artifact-2",
+      sha256: HASH_B,
+      text: CORRECTED_CSV,
+    });
+    expect(second.imported).toBe(2);
+    expect(second.superseded).toEqual({ artifactId: "artifact-1", recordCount: 3 });
+
+    // Both imports are stored: the earlier rows are retained, not overwritten.
+    const stored = await service.list(caseId);
+    expect(stored).toHaveLength(5);
+    expect(supersededPopulation(stored)).toHaveLength(3);
+
+    const imports = await service.listImports(caseId);
+    expect(imports.map((entry) => entry.artifactId)).toEqual([
+      "artifact-2",
+      "artifact-1",
+    ]);
+    expect(imports[0]).toMatchObject({ recordCount: 2, authoritative: true });
+    expect(imports[1]).toMatchObject({ recordCount: 3, authoritative: false });
+
+    const active = await service.activePopulation(caseId);
+    expect(active.map((record) => record.participantKey)).toEqual([
+      "P-0001",
+      "P-0002",
+    ]);
+    expect(active[0]?.dateOfTermination).toBe("2011-06-30");
+
+    // Evaluation and downstream counts see only the authoritative import.
+    const determination = await service.evaluate(caseId, "2024-03-01");
+    expect(determination.records).toHaveLength(2);
+
+    const imported = (await cases.getAuditEvents(caseId)).filter(
+      (event) => event.eventType === "population-imported",
+    );
+    expect(imported).toHaveLength(2);
+    expect(imported[0]?.refs.previousArtifactId).toBeUndefined();
+    expect(imported[1]?.refs).toMatchObject({
+      artifactId: "artifact-2",
+      previousArtifactId: "artifact-1",
+    });
   });
 
   it("writes nothing at all when one row is invalid", async () => {

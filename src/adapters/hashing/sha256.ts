@@ -25,10 +25,3 @@ export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
 export async function sha256HexOfText(text: string): Promise<string> {
   return sha256Hex(new TextEncoder().encode(text).buffer as ArrayBuffer);
 }
-
-/** Human-readable byte size for compact evidence rows. */
-export function formatByteSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}

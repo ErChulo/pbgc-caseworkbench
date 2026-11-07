@@ -11,6 +11,7 @@ import type {
   PlanFact,
   ReviewerDecision,
 } from "../../src/domain/case/types";
+import type { StoredCalculationRun } from "../../src/domain/calculations/runs";
 
 /**
  * Seed a case through the ONLY atomic creation method on the port
@@ -485,6 +486,52 @@ export function runCaseStoreContractTests(
       // Append-only: the superseded record is preserved with its original value.
       expect(decisions[0]?.value).toBe("A. Actuary");
       expect(decisions[1]?.supersedes).toBe("d-1");
+    });
+
+    it("persists calculation runs in the same atomic batch as their audit event", async () => {
+      const caseRecord = await seedCase(store, "runs-case", "CW-0401");
+      const baseRun: StoredCalculationRun = {
+        kind: "age",
+        runId: "run-1",
+        caseId: "runs-case",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        result: {
+          value: 64,
+          units: "completed calendar years",
+          inputs: [],
+          ruleIds: ["rule.calendar-age"],
+          formula: "calendar age identity",
+          intermediates: {},
+          rounding: [],
+          warnings: [],
+          engineVersion: "test-engine",
+        },
+      };
+      const runEvent: AuditEvent = {
+        eventId: "run-e-1",
+        caseId: "runs-case",
+        eventType: "calculation-run",
+        actor: "local-user",
+        component: "test",
+        at: "2026-01-01T00:00:00.000Z",
+        refs: { runId: "run-1" },
+      };
+
+      await store.saveBatch("runs-case", {
+        facts: [],
+        events: [runEvent],
+        calculationRuns: [baseRun],
+        updatedCase: { ...caseRecord, updatedAt: "2026-01-02T00:00:00.000Z" },
+      });
+
+      const runs = await store.getCalculationRuns("runs-case");
+      expect(runs).toHaveLength(1);
+      expect(runs[0]).toMatchObject({ kind: "age", runId: "run-1" });
+      expect(runs[0]?.sequence).toBe(1);
+
+      const events = await store.getAuditEvents("runs-case");
+      expect(events.some((event) => event.refs.runId === "run-1")).toBe(true);
+      expect(await store.getCalculationRuns("other-case")).toEqual([]);
     });
 
     it("keeps decisions isolated per case", async () => {

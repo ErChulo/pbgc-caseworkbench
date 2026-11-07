@@ -16,10 +16,36 @@ export interface ArtifactStore {
   addArtifact(artifact: SourceArtifact, bytes: ArrayBuffer): Promise<SourceArtifact>;
 
   /**
+   * Persist an artifact whose stored copy was already discarded, carrying the
+   * purge marker but no bytes. Used by restore. The artifact must record
+   * `bytesPurgedAt`; adapters reject a marker-less record with no bytes.
+   */
+  addPurgedArtifact(artifact: SourceArtifact): Promise<SourceArtifact>;
+
+  /**
    * Update artifact metadata without changing stored bytes or the SHA-256.
-   * Used to assign or correct a document class; fails if the artifact is absent.
+   * Used to assign or correct a document class and to record or clear a
+   * reviewer retirement; fails if the artifact is absent.
    */
   updateArtifact(artifact: SourceArtifact): Promise<SourceArtifact>;
+
+  /**
+   * Delete the stored copy and persist the purge marker in one transaction.
+   * Fails closed when the artifact is absent, already purged, or does not
+   * record `bytesPurgedAt`. Metadata, the SHA-256, and the byte size remain.
+   */
+  discardArtifactBytes(artifact: SourceArtifact): Promise<SourceArtifact>;
+
+  /**
+   * Store bytes for an artifact whose copy was discarded and clear the purge
+   * marker in the same transaction. The caller verifies the bytes against the
+   * recorded SHA-256 and byte size first; adapters reject a record that is not
+   * purged, already has bytes, or whose byte length does not match the record.
+   */
+  reattachArtifactBytes(
+    artifact: SourceArtifact,
+    bytes: ArrayBuffer,
+  ): Promise<SourceArtifact>;
 
   /** List artifacts for a case, ordered by import time ascending. */
   listArtifacts(caseId: string): Promise<SourceArtifact[]>;

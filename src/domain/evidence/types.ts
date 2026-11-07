@@ -62,10 +62,10 @@ export type DocumentClass =
   | "salary-data";
 
 /**
- * An immutable imported source file. Bytes are stored unchanged; `sha256` is
- * the integrity anchor and the duplicate-detection key within a case. The
- * document class is intake metadata and may be corrected without touching the
- * bytes or the hash.
+ * An imported source file. Bytes are stored unchanged; `sha256` is the
+ * integrity anchor and the duplicate-detection key within a case. The document
+ * class and retirement fields are reviewer metadata and may change without
+ * touching the bytes or the hash.
  */
 export type SourceArtifact = {
   artifactId: string;
@@ -80,7 +80,60 @@ export type SourceArtifact = {
   /** Set when an identical file was already present for this case. */
   duplicateOf?: string;
   note?: string;
+  /**
+   * When a reviewer retired this file from the active evidence set. Retirement
+   * is not deletion: the bytes, SHA-256, and audit events remain, and bundles
+   * still carry the file. Retired artifacts are excluded from active evidence
+   * counts, document-class coverage, and readiness checks.
+   */
+  retiredAt?: string;
+  /** Required reviewer reason for the retirement. */
+  retirementReason?: string;
+  /**
+   * When a reviewer discarded the stored copy to reclaim the case's evidence
+   * budget. Only a retired artifact may be purged. The identity fields —
+   * fileName, byteSize, and sha256 — stay, so the audit chain and every bundle
+   * still name what was held and what it hashed to, but the bytes are gone and
+   * cannot be re-hashed, opened, or restored. A purged artifact cannot return
+   * to active evidence.
+   */
+  bytesPurgedAt?: string;
+  /** Required reviewer reason for discarding the stored copy. */
+  purgeReason?: string;
 };
+
+/** True when a reviewer has retired the artifact from active evidence. */
+export function isArtifactRetired(artifact: SourceArtifact): boolean {
+  return artifact.retiredAt !== undefined;
+}
+
+/** True when the stored copy has been discarded and only the record remains. */
+export function isArtifactBytesPurged(artifact: SourceArtifact): boolean {
+  return artifact.bytesPurgedAt !== undefined;
+}
+
+/** Active (not retired) artifacts only. */
+export function activeArtifacts(
+  artifacts: readonly SourceArtifact[],
+): SourceArtifact[] {
+  return artifacts.filter((artifact) => !isArtifactRetired(artifact));
+}
+
+/**
+ * Bytes the case actually holds, which is the number the evidence budget must
+ * compare against. A purged artifact keeps its recorded byteSize for identity
+ * but no longer occupies storage, so counting it would refuse imports the
+ * browser has room for.
+ */
+export function storedEvidenceBytes(
+  artifacts: readonly SourceArtifact[],
+): number {
+  return artifacts.reduce(
+    (total, artifact) =>
+      total + (isArtifactBytesPurged(artifact) ? 0 : artifact.byteSize),
+    0,
+  );
+}
 
 export type EvidenceLinkStatus = "candidate" | "accepted" | "rejected";
 
@@ -97,4 +150,10 @@ export type EvidenceLink = {
   status: EvidenceLinkStatus;
   createdAt: string;
   note?: string;
+  /**
+   * The extracted passage this link cites, when the reviewer cited text rather
+   * than the file as a whole. The locator and its excerpt hash must then match
+   * that observation; the text itself is never copied onto the link or fact.
+   */
+  observationId?: string;
 };

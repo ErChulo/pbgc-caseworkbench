@@ -12,6 +12,7 @@ import type {
   PlanFact,
   ReviewerDecision,
 } from "../case/types";
+import type { StoredCalculationRun } from "../calculations/runs";
 
 /**
  * Port for persisting case records, plan facts, and audit events.
@@ -57,12 +58,13 @@ export interface CaseStore {
   appendAuditEvent(event: AuditEvent): Promise<AuditEvent>;
 
   /**
-   * Atomically persist a batch of plan facts and audit events and an updated
-   * case record in a single transaction. All-or-nothing: if any write fails,
-   * nothing is persisted (per spec 001 edge case "atomic writes"). The adapter
-   * stamps each fact and each event with a per-case monotonic sequence (facts
-   * and events use independent counters, each strict and total within its own
-   * record type). The updatedCase is written with the batch.
+   * Atomically persist a batch of plan facts, audit events, calculation runs,
+   * and an updated case record in a single transaction. All-or-nothing: if any
+   * write fails, nothing is persisted (per spec 001 edge case "atomic writes").
+   * The adapter stamps each record with a per-case monotonic sequence (facts,
+   * events, and runs use independent counters, each strict and total within its
+   * own record type). The updatedCase is written with the batch. A run and the
+   * audit event that names it should always travel in the same batch.
    */
   saveBatch(
     caseId: string,
@@ -70,8 +72,12 @@ export interface CaseStore {
       facts: PlanFact[];
       events: AuditEvent[];
       updatedCase: CaseRecord;
+      calculationRuns?: StoredCalculationRun[];
     },
   ): Promise<void>;
+
+  /** Get all calculation runs for a case, ordered by per-case sequence ascending. */
+  getCalculationRuns(caseId: string): Promise<StoredCalculationRun[]>;
 
   /** Get all audit events for a case, ordered by per-case sequence ascending. */
   getAuditEvents(caseId: string): Promise<AuditEvent[]>;

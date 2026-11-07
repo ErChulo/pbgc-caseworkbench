@@ -14,6 +14,7 @@ import type {
   PlanFact,
   ReviewerDecision,
 } from "../../src/domain/case/types";
+import type { StoredCalculationRun } from "../../src/domain/calculations/runs";
 
 /**
  * Test double: wraps a CaseStore and counts calls to the write methods so an
@@ -62,10 +63,18 @@ class SpyStore implements CaseStore {
   }
   saveBatch(
     caseId: string,
-    batch: { facts: PlanFact[]; events: AuditEvent[]; updatedCase: CaseRecord },
+    batch: {
+      facts: PlanFact[];
+      events: AuditEvent[];
+      updatedCase: CaseRecord;
+      calculationRuns?: StoredCalculationRun[];
+    },
   ): Promise<void> {
     this.saveBatchCalls += 1;
     return this.inner.saveBatch(caseId, batch);
+  }
+  getCalculationRuns(caseId: string): Promise<StoredCalculationRun[]> {
+    return this.inner.getCalculationRuns(caseId);
   }
   getAuditEvents(caseId: string): Promise<AuditEvent[]> {
     return this.inner.getAuditEvents(caseId);
@@ -93,6 +102,7 @@ class FailingBatchStore extends SpyStore {
       facts: PlanFact[];
       events: AuditEvent[];
       updatedCase: CaseRecord;
+      calculationRuns?: StoredCalculationRun[];
     },
   ): Promise<void> {
     return Promise.reject(new Error("storage failed"));

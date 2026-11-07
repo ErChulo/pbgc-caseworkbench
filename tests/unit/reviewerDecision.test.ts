@@ -13,6 +13,24 @@ class CitationArtifactStore implements ArtifactStore {
     return { ...artifact };
   }
 
+  async addPurgedArtifact(artifact: SourceArtifact): Promise<SourceArtifact> {
+    this.artifacts.set(artifact.artifactId, { ...artifact });
+    return { ...artifact };
+  }
+
+  async discardArtifactBytes(artifact: SourceArtifact): Promise<SourceArtifact> {
+    this.artifacts.set(artifact.artifactId, { ...artifact });
+    return { ...artifact };
+  }
+
+  async reattachArtifactBytes(
+    artifact: SourceArtifact,
+    _bytes: ArrayBuffer,
+  ): Promise<SourceArtifact> {
+    this.artifacts.set(artifact.artifactId, { ...artifact });
+    return { ...artifact };
+  }
+
   async updateArtifact(artifact: SourceArtifact): Promise<SourceArtifact> {
     this.artifacts.set(artifact.artifactId, { ...artifact });
     return { ...artifact };

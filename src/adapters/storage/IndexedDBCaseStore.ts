@@ -19,10 +19,12 @@ import type {
   PlanFact,
   ReviewerDecision,
 } from "../../domain/case/types";
+import type { StoredCalculationRun } from "../../domain/calculations/runs";
 import {
   DB_NAME,
   openCaseworkbenchDb,
   STORE_AUDIT,
+  STORE_CALCULATION_RUNS,
   STORE_CASES,
   STORE_DECISIONS,
   STORE_FACTS,
@@ -226,28 +228,33 @@ export class IndexedDBCaseStore implements CaseStore {
       facts: PlanFact[];
       events: AuditEvent[];
       updatedCase: CaseRecord;
+      calculationRuns?: StoredCalculationRun[];
     },
   ): Promise<void> {
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
-      // ONE readwrite transaction spanning facts, audit, and cases. All reads
-      // (current max sequences, case existence) and all writes happen here, so
-      // the batch commits atomically: a failure on any write aborts the whole
-      // transaction and nothing is persisted (spec 001 atomic-writes rule).
+      // ONE readwrite transaction spanning facts, audit, cases, and calculation
+      // runs. All reads (current max sequences, case existence) and all writes
+      // happen here, so the batch commits atomically: a failure on any write
+      // aborts the whole transaction and nothing is persisted (spec 001
+      // atomic-writes rule).
       const tx = db.transaction(
-        [STORE_FACTS, STORE_AUDIT, STORE_CASES],
+        [STORE_FACTS, STORE_AUDIT, STORE_CASES, STORE_CALCULATION_RUNS],
         "readwrite",
       );
       const factStore = tx.objectStore(STORE_FACTS);
       const auditStore = tx.objectStore(STORE_AUDIT);
       const caseStore = tx.objectStore(STORE_CASES);
+      const runStore = tx.objectStore(STORE_CALCULATION_RUNS);
 
       const factSeqReq = factStore.index("caseId").getAll(caseId);
       const eventSeqReq = auditStore.index("caseId").getAll(caseId);
+      const runSeqReq = runStore.index("caseId").getAll(caseId);
 
-      let pending = 2;
+      let pending = 3;
       let factBase = 0;
       let eventBase = 0;
+      let runBase = 0;
       let abortReason: unknown = null;
 
       const onDone = () => {
@@ -275,6 +282,18 @@ export class IndexedDBCaseStore implements CaseStore {
       eventSeqReq.onsuccess = () => {
         eventBase = (eventSeqReq.result as AuditEvent[]).reduce(
           (m, e) => Math.max(m, e.sequence ?? 0),
+          0,
+        );
+        onDone();
+      };
+
+      runSeqReq.onerror = () => {
+        abortReason = runSeqReq.error;
+        if (pending === 1) reject(runSeqReq.error);
+      };
+      runSeqReq.onsuccess = () => {
+        runBase = (runSeqReq.result as StoredCalculationRun[]).reduce(
+          (m, run) => Math.max(m, run.sequence ?? 0),
           0,
         );
         onDone();
@@ -317,6 +336,15 @@ export class IndexedDBCaseStore implements CaseStore {
             };
           }
 
+          let runSeq = runBase;
+          for (const run of batch.calculationRuns ?? []) {
+            runSeq += 1;
+            const req = runStore.add({ ...run, sequence: runSeq });
+            req.onerror = () => {
+              abortReason = req.error;
+            };
+          }
+
           const caseReq = caseStore.put(batch.updatedCase);
           caseReq.onerror = () => {
             abortReason = caseReq.error;
@@ -354,6 +382,22 @@ export class IndexedDBCaseStore implements CaseStore {
       seqReq.onerror = () => reject(seqReq.error);
       tx.onabort = () => reject(new Error("IndexedDB transaction aborted"));
       tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction error"));
+    });
+  }
+
+  async getCalculationRuns(caseId: string): Promise<StoredCalculationRun[]> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_CALCULATION_RUNS, "readonly");
+      const store = tx.objectStore(STORE_CALCULATION_RUNS);
+      const req = store.index("caseId").getAll(caseId);
+      req.onsuccess = () => {
+        const runs = (req.result as StoredCalculationRun[]).sort(
+          (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
+        );
+        resolve(runs);
+      };
+      req.onerror = () => reject(req.error);
     });
   }
 

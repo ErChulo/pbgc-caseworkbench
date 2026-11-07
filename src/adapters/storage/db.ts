@@ -10,10 +10,12 @@
  *   v2 — adds artifacts (immutable evidence bytes) and evidence (links)
  *   v3 — adds decisions (append-only reviewer decisions)
  *   v4 — adds population (imported participant records)
+ *   v5 — adds calculationRuns (durable calculation traces)
+ *   v6 — adds observations (extracted evidence text and locators)
  */
 
 export const DB_NAME = "pbgc-caseworkbench";
-export const DB_VERSION = 4;
+export const DB_VERSION = 6;
 
 export const STORE_CASES = "cases";
 export const STORE_FACTS = "facts";
@@ -22,6 +24,8 @@ export const STORE_ARTIFACTS = "artifacts";
 export const STORE_EVIDENCE = "evidence";
 export const STORE_DECISIONS = "decisions";
 export const STORE_POPULATION = "population";
+export const STORE_CALCULATION_RUNS = "calculationRuns";
+export const STORE_OBSERVATIONS = "observations";
 
 const connections = new Map<string, Promise<IDBDatabase>>();
 
@@ -67,6 +71,19 @@ function upgrade(db: IDBDatabase): void {
     });
     population.createIndex("caseId", "caseId", { unique: false });
     population.createIndex("participantKey", "participantKey", { unique: false });
+  }
+  if (!db.objectStoreNames.contains(STORE_CALCULATION_RUNS)) {
+    const runs = db.createObjectStore(STORE_CALCULATION_RUNS, {
+      keyPath: "runId",
+    });
+    runs.createIndex("caseId", "caseId", { unique: false });
+  }
+  if (!db.objectStoreNames.contains(STORE_OBSERVATIONS)) {
+    const observations = db.createObjectStore(STORE_OBSERVATIONS, {
+      keyPath: "observationId",
+    });
+    observations.createIndex("caseId", "caseId", { unique: false });
+    observations.createIndex("artifactId", "artifactId", { unique: false });
   }
 }
 

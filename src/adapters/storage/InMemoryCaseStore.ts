@@ -13,12 +13,14 @@ import type {
   PlanFact,
   ReviewerDecision,
 } from "../../domain/case/types";
+import type { StoredCalculationRun } from "../../domain/calculations/runs";
 
 export class InMemoryCaseStore implements CaseStore {
   private cases = new Map<string, CaseRecord>();
   private facts = new Map<string, PlanFact[]>(); // caseId → facts
   private auditEvents = new Map<string, AuditEvent[]>(); // caseId → events
   private decisions = new Map<string, ReviewerDecision[]>(); // caseId → decisions
+  private calculationRuns = new Map<string, StoredCalculationRun[]>(); // caseId → runs
 
   async listCases(): Promise<CaseRecord[]> {
     return Array.from(this.cases.values()).sort((a, b) =>
@@ -45,6 +47,7 @@ export class InMemoryCaseStore implements CaseStore {
     this.facts.set(record.caseId, []);
     this.auditEvents.set(record.caseId, [stamped]);
     this.decisions.set(record.caseId, []);
+    this.calculationRuns.set(record.caseId, []);
     return { ...record };
   }
 
@@ -114,10 +117,12 @@ export class InMemoryCaseStore implements CaseStore {
       facts: PlanFact[];
       events: AuditEvent[];
       updatedCase: CaseRecord;
+      calculationRuns?: StoredCalculationRun[];
     },
   ): Promise<void> {
     const facts = this.facts.get(caseId) ?? [];
     const events = this.auditEvents.get(caseId) ?? [];
+    const runs = this.calculationRuns.get(caseId) ?? [];
 
     // Atomic pattern for the in-memory adapter: fully compute every stamped
     // record and the new arrays BEFORE mutating state. If anything throws, no
@@ -125,6 +130,7 @@ export class InMemoryCaseStore implements CaseStore {
     // guarantee with a single readwrite transaction.)
     let factSeq = facts.reduce((max, f) => Math.max(max, f.sequence ?? 0), 0);
     let eventSeq = events.reduce((max, e) => Math.max(max, e.sequence ?? 0), 0);
+    let runSeq = runs.reduce((max, run) => Math.max(max, run.sequence ?? 0), 0);
 
     const stampedFacts: PlanFact[] = batch.facts.map((fact) => {
       factSeq += 1;
@@ -134,9 +140,16 @@ export class InMemoryCaseStore implements CaseStore {
       eventSeq += 1;
       return { ...event, sequence: eventSeq };
     });
+    const stampedRuns: StoredCalculationRun[] = (
+      batch.calculationRuns ?? []
+    ).map((run) => {
+      runSeq += 1;
+      return { ...run, sequence: runSeq };
+    });
 
     const nextFacts = facts.concat(stampedFacts);
     const nextEvents = events.concat(stampedEvents);
+    const nextRuns = runs.concat(stampedRuns);
 
     if (!this.cases.has(caseId)) {
       throw new Error(`Case not found: ${caseId}`);
@@ -145,7 +158,14 @@ export class InMemoryCaseStore implements CaseStore {
     // Apply all changes together.
     this.facts.set(caseId, nextFacts);
     this.auditEvents.set(caseId, nextEvents);
+    this.calculationRuns.set(caseId, nextRuns);
     this.cases.set(caseId, { ...batch.updatedCase });
+  }
+
+  async getCalculationRuns(caseId: string): Promise<StoredCalculationRun[]> {
+    return [...(this.calculationRuns.get(caseId) ?? [])].sort(
+      (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
+    );
   }
 
   async appendAuditEvent(event: AuditEvent): Promise<AuditEvent> {

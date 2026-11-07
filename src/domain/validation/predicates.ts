@@ -114,7 +114,7 @@ export const PREDICATES: readonly PredicateRecord[] = [
       citation:
         "Data Dictionary Complete workbook, SHA-256 d7b7c63a432ecc0e7e9e1371a65effeae552b13d8a53a952752bd206ee79bc96 (BCV participant record definitions)",
       note:
-        "Presence and provenance of imported records. Completeness against the plan's own census is a reconciliation step that is not implemented.",
+        "Presence and provenance of imported records. The Reconciliation stage compares the register with a reviewer-recorded census control; that control does not by itself establish plan census completeness.",
       checkedOn: "2026-11-04",
     },
     implementedBy: "src/domain/work-products/readiness.ts",

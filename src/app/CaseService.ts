@@ -17,6 +17,7 @@ import type {
   PlanFactValue,
   ReviewerDecision,
 } from "../domain/case/types";
+import type { StoredCalculationRun } from "../domain/calculations/runs";
 import {
   generateCaseAlias,
   generateId,
@@ -164,6 +165,11 @@ export class CaseService {
    */
   async getPlanFacts(caseId: string): Promise<PlanFact[]> {
     return this.store.getPlanFacts(caseId);
+  }
+
+  /** Durable calculation traces for a case, oldest first. */
+  async getCalculationRuns(caseId: string): Promise<StoredCalculationRun[]> {
+    return this.store.getCalculationRuns(caseId);
   }
 
   /**

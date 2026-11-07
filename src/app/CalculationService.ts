@@ -8,7 +8,13 @@
  */
 
 import type { CaseStore } from "../domain/ports/CaseStore";
-import type { CalculationResult } from "../domain/calculations/types";
+import type {
+  AgeCalculationRun,
+  AggregateLimitCalculationRun,
+  BcvAddInCalculationRun,
+  EprdCalculationRun,
+  StoredCalculationRun,
+} from "../domain/calculations/runs";
 import {
   AGE_RULE_ID,
   CALCULATION_ENGINE_VERSION,
@@ -36,35 +42,14 @@ import {
 } from "../domain/calculations/bcv";
 import { generateId, nowIso } from "../domain/case/validation";
 
-export type CalculationRun<T = number> = {
-  runId: string;
-  caseId: string;
-  createdAt: string;
-  result: CalculationResult<T>;
-};
-
-/** EPRD runs carry the guidance branch and the facts-and-circumstances flag. */
-export type EprdCalculationRun = {
-  runId: string;
-  caseId: string;
-  createdAt: string;
-  result: EarliestRetirementResult;
-};
-
-/** Aggregate-limit runs carry the cap and the guaranteed amounts. */
-export type AggregateLimitCalculationRun = {
-  runId: string;
-  caseId: string;
-  createdAt: string;
-  result: AggregateLimitResult;
-};
-
-/** BCV add-in runs name the function and keep its own trace. */
-export type BcvAddInCalculationRun = {
-  runId: string;
-  caseId: string;
-  createdAt: string;
-  result: BcvAddInResult;
+// The run record is a domain type because stores and bundles persist it; the
+// app keeps these names for existing callers.
+export type {
+  AgeCalculationRun as CalculationRun,
+  AggregateLimitCalculationRun,
+  BcvAddInCalculationRun,
+  EprdCalculationRun,
+  StoredCalculationRun,
 };
 
 export class CalculationService {
@@ -81,7 +66,7 @@ export class CalculationService {
     dateOfBirth: string;
     asOfDate: string;
     provenanceIds?: string[];
-  }): Promise<CalculationRun> {
+  }): Promise<AgeCalculationRun> {
     const rule = assertRuleImplemented(AGE_RULE_ID);
 
     const result = computeAgeAtDate({
@@ -100,21 +85,14 @@ export class CalculationService {
       engineVersion: CALCULATION_ENGINE_VERSION,
     });
 
-    const runId = generateId();
-    const createdAt = nowIso();
-
-    await this.cases.appendAuditEvent({
-      eventId: generateId(),
+    const run: AgeCalculationRun = {
+      kind: "age",
+      runId: generateId(),
       caseId: args.caseId,
-      eventType: "calculation-run",
-      actor: "local-user",
-      component: `CalculationService.runAgeAtDate (${rule.ruleId})`,
-      at: createdAt,
-      refs: { runId },
-      after: result.value,
-    });
-
-    return { runId, caseId: args.caseId, createdAt, result };
+      createdAt: nowIso(),
+      result,
+    };
+    return this.recordRun(run, `CalculationService.runAgeAtDate (${rule.ruleId})`);
   }
 
   /**
@@ -140,21 +118,17 @@ export class CalculationService {
       provenanceIds: args.provenanceIds ?? [],
     });
 
-    const runId = generateId();
-    const createdAt = nowIso();
-
-    await this.cases.appendAuditEvent({
-      eventId: generateId(),
+    const run: EprdCalculationRun = {
+      kind: "eprd",
+      runId: generateId(),
       caseId: args.caseId,
-      eventType: "calculation-run",
-      actor: "local-user",
-      component: `CalculationService.runEarliestPbgcRetirementDate (${rule.ruleId})`,
-      at: createdAt,
-      refs: { runId },
-      after: result.value,
-    });
-
-    return { runId, caseId: args.caseId, createdAt, result };
+      createdAt: nowIso(),
+      result,
+    };
+    return this.recordRun(
+      run,
+      `CalculationService.runEarliestPbgcRetirementDate (${rule.ruleId})`,
+    );
   }
 
   /**
@@ -179,21 +153,14 @@ export class CalculationService {
       provenanceIds: args.provenanceIds ?? [],
     });
 
-    const runId = generateId();
-    const createdAt = nowIso();
-
-    await this.cases.appendAuditEvent({
-      eventId: generateId(),
+    const run: AggregateLimitCalculationRun = {
+      kind: "aggregate-limit",
+      runId: generateId(),
       caseId: args.caseId,
-      eventType: "calculation-run",
-      actor: "local-user",
-      component: `CalculationService.runAggregateLimit (${rule.ruleId})`,
-      at: createdAt,
-      refs: { runId },
-      after: result.value,
-    });
-
-    return { runId, caseId: args.caseId, createdAt, result };
+      createdAt: nowIso(),
+      result,
+    };
+    return this.recordRun(run, `CalculationService.runAggregateLimit (${rule.ruleId})`);
   }
 
   /**
@@ -210,20 +177,46 @@ export class CalculationService {
 
     const result = runBcvAddIn(args.input, args.provenanceIds ?? []);
 
-    const runId = generateId();
-    const createdAt = nowIso();
-
-    await this.cases.appendAuditEvent({
-      eventId: generateId(),
+    const run: BcvAddInCalculationRun = {
+      kind: "bcv-add-in",
+      runId: generateId(),
       caseId: args.caseId,
-      eventType: "calculation-run",
-      actor: "local-user",
-      component: `CalculationService.runBcvAddIn (${rule.ruleId})`,
-      at: createdAt,
-      refs: { runId },
-      after: result.value,
+      createdAt: nowIso(),
+      result,
+    };
+    return this.recordRun(run, `CalculationService.runBcvAddIn (${rule.ruleId})`);
+  }
+
+  /**
+   * Store a run and the audit event that names it in one atomic batch, and
+   * touch the case. A run can therefore never be recalled without an audit
+   * entry, and the audit trail can never name a run that was not persisted.
+   */
+  private async recordRun<T extends StoredCalculationRun>(
+    run: T,
+    component: string,
+  ): Promise<T> {
+    const caseRecord = await this.cases.getCase(run.caseId);
+    if (!caseRecord) throw new Error(`Case not found: ${run.caseId}`);
+
+    await this.cases.saveBatch(run.caseId, {
+      facts: [],
+      events: [
+        {
+          eventId: generateId(),
+          caseId: run.caseId,
+          eventType: "calculation-run",
+          actor: "local-user",
+          component,
+          at: run.createdAt,
+          refs: { runId: run.runId },
+          after: run.result.value,
+        },
+      ],
+      calculationRuns: [run],
+      updatedCase: { ...caseRecord, updatedAt: run.createdAt },
     });
 
-    return { runId, caseId: args.caseId, createdAt, result };
+    return run;
   }
 }

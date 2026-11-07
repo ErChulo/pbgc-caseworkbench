@@ -5,6 +5,12 @@
  * single record is written, so downstream counts never reflect a partial
  * population. Every successful import appends an audit event carrying the
  * source artifact and its hash.
+ *
+ * Records are append-only. A later import of a corrected census does not
+ * overwrite or delete the earlier rows: it becomes the newest import, and the
+ * batch view in `domain/population/imports` decides which rows are the active
+ * population. The audit event for a replacement names the artifact it
+ * superseded, so the history is explicit rather than inferred by a reader.
  */
 
 import type { CaseStore } from "../domain/ports/CaseStore";
@@ -15,6 +21,12 @@ import {
   type PopulationDetermination,
 } from "../domain/population/determination";
 import type { ParticipantRecord, PopulationIssue } from "../domain/population/types";
+import {
+  authoritativeImport,
+  currentPopulation,
+  groupPopulationImports,
+  type PopulationImport,
+} from "../domain/population/imports";
 import { generateId, nowIso } from "../domain/case/validation";
 
 export class PopulationImportError extends Error {
@@ -39,6 +51,11 @@ export type PopulationImportResult = {
   imported: number;
   artifactId: string;
   sha256: string;
+  /**
+   * The import this one replaced as authoritative, when the case already held
+   * an active census. Its rows remain stored, exported, and visible.
+   */
+  superseded: { artifactId: string; recordCount: number } | null;
 };
 
 export class PopulationService {
@@ -70,6 +87,11 @@ export class PopulationService {
       throw new Error("The participant file contains no rows.");
     }
 
+    // Read the current imports before writing so the audit event can name the
+    // import this one supersedes.
+    const existing = await this.population.listPopulation(args.caseId);
+    const previous = authoritativeImport(existing);
+
     const importedAt = this.clock();
     const records: ParticipantRecord[] = parsed.rows.map((row) => ({
       recordId: generateId(),
@@ -98,7 +120,10 @@ export class PopulationService {
       actor: "local-user",
       component: "PopulationService.importCsv",
       at: importedAt,
-      refs: { artifactId: args.artifactId },
+      refs: {
+        artifactId: args.artifactId,
+        ...(previous ? { previousArtifactId: previous.artifactId } : {}),
+      },
       after: `${records.length} participant record${records.length === 1 ? "" : "s"}`,
     });
 
@@ -106,19 +131,35 @@ export class PopulationService {
       imported: records.length,
       artifactId: args.artifactId,
       sha256: args.sha256,
+      superseded: previous
+        ? { artifactId: previous.artifactId, recordCount: previous.recordCount }
+        : null,
     };
   }
 
+  /** Every stored record, including rows from superseded imports. */
   list(caseId: string): Promise<ParticipantRecord[]> {
     return this.population.listPopulation(caseId);
   }
 
-  /** Evaluate the population at the case's valuation date (DOPT). */
+  /** Import history, newest first, with exactly one authoritative batch. */
+  async listImports(caseId: string): Promise<PopulationImport[]> {
+    return groupPopulationImports(await this.population.listPopulation(caseId));
+  }
+
+  /** Rows of the authoritative import only. */
+  async activePopulation(caseId: string): Promise<ParticipantRecord[]> {
+    return currentPopulation(await this.population.listPopulation(caseId));
+  }
+
+  /** Evaluate the active population at the case's valuation date (DOPT). */
   async evaluate(
     caseId: string,
     asOfDate: string | null | undefined,
   ): Promise<PopulationDetermination> {
-    const records = await this.population.listPopulation(caseId);
+    const records = currentPopulation(
+      await this.population.listPopulation(caseId),
+    );
     return evaluatePopulation(records, asOfDate);
   }
 }

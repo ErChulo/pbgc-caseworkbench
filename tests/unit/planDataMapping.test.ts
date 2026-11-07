@@ -48,6 +48,42 @@ class InMemoryArtifactStore implements ArtifactStore {
     return { ...artifact };
   }
 
+  async addPurgedArtifact(artifact: SourceArtifact): Promise<SourceArtifact> {
+    if (artifact.bytesPurgedAt === undefined) {
+      throw new Error("A purged artifact must record when its bytes were discarded.");
+    }
+    this.artifacts.set(artifact.artifactId, { ...artifact });
+    this.bytes.delete(artifact.artifactId);
+    return { ...artifact };
+  }
+
+  async discardArtifactBytes(artifact: SourceArtifact): Promise<SourceArtifact> {
+    if (!this.artifacts.has(artifact.artifactId)) {
+      throw new Error(`Artifact not found: ${artifact.artifactId}`);
+    }
+    if (!this.bytes.has(artifact.artifactId)) {
+      throw new Error(`Artifact has no stored copy: ${artifact.artifactId}`);
+    }
+    this.artifacts.set(artifact.artifactId, { ...artifact });
+    this.bytes.delete(artifact.artifactId);
+    return { ...artifact };
+  }
+
+  async reattachArtifactBytes(
+    artifact: SourceArtifact,
+    bytes: ArrayBuffer,
+  ): Promise<SourceArtifact> {
+    if (!this.artifacts.has(artifact.artifactId)) {
+      throw new Error(`Artifact not found: ${artifact.artifactId}`);
+    }
+    if (this.bytes.has(artifact.artifactId)) {
+      throw new Error(`Artifact already has a stored copy: ${artifact.artifactId}`);
+    }
+    this.artifacts.set(artifact.artifactId, { ...artifact });
+    this.bytes.set(artifact.artifactId, bytes.slice(0));
+    return { ...artifact };
+  }
+
   async updateArtifact(artifact: SourceArtifact): Promise<SourceArtifact> {
     if (!this.artifacts.has(artifact.artifactId)) {
       throw new Error(`Artifact not found: ${artifact.artifactId}`);

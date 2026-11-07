@@ -94,7 +94,14 @@ export type AuditEventType =
   | "plan-fact-superseded"
   | "artifact-imported"
   | "artifact-classified"
+  | "artifact-retired"
+  | "artifact-reinstated"
+  | "artifact-bytes-purged"
+  | "artifact-bytes-reattached"
+  | "artifact-integrity-checked"
   | "evidence-linked"
+  | "citation-retracted"
+  | "evidence-text-extracted"
   | "calculation-run"
   | "work-product-created"
   | "reviewer-decision-recorded"
@@ -114,6 +121,8 @@ export type AuditEvent = {
     fieldId?: string;
     previousFactId?: string;
     artifactId?: string;
+    /** The artifact an import or replacement superseded, when one did. */
+    previousArtifactId?: string;
     linkId?: string;
     runId?: string;
     decisionId?: string;
