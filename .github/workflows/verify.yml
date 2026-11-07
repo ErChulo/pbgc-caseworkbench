@@ -1,0 +1,66 @@
+# Verification for the local-first workbench.
+#
+# Both gates the office handover depends on run here, on the same commands a
+# reviewer runs on a workstation: `npm run check` for types, unit and
+# integration tests and the single-file build, then `npm run test:e2e` for the
+# browser suites over that artifact. A red run here means the pushed tree is
+# not the tested tree.
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, test, build, and browser suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # npm ci installs from the lockfile, so the workflow tests the same
+      # dependency tree a workstation installs.
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # The browser suite needs Chromium and its system libraries; the config
+      # drives Desktop Chrome, which runs on Chromium.
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Typecheck, unit and integration tests, single-file build
+        run: npm run check
+
+      # test:e2e rebuilds and then serves ./dist through scripts/serve.mjs, the
+      # same command the office handover documents.
+      - name: Browser suite over the production artifact
+        run: npm run test:e2e
+
+      # Traces and screenshots only exist when a test fails; keep them for the
+      # person reading the run.
+      - name: Keep failure traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
