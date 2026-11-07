@@ -323,6 +323,10 @@ npm install-scripts approve esbuild
 npm ci
 ```
 
+That approval is recorded in `package.json` under `allowScripts`; review it and commit
+it only if your policy allows install scripts. This repository deliberately ships
+without it, so the lockfile alone never runs a dependency script.
+
 Node 22 or newer is required; the repository's CI runs these same commands on Node 22
 from the lockfile, so a green run there and a build here install the same tree.
 
