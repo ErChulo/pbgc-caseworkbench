@@ -68,3 +68,6 @@ benefit amount.
 - No benefit amounts, assumptions, mortality, or payment forms.
 - No BCV column mapping or Excel import.
 - No reviewer workflow for data-quality exceptions beyond rejecting the file.
+- Census revisions are handled by versioned imports (spec 030): the newest import is
+  authoritative and earlier rows are retained but excluded. There is still no per-row
+  edit or exception workflow.
