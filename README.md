@@ -311,6 +311,21 @@ npm ci
 npm run build          # writes dist/index.html
 ```
 
+**If the install reports blocked scripts.** npm 12 and later can hold back dependency
+install scripts until they are approved; the only one in this lockfile is `esbuild`'s
+`postinstall`. The build does not depend on it — esbuild ships its platform binary as
+an optional dependency, and a fresh clone with that script blocked built the artifact
+and passed both suites — so the warning is not a failure. If office policy requires the
+script to run, approve that one package and reinstall:
+
+```bash
+npm install-scripts approve esbuild
+npm ci
+```
+
+Node 22 or newer is required; the repository's CI runs these same commands on Node 22
+from the lockfile, so a green run there and a build here install the same tree.
+
 Copy these two paths to the office machine, keeping the layout:
 
 ```
