@@ -43,11 +43,19 @@ export function downloadBytes(
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-/** Open a generated document in a new tab for review and printing. */
+/**
+ * Open a generated document in a new tab for review and printing.
+ *
+ * The opener is severed after the tab exists rather than declared with the
+ * `noopener` feature: a window opened with that feature returns null even when
+ * the tab opened, which would make every call look blocked and download a
+ * second copy.
+ */
 export function openHtmlInNewTab(html: string): boolean {
   const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
-  const opened = window.open(url, "_blank", "noopener,noreferrer");
+  const opened = window.open(url, "_blank");
+  if (opened !== null) opened.opener = null;
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   return opened !== null;
 }
