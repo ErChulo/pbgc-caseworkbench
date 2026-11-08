@@ -12,7 +12,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { services } from "../../app/container";
+import { loadServices, services } from "../../app/container";
+import type { StorageProbe } from "../../adapters/storage/probe";
 import { catalog, dictionaryIndex } from "../../app/catalog";
 import {
   applyCaseBundle,
@@ -75,7 +76,6 @@ import { purgeCountsSummary } from "../../domain/case/purge";
 const XLSX_MEDIA_TYPE =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 import { supportingLinksForField } from "../../domain/evidence/citations";
-import { isFileOrigin } from "../../app/environment";
 import { SYNTHETIC_R5_CASE_ALIAS } from "../../domain/demo/r5SyntheticProfile";
 
 const ACTIVE_CASE_KEY = "pbgc.activeCaseId";
@@ -100,6 +100,11 @@ export type WorkbenchState = {
   planDataSnapshot: PlanDataSnapshotRecord | null;
   /** A stored snapshot could not be parsed; this does not block the case. */
   planDataSnapshotError: string | null;
+  /**
+   * What the browser proved about local storage at boot. Null until the probe
+   * answers; the shell reports the answer instead of assuming one.
+   */
+  storage: StorageProbe | null;
   loading: boolean;
   error: string | null;
   notice: string | null;
@@ -257,6 +262,7 @@ const initialState: WorkbenchState = {
   populationImports: [],
   planDataSnapshot: null,
   planDataSnapshotError: null,
+  storage: null,
   loading: true,
   error: null,
   notice: null,
@@ -374,18 +380,17 @@ export function useWorkbench(): {
     }));
   }, []);
 
-  // Bootstrap: list cases, then reopen the last active case without auditing.
+  // Bootstrap: probe storage, list cases, then reopen the last active case
+  // without auditing. The probe decides the store set, so it runs before the
+  // first read: a session-only tab must never be mistaken for a saved case.
   useEffect(() => {
-    // A file:// document has no usable IndexedDB; the shell explains that
-    // instead of surfacing a storage error the reviewer cannot act on.
-    if (isFileOrigin()) {
-      setState((previous) => ({ ...previous, loading: false, cases: [] }));
-      return;
-    }
     let cancelled = false;
     void (async () => {
       try {
-        const list = await services.caseService.listCases();
+        const loaded = await loadServices();
+        if (cancelled) return;
+        setState((previous) => ({ ...previous, storage: loaded.storage }));
+        const list = await loaded.services.caseService.listCases();
         if (cancelled) return;
         setState((previous) => ({ ...previous, cases: list }));
         let stored: string | null = null;

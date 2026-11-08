@@ -9,20 +9,10 @@
  */
 
 import type { AuditEvent, CaseRecord } from "../case/types";
-import type { PurgeCounts } from "../case/purge";
+import type { PurgeCounts, PurgeRequest } from "../case/purge";
 
-export type PurgeCaseInput = {
-  caseId: string;
-  /** The reviewer must type the case alias exactly. */
-  aliasConfirmation: string;
-  /** Trimmed reviewer reason; never participant data. */
-  reason: string;
-  purgedAt: string; // ISO 8601
-  /** Id for the one `case-purged` audit event. */
-  eventId: string;
-  /** Software component recorded on the event. */
-  component: string;
-};
+/** The reviewer-supplied fields of one purge request. */
+export type PurgeCaseInput = PurgeRequest;
 
 export type PurgeCaseResult = {
   /** The retained case record, now `status: "purged"`. */

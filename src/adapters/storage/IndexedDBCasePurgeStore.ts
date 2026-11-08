@@ -18,8 +18,8 @@ import type {
 } from "../../domain/ports/CasePurgeStore";
 import type { AuditEvent, CaseRecord } from "../../domain/case/types";
 import {
-  PURGE_REASON_MAX,
   purgeCountsSummary,
+  purgeRequestProblems,
   type PurgeCounts,
 } from "../../domain/case/purge";
 import {
@@ -161,47 +161,12 @@ export class IndexedDBCasePurgeStore implements CasePurgeStore {
       const finalize = () => {
         if (finished) return;
         finished = true;
-        if (!caseRecord) {
-          fail(new Error(`Case not found: ${input.caseId}`));
-          return;
-        }
-        if (caseRecord.status === "purged") {
-          fail(
-            new Error(
-              `Case ${caseRecord.alias} was already purged; no content was removed.`,
-            ),
-          );
-          return;
-        }
-        if (input.aliasConfirmation.trim() !== caseRecord.alias) {
-          fail(
-            new Error(
-              `Type the case alias exactly to confirm the purge: ${caseRecord.alias}`,
-            ),
-          );
-          return;
-        }
-        if (input.eventId.trim() === "" || input.component.trim() === "") {
-          fail(new Error("A purge needs an audit event id and component."));
+        const problems = purgeRequestProblems(input, caseRecord);
+        if (problems.length > 0 || !caseRecord) {
+          fail(new Error(problems.join(" ") || "The purge request is invalid."));
           return;
         }
         const reason = input.reason.trim();
-        if (reason === "") {
-          fail(new Error("A purge reason is required."));
-          return;
-        }
-        if (reason.length > PURGE_REASON_MAX) {
-          fail(
-            new Error(
-              `The purge reason must be ${PURGE_REASON_MAX} characters or fewer.`,
-            ),
-          );
-          return;
-        }
-        if (Number.isNaN(Date.parse(input.purgedAt))) {
-          fail(new Error("The purge timestamp is not a valid ISO 8601 date."));
-          return;
-        }
 
         const counts: PurgeCounts = {
           facts: keys.facts.length,

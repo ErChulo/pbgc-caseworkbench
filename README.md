@@ -50,7 +50,9 @@ npm run serve      # serve the built artifact at http://127.0.0.1:4173
 `npm run build` writes a single self-contained `dist/index.html`. JavaScript, CSS, and
 the PBGC logo are all embedded (the logo as a base64 data URI), so the artifact makes
 no request for branding, fonts, or anything else. There is no CDN, no web font, and no
-fallback to unbranded text when the machine is offline.
+fallback to unbranded text when the machine is offline. The file also runs when opened
+directly — double-clicked from the filesystem — after proving at boot whether the
+browser will keep its cases; see [Running it in an office environment](#running-it-in-an-office-environment).
 
 ## The office test walkthrough
 
@@ -334,7 +336,7 @@ part, they export and restore without a schema change.
 
 ## Privacy boundary
 
-- Everything is stored locally in IndexedDB and localStorage for this browser profile.
+- Everything is stored locally in IndexedDB and localStorage for this browser profile. A tab that cannot prove local storage keeps the case in memory only and says so. A double-clicked page stores against the browser's file-page origin, which every local HTML document on that computer shares.
 - No analytics, no remote fonts, no outbound requests; a restrictive CSP forbids them.
 - Never commit case material, PII, browser storage, OCR output, or exports.
 - Repository fixtures are synthetic only (`tests/fixtures/synthetic/`).
@@ -376,7 +378,23 @@ without it, so the lockfile alone never runs a dependency script.
 Node 22 or newer is required; the repository's CI runs these same commands on Node 22
 from the lockfile, so a green run there and a build here install the same tree.
 
-Copy these two paths to the office machine, keeping the layout:
+**On a machine without Node** — the office handover — download `index.html` from the
+repository's Releases page and double-click it. Chrome or Edge opens the workbench from
+`file://`; nothing is installed and no server is started.
+
+At launch the workbench proves where it can store a case and says which answer it got:
+
+- **Saved by this browser** — a note on the page that local file pages share one storage
+  area, so every HTML document opened from that computer can reach the same data. Export a
+  case bundle for any record you must keep.
+- **This tab cannot save a case** — a warning that the browser refused storage for this
+  page (private window, site-data settings, or policy). The workbench still runs in full
+  for the session, but closing or reloading the tab discards the case, so export the bundle
+  before you close it.
+
+If neither is acceptable, use the loopback server below and a dedicated browser profile.
+
+**On a machine with Node**, copy these two paths, keeping the layout:
 
 ```
 workbench/
@@ -384,7 +402,7 @@ workbench/
   scripts/serve.mjs
 ```
 
-Then, on the office machine:
+Then, on that machine:
 
 ```bash
 cd workbench
@@ -397,10 +415,8 @@ Open **http://127.0.0.1:4173** in Chrome or Edge. Keep that terminal window open
 you work; `Ctrl+C` stops the server. Choose another port with
 `node scripts/serve.mjs --port 8080`.
 
-**Do not open `dist/index.html` by double-clicking it.** Chromium denies IndexedDB to
-`file://` documents, so a case would appear to save and then vanish on reload. Opened
-that way, the workbench detects the origin, still renders, and tells you to run the
-server — but nothing persists. The loopback URL above is the one supported launch path.
+The server remains the supported path where the shared `file://` storage area is not
+acceptable, and it is what the automated browser suite runs against.
 
 Browser support: current Chromium, Edge, and Firefox with IndexedDB enabled. Private or
 incognito windows work but discard the case when the window closes. The app stores data
@@ -530,8 +546,12 @@ is finished.
   own origin is aborted and asserted to be zero, the browser is taken offline for the
   interactive flow, a realistic synthetic plan runs through entry, validation, evidence,
   class applicability, calculation, reconciliation, review copy, export, and restore,
-  a reload writes no audit events, and a `file://` load shows the storage notice while
-  still rendering the branding.
+  a reload writes no audit events, and a `file://` load reports its probed storage mode
+  (saved, or this-tab-only) while still rendering the branding.
+- `tests/e2e/fileOrigin.e2e.ts` — the office handover: the built artifact opened from its
+  real `file://` path, the probe's answer, a case, a synthetic PDF read in the tab, a
+  reviewed value and the evidence still open after a reload, and the review bundle
+  download — with no console error.
 
 Playwright needs browser dependencies. On a normal desktop or CI image:
 
@@ -554,6 +574,12 @@ artifacts; the audit log is append-only.
 
 ## Known limits
 
+- Storage on a `file://` page is the browser's decision, not the app's. The workbench
+  proves it at boot: a marker is written, committed, and read back in a later
+  transaction, and anything less is reported as this-tab-only. It cannot establish that
+  storage survives a full browser restart or survives a profile change, and a
+  double-clicked page shares its storage area with every local HTML document on that
+  computer. Export the case bundle for any record you must keep.
 - One plan per case. Participant records can be imported from a CSV in the
   workbench's documented interchange format; the BCV column layout mapping is not
   transcribed. Census row-count reconciliation is implemented as a reviewer-recorded

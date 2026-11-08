@@ -339,12 +339,24 @@ test("an offline reload keeps the case and the branding", async ({ page, context
   expect(external).toEqual([]);
 });
 
-test("opening the file directly explains the storage limitation", async ({ page }) => {
+test("opening the file directly works, and states its storage mode", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto(pathToFileURL(resolve("dist/index.html")).href);
 
-  await expect(page.getByRole("alert").first()).toContainText(/opened as a local file/i);
-  await expect(page.getByRole("alert").first()).toContainText(/node scripts\/serve\.mjs/);
+  // The answer comes from the boot probe, never from the URL scheme alone.
+  const shell = page.locator(".shell");
+  await expect(shell).toHaveAttribute("data-storage-mode", /persistent|session/, {
+    timeout: 30_000,
+  });
+  if ((await shell.getAttribute("data-storage-mode")) === "persistent") {
+    await expect(page.getByRole("status").first()).toContainText(
+      /Cases are saved by this browser, not by this file/,
+    );
+  } else {
+    await expect(page.getByRole("alert").first()).toContainText(
+      /This tab cannot save a case/,
+    );
+  }
 
   // The logo is embedded, so branding survives even without a server.
   const logo = page.getByRole("img", { name: "PBGC" });

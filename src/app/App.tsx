@@ -37,7 +37,7 @@ import {
 } from "./stages";
 import { BlockedNotice, StatusPill } from "../ui/components";
 import logoUrl from "../assets/brand/pbgc-logo-text-banner-wt.png";
-import { FILE_ORIGIN_MESSAGE, isFileOrigin } from "./environment";
+import { isFileOrigin, storageBanner } from "./environment";
 
 export function App() {
   const { state, actions, catalog, dictionaryIndex } = useWorkbench();
@@ -46,7 +46,7 @@ export function App() {
     walkthrough.record === null ? null : scriptForRecord(walkthrough.record);
   const activeStage = STAGES.find((stage) => stage.id === state.stage) ?? STAGES[0]!;
   const purgedCase = state.activeCase?.status === "purged";
-  const fileOrigin = isFileOrigin();
+  const banner = storageBanner(state.storage, isFileOrigin());
 
   async function addSampleDocuments() {
     await actions.importFiles(createSampleEvidenceFiles(), "plan-documents");
@@ -126,11 +126,6 @@ export function App() {
           onPreflightFiles={actions.preflightFiles}
           onStartWalkthrough={startWalkthrough}
           activeWalkthroughLabel={walkthroughScript?.label ?? null}
-          walkthroughBlockedReason={
-            fileOrigin
-              ? "Storage is unavailable on a file:// page, so a case cannot be created."
-              : undefined
-          }
         />
       );
     }
@@ -229,7 +224,10 @@ export function App() {
   }
 
   return (
-    <div className="shell">
+    <div
+      className="shell"
+      data-storage-mode={state.storage?.mode ?? "unknown"}
+    >
       <a className="skip-link" href="#main">
         Skip to case workspace
       </a>
@@ -321,12 +319,7 @@ export function App() {
             <button
               className="rail-test-button"
               type="button"
-              disabled={fileOrigin}
-              title={
-                fileOrigin
-                  ? "Storage is unavailable on a file:// page, so a case cannot be created."
-                  : "Start the 15-minute prototype test: eight steps through the whole workbench"
-              }
+              title="Start the 15-minute prototype test: eight steps through the whole workbench"
               onClick={() => startWalkthrough(PROTOTYPE_TEST_SCRIPT.id)}
             >
               Prototype test
@@ -346,7 +339,11 @@ export function App() {
           {state.activeCase ? (
             <>
               <StatusPill tone={purgedCase ? "warning" : "success"}>
-                {purgedCase ? "Purged · audit only" : "Local case open"}
+                {purgedCase
+                  ? "Purged · audit only"
+                  : state.storage?.mode === "session"
+                    ? "Open · this tab only"
+                    : "Local case open"}
               </StatusPill>
               <span>
                 Created{" "}
@@ -385,11 +382,17 @@ export function App() {
       </header>
 
       <main id="main" className="workspace" tabIndex={-1}>
-        {fileOrigin ? (
-          <div className="error-banner file-origin-banner" role="alert">
+        {banner ? (
+          <div
+            className={
+              banner.tone === "warning"
+                ? "error-banner storage-banner storage-banner-warning"
+                : "notice-banner storage-banner storage-banner-info"
+            }
+            role={banner.tone === "warning" ? "alert" : "status"}
+          >
             <span>
-              <strong>Storage is unavailable on a file:// page.</strong>{" "}
-              {FILE_ORIGIN_MESSAGE}
+              <strong>{banner.title}.</strong> {banner.body}
             </span>
           </div>
         ) : null}

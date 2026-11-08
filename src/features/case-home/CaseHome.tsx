@@ -37,7 +37,7 @@ type Props = {
   onStartWalkthrough: (scriptId: WalkthroughScriptId) => void;
   /** The test currently holding the browser record, if one is running. */
   activeWalkthroughLabel: string | null;
-  /** Present when a `file://` page cannot store a case for the test. */
+  /** Present when another test already holds the browser record. */
   walkthroughBlockedReason?: string | undefined;
 };
 

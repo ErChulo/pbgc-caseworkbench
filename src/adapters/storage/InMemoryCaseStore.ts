@@ -204,4 +204,22 @@ export class InMemoryCaseStore implements CaseStore {
       (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
     );
   }
+
+  /**
+   * Remove a case's plan facts, reviewer decisions, and calculation runs. The
+   * case record and every audit event are retained. Not part of the CaseStore
+   * port: only the case purge adapter calls it, inside its one validated
+   * operation.
+   */
+  deleteContentForCase(
+    caseId: string,
+  ): { facts: number; decisions: number; calculationRuns: number } {
+    const facts = this.facts.get(caseId)?.length ?? 0;
+    const decisions = this.decisions.get(caseId)?.length ?? 0;
+    const calculationRuns = this.calculationRuns.get(caseId)?.length ?? 0;
+    this.facts.set(caseId, []);
+    this.decisions.set(caseId, []);
+    this.calculationRuns.set(caseId, []);
+    return { facts, decisions, calculationRuns };
+  }
 }

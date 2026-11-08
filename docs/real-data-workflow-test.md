@@ -81,8 +81,16 @@ Record the page count and the refusal; do not OCR it for this pilot.
 
 ## 4. Data-handling rules for the session
 
-- Serve the app at `http://127.0.0.1:4173`. **Do not open `dist/index.html` by
-  double-clicking it**; Chromium denies IndexedDB to `file://` documents.
+- Launch the app one of the two supported ways, and record which one every
+  finding used: serve it at `http://127.0.0.1:4173` with Node and a dedicated
+  profile, or double-click the released `index.html` where Node is not
+  available. A double-clicked page stores cases in the browser's file storage,
+  which **every local HTML document on that computer shares**; the app says so at
+  launch. If that sharing is not acceptable under office policy, use the server.
+- Read the storage banner on the first screen. If it reports **This tab cannot
+  save a case**, the browser refused local storage for this page: work the case
+  in one sitting and export the bundle before closing the tab, or reopen in the
+  approved profile.
 - Keep the browser offline or verify in DevTools that the app makes no request
   outside its own origin. It is designed to make none.
 - Do not take screenshots of the app while real data is on screen. A findings
@@ -99,7 +107,13 @@ Record the page count and the refusal; do not OCR it for this pilot.
 
 ## 5. Setup on the office machine
 
-Copy only these two paths, keeping the layout:
+**Without Node (the office default):** download the `index.html` release asset
+onto the workstation and double-click it. It opens in the default browser from
+`file://`; nothing is installed and no server is started. The first screen
+reports the browser's storage answer — **saved by this browser** (with the shared
+local-file-storage note) or **this tab only**.
+
+**With Node:** copy only these two paths, keeping the layout:
 
 ```text
 workbench/
@@ -114,9 +128,10 @@ cd workbench
 node scripts/serve.mjs
 ```
 
-Open `http://127.0.0.1:4173` in the dedicated profile. Record the artifact's
-identity: the SHA-256 of `dist/index.html`, or the build date shown in the
-guided-test notes. Every finding should name that build.
+Open `http://127.0.0.1:4173` in the dedicated profile.
+
+Record the artifact's identity: the SHA-256 of `index.html`, or the build date
+shown in the guided-test notes. Every finding should name that build.
 
 Run the in-app **15-minute test** once, with no real data, to confirm the
 machine and browser are healthy. Then start the real case.
@@ -317,8 +332,9 @@ saved during the case, so the purge is not a full removal of case-derived
 text. Record the purge date and counts in the findings log. Then delete every
 exported bundle copy separately.
 
-If the audit trail itself must be removed, clear site data for
-`http://127.0.0.1:4173` in the dedicated profile. That removes every case and
+If the audit trail itself must be removed, clear site data for the origin you
+used — `http://127.0.0.1:4173`, or the browser's storage for local file pages if
+you double-clicked the file — in the dedicated profile. That removes every case and
 all audit history, so the bundle is then the only record. The purge is not a
 secure erase: IndexedDB and the operating system may retain deleted pages
 until they are overwritten. Rely on full-disk encryption and the office's

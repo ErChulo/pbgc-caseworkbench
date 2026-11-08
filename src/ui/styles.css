@@ -472,13 +472,24 @@ button.secondary:hover:not(:disabled) {
   color: var(--color-danger);
 }
 
-.file-origin-banner {
-  border-color: var(--color-warning);
-  background: rgba(247, 201, 72, 0.08);
+/* The boot probe's answer: a plain note for file:// storage, a warning when
+   the browser did not prove it can keep a case at all. */
+.storage-banner {
+  border-color: var(--color-border-strong);
+  background: var(--color-raised);
   color: var(--color-text);
 }
 
-.file-origin-banner strong {
+.storage-banner strong {
+  color: var(--color-text);
+}
+
+.storage-banner-warning {
+  border-color: var(--color-warning);
+  background: rgba(247, 201, 72, 0.08);
+}
+
+.storage-banner-warning strong {
   color: var(--color-warning);
 }
 

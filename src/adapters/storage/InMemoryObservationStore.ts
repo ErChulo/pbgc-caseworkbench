@@ -115,4 +115,26 @@ export class InMemoryObservationStore implements ObservationStore {
     this.byArtifact.delete(artifactId);
     return existing.length;
   }
+
+  /**
+   * Remove every observation (reading and reviewer transcription) for one case
+   * and report how many were removed. Not part of the ObservationStore port:
+   * only the case purge adapter calls it, inside its one validated operation.
+   */
+  deleteObservationsForCase(caseId: string): number {
+    let removed = 0;
+    for (const [artifactId, observations] of this.byArtifact) {
+      const kept = observations.filter((observation) => {
+        if (observation.caseId !== caseId) return true;
+        removed += 1;
+        return false;
+      });
+      if (kept.length === 0) {
+        this.byArtifact.delete(artifactId);
+      } else if (kept.length !== observations.length) {
+        this.byArtifact.set(artifactId, kept);
+      }
+    }
+    return removed;
+  }
 }

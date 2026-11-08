@@ -12,6 +12,6 @@ Build a single-user browser application with no required backend. Inline applica
 - Case PII can remain on the workstation.
 - IndexedDB/OPFS adapters and deliberate export/backup are required.
 - Multi-user collaboration, server authority, and central audit are out of scope.
-- A local HTTP server is the supported runtime; `file://` is not guaranteed.
+- A local HTTP server is the original supported runtime. **Superseded by ADR 0003** for `file://`: the workbench now proves storage at boot and runs from a double-clicked file when the browser allows it.
 - Build tooling may use npm, while the deployed application must make no network requests.
 

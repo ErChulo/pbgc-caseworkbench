@@ -33,13 +33,35 @@ async function loadPdfjs(): Promise<PdfjsModule> {
 }
 
 let workerSetting: Promise<void> | null = null;
+/** Set once the main-thread worker module has been loaded for a file page. */
+let mainThreadHandler: unknown = null;
+
+/**
+ * A `file://` document cannot run the bundled blob worker: the worker is
+ * constructed but never answers, so pdf.js waits on a reply that cannot come.
+ * Importing the worker module on the main thread is pdf.js's own supported
+ * fallback (`globalThis.pdfjsWorker`), and it is the only one that works when the
+ * page was opened by double-clicking the HTML file.
+ */
+function isFileDocument(): boolean {
+  return typeof window !== "undefined" && window.location.protocol === "file:";
+}
 
 async function ensureWorker(pdfjs: PdfjsModule): Promise<void> {
   // No `Worker` in Node: pdf.js uses its in-process fake worker, which is what
   // the unit tests exercise.
   if (typeof Worker === "undefined") return;
   if (pdfjs.GlobalWorkerOptions.workerPort) return;
+  if (isFileDocument() && mainThreadHandler !== null) return;
   workerSetting ??= (async () => {
+    if (isFileDocument()) {
+      // Loaded lazily, and only here: an ordinary http page keeps the worker and
+      // its non-blocking parse, and pays nothing for this branch.
+      const workerModule = await import("pdfjs-dist/build/pdf.worker.min.mjs");
+      (globalThis as { pdfjsWorker?: unknown }).pdfjsWorker = workerModule;
+      mainThreadHandler = workerModule;
+      return;
+    }
     const { default: PdfWorker } = await import(
       "pdfjs-dist/build/pdf.worker.min.mjs?worker&inline"
     );
