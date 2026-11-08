@@ -32,7 +32,7 @@ to produce one and says why.
 | Work products | 15 contracts registered: review copy, R5 template coverage, and participant register producible; R1/R5 notice/V1/DEL/PF/BSRS/§436/EBA/AMB/closeout/memo blocked with reasons; reviewer decisions recordable per cell. Each implemented product can have an optional, reviewer-recorded required-class policy; no policy leaves the gate inactive. |
 | Field dictionary | 1,172 records across 12 tables |
 | Bundle export / restore | Working: hashed manifest, evidence-byte re-hash, and every internal reference are verified before restore; restores as a new case |
-| Prototype test | Working: eight scripted steps over the real stages, with a Pass/Fail verdict and an optional note per step, progress kept in this browser profile, a restart, and a plain-text notes download. It records a reviewer's session, never a case change. |
+| Guided tests | Two scripts over the real stages. The 15-minute **Prototype test** covers the end-to-end path in eight steps; the 30-minute **Advanced test** covers evidence verification, retirement and reinstatement, the rule registry, a recorded and a refused calculation, reconciliation, the review copy, and audit filtering in twelve. Each asks for a Pass/Fail verdict and an optional note per step, keeps progress in this browser profile, offers a restart, and downloads plain-text notes named for its script. A test records a reviewer's session, never a case change. |
 
 ## Quick start
 
@@ -55,7 +55,7 @@ fallback to unbranded text when the machine is offline.
 ## The office test walkthrough
 
 If you have not used the workbench before, start with the in-app **Prototype test**:
-press **Start the prototype test** on Case home, or **Prototype test** at the foot of
+press **Start the 15-minute test** on Case home, or **Prototype test** at the foot of
 the rail. It walks eight steps over the real screens — create the test case, add two
 generated sample documents, read the PDF text, cite a passage, review the plan
 summary, download the document, export the bundle, and restore it — and asks for
@@ -67,7 +67,18 @@ it has one of those values. The two generated samples arrive through the ordinar
 intake control already typed as a plan document. The test stores your verdicts in
 this browser profile only, never in the case, and **Download test notes** writes a
 plain-text report naming the build, the case alias, and each verdict, with no
-evidence text and no participant data. The complete manual script follows.
+evidence text and no participant data.
+
+Once that path is familiar, run the **Advanced test** with **Start the 30-minute
+advanced test** on Case home. Its twelve steps open the same demo case and offer the
+same two generated samples, then verify the stored bytes, retire and reinstate the
+summary, read the rule registry, run an age calculation, watch an EPRD run refuse a
+DOPT before 2002-06-01, read the readiness checklist, generate and open the review
+copy, and filter the audit trail to one event type. It needs no prepared files. Only
+one test holds a record at a time: exit or restart the first before starting the
+second. Its notes download as `advanced-test-notes-<date>.txt`.
+
+The complete manual script for the first test follows.
 
 1. **Case** — create a case. It receives a synthetic alias such as `CW-0001`.
 2. **Documents** — choose a document type for new files, then drop plan documents.
@@ -386,9 +397,10 @@ is finished.
   required reason that keeps the link and earlier fact, re-citing a withdrawn
   or detached passage without reviving the earlier link, and the evidence card's
   citation outcomes (current, re-cited, withdrawn with its recorded reason, and
-  unnamed after a value edit)), the prototype test's step order, outcome and note
-  recording, refusal to advance without a result, progress counts, notes
-  serialization, and tolerant reading of a stored record, evidence retirement and
+  unnamed after a value edit)), both guided tests' step order, outcome and note
+  recording, refusal to advance without a result, progress counts, script-owned
+  notes serialization and file names, and tolerant reading of a stored record,
+  evidence retirement and
   reinstatement
   guards, retention/discard guards,
   hash-verified reattachment, stored-byte accounting, the synthetic demo pack
@@ -447,6 +459,14 @@ is finished.
   notes and check their contents, restart to a clean record, and exit; a second case
   starts the test from a non-home screen with a case open, switches to the demo case,
   and reaches a populated citation field list.
+- `tests/e2e/advancedTest.e2e.ts` — the advanced test as a reviewer runs it: open
+  the test case, add the samples, verify the stored bytes, retire and reinstate the
+  summary, read the rule registry, run an age calculation, confirm the EPRD refusal
+  shows its reason and records no run, read the readiness checklist, generate and
+  open the review copy as a tab with no stray download, filter the trail to
+  calculation-run events, and check the notes name the advanced script and their
+  results with no evidence text; a second test confirms the first test's record
+  blocks starting another script until it is exited.
 - `tests/e2e/office.e2e.ts` — the handover conditions: every request outside the app's
   own origin is aborted and asserted to be zero, the browser is taken offline for the
   interactive flow, a realistic synthetic plan runs through entry, validation, evidence,

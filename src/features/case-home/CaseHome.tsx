@@ -7,6 +7,11 @@
 
 import type { CaseRecord } from "../../domain/case/types";
 import { SYNTHETIC_R5_DEMO_CASES } from "../../domain/demo/r5SyntheticProfile";
+import {
+  ADVANCED_TEST_SCRIPT,
+  PROTOTYPE_TEST_SCRIPT,
+  type WalkthroughScriptId,
+} from "../../app/walkthrough";
 import { EmptyState, Panel, StatusPill } from "../../ui/components";
 
 type Props = {
@@ -16,9 +21,11 @@ type Props = {
   onCreateDemoCase: (profileAlias: string) => void;
   onOpenCase: (caseId: string) => void;
   onCloseCase: () => void;
-  onStartPrototypeTest: () => void;
+  onStartWalkthrough: (scriptId: WalkthroughScriptId) => void;
+  /** The test currently holding the browser record, if one is running. */
+  activeWalkthroughLabel: string | null;
   /** Present when a `file://` page cannot store a case for the test. */
-  prototypeTestBlockedReason?: string | undefined;
+  walkthroughBlockedReason?: string | undefined;
 };
 
 function formatDate(iso: string): string {
@@ -38,9 +45,16 @@ export function CaseHome({
   onCreateDemoCase,
   onOpenCase,
   onCloseCase,
-  onStartPrototypeTest,
-  prototypeTestBlockedReason,
+  onStartWalkthrough,
+  activeWalkthroughLabel,
+  walkthroughBlockedReason,
 }: Props) {
+  const startBlockedReason =
+    walkthroughBlockedReason ??
+    (activeWalkthroughLabel === null
+      ? undefined
+      : `The ${activeWalkthroughLabel} is in progress. Exit or finish it before starting another test.`);
+
   return (
     <>
       <section className="intro" aria-labelledby="home-title">
@@ -76,27 +90,40 @@ export function CaseHome({
       <section className="home-test" aria-labelledby="home-test-title">
         <div>
           <p className="eyebrow">New to the workbench</p>
-          <h2 id="home-test-title">Run the 15-minute prototype test</h2>
+          <h2 id="home-test-title">Test the workbench yourself</h2>
           <p>
-            Eight steps through the whole path: create a case, add the sample
-            documents, read the text, cite a passage, review the plan summary,
-            download the document, export the bundle, and restore it. Each step
-            names the one button to press and what should appear.
+            Start with the {PROTOTYPE_TEST_SCRIPT.duration} prototype test: eight
+            steps through the whole path — a case, the sample documents, a
+            citation, the plan summary, the document, and the bundle. Then run
+            the {ADVANCED_TEST_SCRIPT.duration} advanced test: twelve steps
+            through the rule registry, calculations, reconciliation, work
+            products, and the audit filter.
           </p>
           <p className="artifact-meta">
-            The test records your pass or fail verdict and notes only. It does
+            Each test records your pass or fail verdict and notes only. It does
             not change the case, and nothing leaves this machine.
           </p>
         </div>
-        <button
-          className="primary"
-          type="button"
-          disabled={prototypeTestBlockedReason !== undefined}
-          title={prototypeTestBlockedReason}
-          onClick={onStartPrototypeTest}
-        >
-          Start the prototype test
-        </button>
+        <div className="home-test-actions">
+          <button
+            className="primary"
+            type="button"
+            disabled={startBlockedReason !== undefined}
+            title={startBlockedReason}
+            onClick={() => onStartWalkthrough(PROTOTYPE_TEST_SCRIPT.id)}
+          >
+            Start the 15-minute test
+          </button>
+          <button
+            className="secondary"
+            type="button"
+            disabled={startBlockedReason !== undefined}
+            title={startBlockedReason}
+            onClick={() => onStartWalkthrough(ADVANCED_TEST_SCRIPT.id)}
+          >
+            Start the 30-minute advanced test
+          </button>
+        </div>
       </section>
 
       <Panel

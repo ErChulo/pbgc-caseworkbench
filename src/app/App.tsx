@@ -19,11 +19,14 @@ import { ReviewStage } from "../features/review/ReviewStage";
 import { FinalDocumentStage } from "../features/document/FinalDocumentStage";
 import { useWorkbench } from "../features/workbench/useWorkbench";
 import { PrototypeTestPanel } from "../features/walkthrough/PrototypeTestPanel";
-import { usePrototypeTest } from "../features/walkthrough/usePrototypeTest";
+import { useWalkthrough } from "../features/walkthrough/useWalkthrough";
 import { createSampleEvidenceFiles } from "../features/walkthrough/sampleEvidence";
 import {
+  PROTOTYPE_TEST_SCRIPT,
+  scriptForRecord,
   serializeWalkthroughNotes,
   walkthroughNotesFileName,
+  type WalkthroughScriptId,
 } from "./walkthrough";
 import { downloadTextFile } from "./download";
 import {
@@ -38,7 +41,9 @@ import { FILE_ORIGIN_MESSAGE, isFileOrigin } from "./environment";
 
 export function App() {
   const { state, actions, catalog, dictionaryIndex } = useWorkbench();
-  const prototypeTest = usePrototypeTest();
+  const walkthrough = useWalkthrough();
+  const walkthroughScript =
+    walkthrough.record === null ? null : scriptForRecord(walkthrough.record);
   const activeStage = STAGES.find((stage) => stage.id === state.stage) ?? STAGES[0]!;
   const fileOrigin = isFileOrigin();
 
@@ -47,18 +52,19 @@ export function App() {
   }
 
   /** Starts the script at its first step, so the panel never opens on a later screen. */
-  function startPrototypeTest() {
-    prototypeTest.start();
+  function startWalkthrough(scriptId: WalkthroughScriptId) {
+    walkthrough.start(scriptId);
     actions.setStage("home");
   }
 
-  function downloadPrototypeNotes() {
-    const record = prototypeTest.record;
+  function downloadWalkthroughNotes() {
+    const record = walkthrough.record;
     if (!record) return;
+    const script = scriptForRecord(record);
     const recordedAt = new Date().toISOString();
     downloadTextFile(
-      walkthroughNotesFileName(recordedAt),
-      serializeWalkthroughNotes(record, {
+      walkthroughNotesFileName(script, recordedAt),
+      serializeWalkthroughNotes(script, record, {
         buildStamp: __BUILD_STAMP__,
         caseAlias: state.activeCase?.alias ?? null,
         recordedAt,
@@ -89,8 +95,9 @@ export function App() {
           }
           onOpenCase={(caseId) => void actions.openCase(caseId)}
           onCloseCase={actions.closeCase}
-          onStartPrototypeTest={startPrototypeTest}
-          prototypeTestBlockedReason={
+          onStartWalkthrough={startWalkthrough}
+          activeWalkthroughLabel={walkthroughScript?.label ?? null}
+          walkthroughBlockedReason={
             fileOrigin
               ? "Storage is unavailable on a file:// page, so a case cannot be created."
               : undefined
@@ -268,7 +275,7 @@ export function App() {
         <div className="rail-footer">
           <p>Local only</p>
           <p>No account, no telemetry, no network calls at runtime.</p>
-          {prototypeTest.record === null ? (
+          {walkthrough.record === null ? (
             <button
               className="rail-test-button"
               type="button"
@@ -276,9 +283,9 @@ export function App() {
               title={
                 fileOrigin
                   ? "Storage is unavailable on a file:// page, so a case cannot be created."
-                  : "Eight scripted steps through the whole workbench"
+                  : "Start the 15-minute prototype test: eight steps through the whole workbench"
               }
-              onClick={startPrototypeTest}
+              onClick={() => startWalkthrough(PROTOTYPE_TEST_SCRIPT.id)}
             >
               Prototype test
             </button>
@@ -358,20 +365,21 @@ export function App() {
           </div>
         ) : null}
 
-        {prototypeTest.record ? (
+        {walkthrough.record && walkthroughScript ? (
           <PrototypeTestPanel
-            record={prototypeTest.record}
+            script={walkthroughScript}
+            record={walkthrough.record}
             caseOpen={state.activeCase !== null}
             onCreateCase={actions.createPrototypeTestCase}
             onAddSampleDocuments={addSampleDocuments}
-            onOutcome={prototypeTest.setOutcome}
-            onNote={prototypeTest.setNote}
-            onNext={prototypeTest.next}
-            onBack={prototypeTest.back}
+            onOutcome={walkthrough.setOutcome}
+            onNote={walkthrough.setNote}
+            onNext={walkthrough.next}
+            onBack={walkthrough.back}
             onGoToStage={actions.setStage}
-            onRestart={prototypeTest.restart}
-            onExit={prototypeTest.stop}
-            onDownloadNotes={downloadPrototypeNotes}
+            onRestart={walkthrough.restart}
+            onExit={walkthrough.stop}
+            onDownloadNotes={downloadWalkthroughNotes}
           />
         ) : null}
 

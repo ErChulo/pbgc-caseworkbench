@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADVANCED_TEST_SCRIPT,
   MAX_NOTE_LENGTH,
-  WALKTHROUGH_STEPS,
+  PROTOTYPE_TEST_SCRIPT,
+  WALKTHROUGH_SCRIPTS,
   currentStep,
   emptyWalkthroughRecord,
   nextStep,
@@ -9,25 +11,41 @@ import {
   previousStep,
   recordNote,
   recordOutcome,
+  scriptForRecord,
   serializeWalkthroughNotes,
   stepById,
   walkthroughNotesFileName,
   walkthroughProgress,
+  type WalkthroughScript,
 } from "../../src/app/walkthrough";
 
 const STARTED = "2026-11-07T10:00:00.000Z";
 
-function record() {
-  return emptyWalkthroughRecord(STARTED);
+function record(script: WalkthroughScript = PROTOTYPE_TEST_SCRIPT) {
+  return emptyWalkthroughRecord(script, STARTED);
 }
 
-describe("prototype test steps", () => {
+describe("guided test scripts", () => {
+  it("registers the prototype test and the advanced test", () => {
+    expect(WALKTHROUGH_SCRIPTS.map((script) => script.id)).toEqual([
+      "smoke",
+      "advanced",
+    ]);
+    expect(WALKTHROUGH_SCRIPTS.map((script) => script.label)).toEqual([
+      "Prototype test",
+      "Advanced test",
+    ]);
+    for (const script of WALKTHROUGH_SCRIPTS) {
+      expect(script.duration.trim()).not.toBe("");
+    }
+  });
+
   it("is an ordered eight-step end-to-end path over real stages", () => {
-    expect(WALKTHROUGH_STEPS).toHaveLength(8);
-    expect(WALKTHROUGH_STEPS.map((step) => step.number)).toEqual([
+    expect(PROTOTYPE_TEST_SCRIPT.steps).toHaveLength(8);
+    expect(PROTOTYPE_TEST_SCRIPT.steps.map((step) => step.number)).toEqual([
       1, 2, 3, 4, 5, 6, 7, 8,
     ]);
-    expect(WALKTHROUGH_STEPS.map((step) => step.id)).toEqual([
+    expect(PROTOTYPE_TEST_SCRIPT.steps.map((step) => step.id)).toEqual([
       "case",
       "documents",
       "read-text",
@@ -38,62 +56,123 @@ describe("prototype test steps", () => {
       "restore",
     ]);
     // Every step names the screen it is performed on and what should appear.
-    for (const step of WALKTHROUGH_STEPS) {
+    for (const step of PROTOTYPE_TEST_SCRIPT.steps) {
       expect(step.stage.length).toBeGreaterThan(0);
       expect(step.action.trim()).not.toBe("");
       expect(step.expect.trim()).not.toBe("");
     }
     // Only the two setup steps offer help; the rest must be done by hand.
     expect(
-      WALKTHROUGH_STEPS.filter((step) => step.assist !== undefined).map(
-        (step) => step.id,
-      ),
+      PROTOTYPE_TEST_SCRIPT.steps
+        .filter((step) => step.assist !== undefined)
+        .map((step) => step.id),
     ).toEqual(["case", "documents"]);
   });
 
+  it("adds a twelve-step advanced path over the reviewer stages", () => {
+    expect(ADVANCED_TEST_SCRIPT.steps).toHaveLength(12);
+    expect(ADVANCED_TEST_SCRIPT.steps.map((step) => step.number)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    ]);
+    expect(ADVANCED_TEST_SCRIPT.steps.map((step) => step.id)).toEqual([
+      "advanced-case",
+      "advanced-documents",
+      "verify",
+      "retire",
+      "reinstate",
+      "rules",
+      "age",
+      "eprd-refusal",
+      "readiness",
+      "review-copy",
+      "review-copy-open",
+      "audit-filter",
+    ]);
+
+    for (const step of ADVANCED_TEST_SCRIPT.steps) {
+      expect(step.stage.length).toBeGreaterThan(0);
+      expect(step.lookAt.trim()).not.toBe("");
+      expect(step.action.trim()).not.toBe("");
+      expect(step.expect.trim()).not.toBe("");
+    }
+
+    // The advanced script reaches every stage the first script skips.
+    expect(
+      [...new Set(ADVANCED_TEST_SCRIPT.steps.map((step) => step.stage))],
+    ).toEqual(
+      expect.arrayContaining([
+        "home",
+        "evidence",
+        "rules",
+        "calculations",
+        "reconciliation",
+        "work-products",
+        "review",
+      ]),
+    );
+
+    // Setup is assisted only on the two opening steps; the rest are by hand.
+    expect(
+      ADVANCED_TEST_SCRIPT.steps
+        .filter((step) => step.assist !== undefined)
+        .map((step) => step.id),
+    ).toEqual(["advanced-case", "advanced-documents"]);
+
+    // One step exists to see a rule refuse rather than substitute a value.
+    const refusal = stepById(ADVANCED_TEST_SCRIPT, "eprd-refusal");
+    expect(refusal?.expect).toContain("2002-06-01");
+    expect(refusal?.expect).toContain("No result, run id, or history entry");
+  });
+
   it("starts on the first step with nothing recorded", () => {
-    const state = record();
-    expect(currentStep(state).id).toBe("case");
-    expect(walkthroughProgress(state)).toEqual({
-      total: 8,
-      passed: 0,
-      failed: 0,
-      unrecorded: 8,
-      complete: false,
-    });
+    for (const script of WALKTHROUGH_SCRIPTS) {
+      const state = record(script);
+      expect(state.scriptId).toBe(script.id);
+      expect(currentStep(script, state).number).toBe(1);
+      expect(walkthroughProgress(script, state)).toEqual({
+        total: script.steps.length,
+        passed: 0,
+        failed: 0,
+        unrecorded: script.steps.length,
+        complete: false,
+      });
+    }
   });
 });
 
 describe("recording outcomes", () => {
   it("records one outcome at a time and moves forward only when one exists", () => {
+    const script = PROTOTYPE_TEST_SCRIPT;
     let state = record();
-    expect(nextStep(state)).toBe(state);
+    expect(nextStep(script, state)).toBe(state);
 
-    state = recordOutcome(state, "case", "fail");
+    state = recordOutcome(script, state, "case", "fail");
     expect(state.results.case?.outcome).toBe("fail");
 
-    state = recordOutcome(state, "case", "pass");
+    state = recordOutcome(script, state, "case", "pass");
     expect(state.results.case?.outcome).toBe("pass");
 
-    const advanced = nextStep(state);
-    expect(currentStep(advanced).id).toBe("documents");
+    const advanced = nextStep(script, state);
+    expect(currentStep(script, advanced).id).toBe("documents");
     expect(previousStep(advanced).stepIndex).toBe(0);
   });
 
   it("stays on the last step once it is reached", () => {
-    let state = record();
-    for (const step of WALKTHROUGH_STEPS) {
-      state = recordOutcome(state, step.id, "pass");
-      state = nextStep(state);
+    for (const script of WALKTHROUGH_SCRIPTS) {
+      let state = record(script);
+      for (const step of script.steps) {
+        state = recordOutcome(script, state, step.id, "pass");
+        state = nextStep(script, state);
+      }
+      expect(currentStep(script, state).number).toBe(script.steps.length);
+      expect(walkthroughProgress(script, state)).toEqual({
+        total: script.steps.length,
+        passed: script.steps.length,
+        failed: 0,
+        unrecorded: 0,
+        complete: true,
+      });
     }
-    expect(currentStep(state).id).toBe("restore");
-    expect(walkthroughProgress(state)).toEqual({
-      total: 8,
-      passed: 8,
-      failed: 0,
-      unrecorded: 0,
-      complete: true,
-    });
   });
 
   it("does not move backwards past the first step", () => {
@@ -101,27 +180,33 @@ describe("recording outcomes", () => {
     expect(previousStep(state)).toBe(state);
   });
 
-  it("ignores an unknown step id", () => {
+  it("ignores a step id that belongs to the other script", () => {
     const state = record();
-    expect(recordOutcome(state, "not-a-step", "pass")).toBe(state);
-    expect(recordNote(state, "not-a-step", "text")).toBe(state);
-    expect(stepById("not-a-step")).toBeUndefined();
+    expect(recordOutcome(PROTOTYPE_TEST_SCRIPT, state, "verify", "pass")).toBe(
+      state,
+    );
+    expect(
+      recordNote(PROTOTYPE_TEST_SCRIPT, state, "audit-filter", "text"),
+    ).toBe(state);
+    expect(stepById(PROTOTYPE_TEST_SCRIPT, "verify")).toBeUndefined();
+    expect(stepById(ADVANCED_TEST_SCRIPT, "verify")).toBeDefined();
   });
 });
 
 describe("notes", () => {
   it("truncates a note to the limit and keeps it with its step", () => {
     const long = "x".repeat(MAX_NOTE_LENGTH + 40);
-    const state = recordNote(record(), "documents", long);
+    const state = recordNote(PROTOTYPE_TEST_SCRIPT, record(), "documents", long);
     expect(state.results.documents?.note).toHaveLength(MAX_NOTE_LENGTH);
     expect(state.results.documents?.outcome).toBeNull();
   });
 
   it("counts pass, fail, and unrecorded steps", () => {
+    const script = PROTOTYPE_TEST_SCRIPT;
     let state = record();
-    state = recordOutcome(state, "case", "pass");
-    state = recordOutcome(state, "documents", "fail");
-    expect(walkthroughProgress(state)).toEqual({
+    state = recordOutcome(script, state, "case", "pass");
+    state = recordOutcome(script, state, "documents", "fail");
+    expect(walkthroughProgress(script, state)).toEqual({
       total: 8,
       passed: 1,
       failed: 1,
@@ -131,13 +216,14 @@ describe("notes", () => {
   });
 
   it("serializes every step, its outcome, and its note without case content", () => {
+    const script = PROTOTYPE_TEST_SCRIPT;
     let state = record();
-    state = recordOutcome(state, "case", "pass");
-    state = recordNote(state, "case", "Alias appeared.");
-    state = recordOutcome(state, "documents", "fail");
-    state = recordNote(state, "documents", "The PDF had no text layer.");
+    state = recordOutcome(script, state, "case", "pass");
+    state = recordNote(script, state, "case", "Alias appeared.");
+    state = recordOutcome(script, state, "documents", "fail");
+    state = recordNote(script, state, "documents", "The PDF had no text layer.");
 
-    const text = serializeWalkthroughNotes(state, {
+    const text = serializeWalkthroughNotes(script, state, {
       buildStamp: "2026-11-05",
       caseAlias: "CW-0001",
       recordedAt: "2026-11-07T10:20:00.000Z",
@@ -151,15 +237,33 @@ describe("notes", () => {
     expect(text).toContain("2. Add the two sample documents — FAIL");
     expect(text).toContain("Note: The PDF had no text layer.");
     expect(text).toContain("8. Restore the bundle — NOT RECORDED");
-    expect(text).toContain(
-      "Summary: 1 passed, 1 failed, 6 not recorded of 8.",
-    );
+    expect(text).toContain("Summary: 1 passed, 1 failed, 6 not recorded of 8.");
     expect(text).toContain("no evidence text and no participant data");
     expect(text.endsWith("\n")).toBe(true);
   });
 
+  it("names the advanced script and its twelve steps in the notes", () => {
+    const script = ADVANCED_TEST_SCRIPT;
+    let state = record(script);
+    state = recordOutcome(script, state, "verify", "pass");
+    state = recordNote(script, state, "eprd-refusal", "Refused as documented.");
+
+    const text = serializeWalkthroughNotes(script, state, {
+      buildStamp: "2026-11-07",
+      caseAlias: "CW-DEMO-0001",
+      recordedAt: "2026-11-07T11:10:00.000Z",
+    });
+
+    expect(text).toContain("PBGC Case Workbench — advanced test notes");
+    expect(text).toContain("3. Verify the stored evidence — PASS");
+    expect(text).toContain("8. Confirm a calculation refuses — NOT RECORDED");
+    expect(text).toContain("Note: Refused as documented.");
+    expect(text).toContain("12. Filter the audit trail — NOT RECORDED");
+    expect(text).toContain("Summary: 1 passed, 0 failed, 11 not recorded of 12.");
+  });
+
   it("names the build as unknown when no stamp reached the notes", () => {
-    const text = serializeWalkthroughNotes(record(), {
+    const text = serializeWalkthroughNotes(PROTOTYPE_TEST_SCRIPT, record(), {
       buildStamp: "   ",
       caseAlias: null,
       recordedAt: "2026-11-07T10:20:00.000Z",
@@ -169,27 +273,48 @@ describe("notes", () => {
     expect(text).toContain("Case: no case open");
   });
 
-  it("names the notes file from the recorded date", () => {
-    expect(walkthroughNotesFileName("2026-11-07T10:20:00.000Z")).toBe(
-      "prototype-test-notes-2026-11-07.txt",
-    );
-    expect(walkthroughNotesFileName("not a date")).toBe(
-      "prototype-test-notes-undated.txt",
+  it("names each notes file from its script and recorded date", () => {
+    expect(
+      walkthroughNotesFileName(PROTOTYPE_TEST_SCRIPT, "2026-11-07T10:20:00.000Z"),
+    ).toBe("prototype-test-notes-2026-11-07.txt");
+    expect(
+      walkthroughNotesFileName(ADVANCED_TEST_SCRIPT, "2026-11-07T10:20:00.000Z"),
+    ).toBe("advanced-test-notes-2026-11-07.txt");
+    expect(walkthroughNotesFileName(ADVANCED_TEST_SCRIPT, "not a date")).toBe(
+      "advanced-test-notes-undated.txt",
     );
   });
 });
 
 describe("reading a persisted record", () => {
-  it("round-trips a record through JSON", () => {
-    let state = record();
-    state = recordOutcome(state, "case", "pass");
-    state = recordNote(state, "case", "Looks right.");
-    state = nextStep(state);
+  it("round-trips a record through JSON for each script", () => {
+    for (const script of WALKTHROUGH_SCRIPTS) {
+      const firstStep = script.steps[0]!;
+      let state = record(script);
+      state = recordOutcome(script, state, firstStep.id, "pass");
+      state = recordNote(script, state, firstStep.id, "Looks right.");
+      state = nextStep(script, state);
 
-    expect(parseWalkthroughRecord(JSON.stringify(state))).toEqual(state);
+      const parsed = parseWalkthroughRecord(JSON.stringify(state));
+      expect(parsed).toEqual(state);
+      expect(parsed && scriptForRecord(parsed).id).toBe(script.id);
+    }
   });
 
-  it("returns null for absent, malformed, or undated records", () => {
+  it("reads a record written before scripts existed as the prototype test", () => {
+    const parsed = parseWalkthroughRecord(
+      JSON.stringify({
+        startedAt: STARTED,
+        stepIndex: 1,
+        results: { case: { outcome: "pass", note: "" } },
+      }),
+    );
+
+    expect(parsed?.scriptId).toBe("smoke");
+    expect(parsed?.results.case?.outcome).toBe("pass");
+  });
+
+  it("returns null for absent, malformed, undated, or unknown-script records", () => {
     expect(parseWalkthroughRecord(null)).toBeNull();
     expect(parseWalkthroughRecord("not json")).toBeNull();
     expect(parseWalkthroughRecord("null")).toBeNull();
@@ -200,11 +325,17 @@ describe("reading a persisted record", () => {
         JSON.stringify({ startedAt: "yesterday", stepIndex: 2 }),
       ),
     ).toBeNull();
+    expect(
+      parseWalkthroughRecord(
+        JSON.stringify({ scriptId: "extended", startedAt: STARTED }),
+      ),
+    ).toBeNull();
   });
 
   it("clamps a stale index and drops results for steps that no longer exist", () => {
     const parsed = parseWalkthroughRecord(
       JSON.stringify({
+        scriptId: "smoke",
         startedAt: STARTED,
         stepIndex: 99,
         results: {
@@ -215,9 +346,32 @@ describe("reading a persisted record", () => {
     );
 
     expect(parsed).not.toBeNull();
-    expect(currentStep(parsed!).id).toBe("restore");
+    expect(currentStep(PROTOTYPE_TEST_SCRIPT, parsed!).id).toBe("restore");
     expect(parsed!.results.case).toEqual({ outcome: "pass", note: "kept" });
     expect(parsed!.results["retired-step"]).toBeUndefined();
+  });
+
+  it("keeps only the steps of the script the record names", () => {
+    const parsed = parseWalkthroughRecord(
+      JSON.stringify({
+        scriptId: "advanced",
+        startedAt: STARTED,
+        stepIndex: 2,
+        results: {
+          verify: { outcome: "fail", note: "not verified" },
+          case: { outcome: "pass", note: "from the other script" },
+        },
+      }),
+    );
+
+    expect(parsed).not.toBeNull();
+    expect(scriptForRecord(parsed!).id).toBe("advanced");
+    expect(currentStep(ADVANCED_TEST_SCRIPT, parsed!).id).toBe("verify");
+    expect(parsed!.results.verify).toEqual({
+      outcome: "fail",
+      note: "not verified",
+    });
+    expect(parsed!.results.case).toBeUndefined();
   });
 
   it("rejects an outcome it does not recognize", () => {
@@ -228,6 +382,7 @@ describe("reading a persisted record", () => {
         results: { case: { outcome: "maybe", note: 7 } },
       }),
     );
-    expect(parsed!.results.case).toEqual({ outcome: null, note: "" });
+
+    expect(parsed?.results.case).toEqual({ outcome: null, note: "" });
   });
 });

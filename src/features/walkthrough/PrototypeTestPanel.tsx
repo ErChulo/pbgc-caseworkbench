@@ -1,5 +1,5 @@
 /**
- * The prototype-test panel.
+ * The guided-test panel.
  *
  * Sits above the active stage and asks for one action at a time. It records the
  * reviewer's pass/fail verdict, never a plan value: completing a test leaves the
@@ -10,16 +10,17 @@
 import { useState } from "react";
 import {
   MAX_NOTE_LENGTH,
-  WALKTHROUGH_STEPS,
   currentStep,
   walkthroughProgress,
   type WalkthroughOutcome,
   type WalkthroughRecord,
+  type WalkthroughScript,
 } from "../../app/walkthrough";
 import { stageById, type StageId } from "../../app/stages";
 import { StatusPill } from "../../ui/components";
 
 type Props = {
+  script: WalkthroughScript;
   record: WalkthroughRecord;
   caseOpen: boolean;
   onCreateCase: () => Promise<void>;
@@ -35,6 +36,7 @@ type Props = {
 };
 
 export function PrototypeTestPanel({
+  script,
   record,
   caseOpen,
   onCreateCase,
@@ -49,13 +51,15 @@ export function PrototypeTestPanel({
   onDownloadNotes,
 }: Props) {
   const [assistBusy, setAssistBusy] = useState(false);
-  const step = currentStep(record);
-  const progress = walkthroughProgress(record);
+  const steps = script.steps;
+  const step = currentStep(script, record);
+  const progress = walkthroughProgress(script, record);
   const result = record.results[step.id] ?? { outcome: null, note: "" };
   const stageLabel = stageById(step.stage).label;
-  const isLastStep = step.number === WALKTHROUGH_STEPS.length;
-  const nextStepDefinition = WALKTHROUGH_STEPS[step.number];
-  const previousStepDefinition = WALKTHROUGH_STEPS[step.number - 2];
+  const isLastStep = step.number === steps.length;
+  const nextStepDefinition = steps[step.number];
+  const previousStepDefinition = steps[step.number - 2];
+  const scriptLabel = script.label.toLowerCase();
 
   async function runAssist(action: () => Promise<void>) {
     if (assistBusy) return;
@@ -72,7 +76,7 @@ export function PrototypeTestPanel({
     if (
       recorded > 0 &&
       !window.confirm(
-        "Exit the prototype test? Your recorded results and notes are discarded. Download the test notes first if you need them.",
+        `Exit the ${scriptLabel}? Your recorded results and notes are discarded. Download the test notes first if you need them.`,
       )
     ) {
       return;
@@ -92,14 +96,15 @@ export function PrototypeTestPanel({
     <section className="prototype-test" aria-labelledby="prototype-test-title">
       <div className="prototype-test-head">
         <div>
-          <p className="eyebrow">Prototype test</p>
+          <p className="eyebrow">
+            {script.label} · {script.duration}
+          </p>
           <h2 id="prototype-test-title">
             {step.number}. {step.title}
           </h2>
           <p className="prototype-test-progress" role="status" aria-live="polite">
-            Step {step.number} of {WALKTHROUGH_STEPS.length} ·{" "}
-            {progress.passed} passed · {progress.failed} failed ·{" "}
-            {progress.unrecorded} not recorded
+            Step {step.number} of {steps.length} · {progress.passed} passed ·{" "}
+            {progress.failed} failed · {progress.unrecorded} not recorded
           </p>
         </div>
         <div className="prototype-test-aside">
@@ -147,10 +152,10 @@ export function PrototypeTestPanel({
             <>
               {caseOpen ? (
                 <p className="artifact-meta">
-                  A case is already open. Keep it only if it has a reviewed plan
-                  value (step 4 cites one) and you want the two synthetic samples
-                  added to it; otherwise create the test case. The open case is
-                  closed, not deleted.
+                  A case is already open. Keep it only if it has the reviewed
+                  plan values this test needs and you want the sample files added
+                  to it; otherwise create the test case. The open case is closed,
+                  not deleted.
                 </p>
               ) : null}
               <button
@@ -187,9 +192,7 @@ export function PrototypeTestPanel({
         <legend>Your result for step {step.number}</legend>
         <div className="button-row">
           <button
-            className={
-              result.outcome === "pass" ? "primary" : "secondary"
-            }
+            className={result.outcome === "pass" ? "primary" : "secondary"}
             type="button"
             aria-pressed={result.outcome === "pass"}
             onClick={() => onOutcome(step.id, "pass")}
@@ -197,9 +200,7 @@ export function PrototypeTestPanel({
             Pass
           </button>
           <button
-            className={
-              result.outcome === "fail" ? "primary" : "secondary"
-            }
+            className={result.outcome === "fail" ? "primary" : "secondary"}
             type="button"
             aria-pressed={result.outcome === "fail"}
             onClick={() => onOutcome(step.id, "fail")}
@@ -256,7 +257,7 @@ export function PrototypeTestPanel({
             onClick={() => {
               if (
                 window.confirm(
-                  "Restart the prototype test? Your recorded results and notes for this test are discarded. The case and its evidence are not changed.",
+                  `Restart the ${scriptLabel}? Your recorded results and notes for this test are discarded. The case and its evidence are not changed.`,
                 )
               ) {
                 onRestart();
@@ -269,14 +270,14 @@ export function PrototypeTestPanel({
         </div>
         {progress.complete ? (
           <p className="prototype-test-complete">
-            All eight steps have a result. Download the notes to hand them to
-            whoever maintains the workbench.
+            All {steps.length} steps have a result. Download the notes to hand them
+            to whoever maintains the workbench.
           </p>
         ) : (
           <p className="artifact-meta">
             {progress.total - progress.unrecorded} of {progress.total} steps
-            answered. Screens are not locked: open any stage you need to
-            describe a failure.
+            answered. Screens are not locked: open any stage you need to describe
+            a failure.
           </p>
         )}
       </div>

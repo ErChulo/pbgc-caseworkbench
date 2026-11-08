@@ -31,9 +31,9 @@ test("runs the eight-step prototype test and records the results", async ({
 
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Run the 15-minute prototype test" }),
+    page.getByRole("heading", { name: "Test the workbench yourself" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Start the prototype test" }).click();
+  await page.getByRole("button", { name: "Start the 15-minute test" }).click();
 
   // Step 1 — the panel starts at the top of the script and refuses to advance
   // before the reviewer records a result.
@@ -170,7 +170,7 @@ test("runs the eight-step prototype test and records the results", async ({
   await expect(section.getByRole("button", { name: "Next step" })).toHaveCount(0);
   await section.getByRole("button", { name: "Pass", exact: true }).click();
   await expect(
-    section.getByText("All eight steps have a result.", { exact: false }),
+    section.getByText("All 8 steps have a result.", { exact: false }),
   ).toBeVisible();
 
   // Notes carry the recorded outcomes and note, and no evidence text.
@@ -226,7 +226,7 @@ test("opens on step 1 from any screen and can switch to the demo case", async ({
   await page.goto("/");
 
   // Start from a plain case, on its plan screen, so the test both begins away
-  // from Case home and meets a case that has no reviewed plan value.
+  // from Case home and meets a case that is not the synthetic demo case.
   await page.getByRole("button", { name: "Create new case" }).click();
   await expect(
     page.getByRole("heading", { name: "Plan-level fields", exact: true }),
@@ -241,10 +241,10 @@ test("opens on step 1 from any screen and can switch to the demo case", async ({
     page.getByRole("heading", { name: "A case that stays on this workstation" }),
   ).toBeVisible();
 
-  // The kept case has no reviewed value, so the panel says what step 4 needs
-  // and still offers the test case.
+  // The kept case can stand in, so the panel says what it needs and still
+  // offers the test case.
   await expect(
-    section.getByText("Keep it only if it has a reviewed plan value", {
+    section.getByText("Keep it only if it has the reviewed plan values", {
       exact: false,
     }),
   ).toBeVisible();
