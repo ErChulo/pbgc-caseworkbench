@@ -12,7 +12,7 @@ plan.
 | Artifact | `dist/index.html`, 4,133,153 bytes |
 | SHA-256 | `61e7b38d865ad5c316816c1b99ffb7195f3adb8367cee208035b21bc80ae7d1b` |
 | Unit, integration, contract | 644 passed (`npm run check`) |
-| Browser | 23 passed (`npx playwright test`, Chromium against the artifact) |
+| Browser | 24 passed (`npx playwright test`, Chromium against the artifact) |
 
 ## What this hash covers, and what it does not
 
@@ -33,7 +33,7 @@ scan refusal and reviewer transcription, the duplicate refusal, citation and
 linking, ten provision answers, the mapped Excel census, a control-total
 mismatch and correction, a superseding census revision, the age and EPRD
 calculations, the review copy, the Word summary, the bundle round trip, and the
-purge. All 21 browser tests pass against the artifact above. The artifact was
+purge. All 24 browser tests pass against the artifact above. The artifact was
 rebuilt after this test and these notes were added, and hashed identically, so
 the candidate hash still describes this source.
 
