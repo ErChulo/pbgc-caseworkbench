@@ -57,5 +57,9 @@ Probe storage at boot and let the answer choose the store set.
 - The single-file build grows by the pdf.js worker module (≈1.3 MB uncompressed),
   because a `file://` page cannot run the bundled blob worker and needs the
   main-thread handler instead.
-- Durability across a browser restart remains the browser's promise, not this
-  app's. The bundle export stays the canonical record, and the runbook says so.
+- Durability across a full browser restart is proved on Chromium by a browser test
+  that closes and reopens the whole browser on a dedicated profile: the case, the
+  stored evidence bytes (re-hashed on demand), and the audit trail survive, and a new
+  import succeeds after the restart. On another browser or a changed profile it is
+  still the browser's promise, not this app's. The bundle export stays the canonical
+  record, and the runbook says so.
