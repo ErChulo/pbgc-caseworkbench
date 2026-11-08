@@ -7,12 +7,12 @@ plan.
 
 | Field | Value |
 |---|---|
-| Source commit | `e35ec9d1b4424258f3319ce7d3558180d623f80a` |
+| Source commit | `dc9c803160f7fb9f167de0b4a284538acd27c7a9` |
 | Built | 2026-11-08 — the build stamp the app shows |
-| Artifact | `dist/index.html`, 2,798,861 bytes |
-| SHA-256 | `a125dbe2dd33c941b3fda674e0772788bc3353315337e123cbfa1fd585402102` |
-| Unit, integration, contract | 632 passed (`npm run check`) |
-| Browser | 22 passed (`npx playwright test`, Chromium against the artifact) |
+| Artifact | `dist/index.html`, 4,133,153 bytes |
+| SHA-256 | `61e7b38d865ad5c316816c1b99ffb7195f3adb8367cee208035b21bc80ae7d1b` |
+| Unit, integration, contract | 644 passed (`npm run check`) |
+| Browser | 23 passed (`npx playwright test`, Chromium against the artifact) |
 
 ## What this hash covers, and what it does not
 
@@ -46,6 +46,28 @@ The dry run proves the mechanics, not the human pace: it types one short
 passage and does not time a realistic scan page. The office's own synthetic run
 before the real session remains the timing and friction check.
 
+## Double-clicked file (no Node on the workstation)
+
+The office handover is one downloaded HTML file. It is attached to the
+`v0.2-pilot` release and runs by double-clicking it; nothing is installed and no
+server is started. Storage is proved at boot, not assumed: the app writes a
+marker, commits it, and reads it back in a later transaction. If the browser
+keeps it, cases are saved and the page states that local file pages share one
+storage area, readable by every HTML document opened from that computer. If the
+browser refuses — private window, site-data settings, or policy — the app runs a
+full session from memory and warns that closing or reloading the tab discards the
+case. The probe cannot prove survival across a browser restart, so the exported
+bundle remains the record to keep.
+
+A file page also needs pdf.js's main-thread worker: Chromium constructs the
+bundled blob worker from `file://` but it never answers, so a PDF would read
+forever. That path is what grows the artifact from 2.8 MB to 4.1 MB.
+
+`fileOrigin.e2e.ts` walks the handover in Chromium from the artifact's real
+path: the probe's answer, a case, a synthetic PDF's text layer, the review copy
+with its hash, the reviewed value and evidence after a reload, and the review
+bundle download, with no console error.
+
 ## Pre-import check
 
 Case home has **Check files before importing**. It runs the same readers,
@@ -71,7 +93,7 @@ npm run build
 node scripts/serve.mjs --port 4173
 ```
 
-`npm run check` runs the typecheck, the 610 unit/integration/contract tests, and
+`npm run check` runs the typecheck, the 644 unit/integration/contract tests, and
 the single-file build. The browser suite needs the built artifact and its
 server:
 
@@ -87,6 +109,10 @@ npx playwright test
 - [ ] Run [the runbook](real-data-workflow-test.md) end to end on synthetic data
       before touching a real plan. The automated dry run above covers the
       mechanics; this pass is for the office's own timing and friction.
+- [ ] Launch the built file the way the session will: server or double-click, and
+      record what the storage banner reported (saved, or this-tab-only). If it says
+      this-tab-only, export the bundle before closing the tab and keep the case in one
+      sitting.
 - [ ] Preflight the real files on Case home with **Check files before importing**,
       and record its verdicts: text layer per PDF, the census header row, and any
       merged or two-tier header that needs a different header row.
