@@ -1,5 +1,11 @@
 # PBGC Case Workbench
 
+[![Verify](https://github.com/ErChulo/pbgc-caseworkbench/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/ErChulo/pbgc-caseworkbench/actions/workflows/verify.yml)
+[![Release](https://img.shields.io/github/v/release/ErChulo/pbgc-caseworkbench?include_prereleases&label=release)](https://github.com/ErChulo/pbgc-caseworkbench/releases)
+[![Single-file artifact](https://img.shields.io/badge/artifact-single%20HTML%20%C2%B7%20offline-2f6f4e)](#use-the-workbench)
+[![Node](https://img.shields.io/badge/node-%3E%3D22-5FA04E?logo=node.js&logoColor=white)](#development)
+[![Last commit](https://img.shields.io/github/last-commit/ErChulo/pbgc-caseworkbench)](https://github.com/ErChulo/pbgc-caseworkbench/commits/main)
+
 A local-first, single-user workbench for PBGC plan-termination casework. The browser
 is the application boundary: evidence, reviewed values, calculation traces, and the
 audit trail stay in the workstation's browser profile unless a reviewer deliberately
@@ -11,7 +17,21 @@ plan interpretation, PBGC rule, and generated work product must pass evidence-ba
 review before production use. Where the workbench cannot justify a number, it refuses
 to produce one and says why.
 
-## Status at a glance
+## State of development
+
+Badges report the live repository, not a claim: **Verify** runs the same `npm run check`
+and browser suite described under [Development](#development) on every push, **release**
+links the newest published artifact, and **last commit** shows when `main` last moved.
+
+At `v0.2-pilot` the workbench is a tested pilot, not a validated system. The complete
+reviewer path — create, import, read, cite, review, calculate, reconcile, generate,
+export, restore, purge — runs end to end on synthetic data, and the single HTML file has
+been driven from a real `file://` path, including a full browser restart. What is not
+validated is the actuarial content: benefit amounts, the guarantee table, the §4044
+tiers, and the R5 notice stay blocked by design, and no real case has been processed.
+[release-candidate.md](docs/release-candidate.md) records exactly what the candidate
+verified and what it did not; [the runbook](docs/real-data-workflow-test.md) is the
+script for the first real pilot.
 
 | Area | State |
 | --- | --- |
@@ -34,7 +54,45 @@ to produce one and says why.
 | Bundle export / restore | Working: hashed manifest, evidence-byte re-hash, and every internal reference are verified before restore; restores as a new case |
 | Guided tests | Two scripts over the real stages. The 15-minute **Prototype test** covers the end-to-end path in eight steps; the 30-minute **Advanced test** covers evidence verification, retirement and reinstatement, the rule registry, a recorded and a refused calculation, reconciliation, the review copy, and audit filtering in twelve. Each asks for a Pass/Fail verdict and an optional note per step, keeps progress in this browser profile, offers a restart, and downloads plain-text notes named for its script. A test records a reviewer's session, never a case change. |
 
-## Quick start
+## Use the workbench
+
+The pilot artifact is **one HTML file**. There is nothing to install, no server to start,
+and no account: the browser is the application boundary.
+
+1. **Download it.** Open the [Releases page](https://github.com/ErChulo/pbgc-caseworkbench/releases)
+   and download `index.html` from the newest release
+   ([direct link to `v0.2-pilot`](https://github.com/ErChulo/pbgc-caseworkbench/releases/download/v0.2-pilot/index.html)).
+   Use the download button or *Save link as* — GitHub's file preview shows the HTML as text.
+2. **Keep it in one place and open it with one browser.** Double-click the file; Chrome or
+   Edge opens the workbench from `file://`. Cases live in that browser's profile, so a
+   different browser, a different profile, or cleared site data starts empty.
+3. **Read the first banner.** The workbench proves at boot whether the browser will keep a
+   case, and reports the answer instead of guessing:
+   - **Cases are saved by this browser, not by this file** — cases persist on this computer,
+     and every local HTML document opened from this computer shares that storage area. Keep
+     the file on a workstation you control.
+   - **This tab cannot save a case** — the browser refused storage (private window, site-data
+     settings, or policy). The workbench runs in full for the session, but closing or
+     reloading the tab discards the case, so export a bundle before you close it.
+
+To move a case to another machine or hand it over, export a review bundle from
+**Review & export** and restore it there; restore always creates a new case and alias.
+
+The file embeds its JavaScript, CSS, and the PBGC logo (as a base64 data URI). There is no
+CDN and no web font, and a restrictive CSP forbids outbound requests, so it works on a
+network-isolated machine. Reading a PDF from `file://` uses pdf.js's main-thread worker,
+which is why the artifact is about 4 MB.
+
+First time? Start the in-app **Prototype test** from Case home — the 15-minute walkthrough
+over the real screens described under
+[the office test walkthrough](#the-office-test-walkthrough). For a machine that has Node
+and should serve the file over loopback instead, see
+[Running it in an office environment](#running-it-in-an-office-environment).
+
+## Development
+
+Node.js 22 or newer and npm. Install from the lockfile; the repository is ESM TypeScript,
+Vite, React 19, and Vitest.
 
 ```bash
 npm ci
@@ -42,9 +100,10 @@ npm run dev        # http://127.0.0.1:5173
 ```
 
 ```bash
-npm run check      # typecheck + unit/integration tests + single-file build
-npm run test:e2e   # production build + Playwright in Chromium (offline suite included)
+npm run check      # typecheck + unit, integration and contract tests + single-file build
+npm run test:e2e   # production build + Playwright in Chromium, including file:// and restart
 npm run serve      # serve the built artifact at http://127.0.0.1:4173
+npm run build:catalog  # regenerate the field catalog from a staged export
 ```
 
 `npm run build` writes a single self-contained `dist/index.html`. JavaScript, CSS, and
@@ -53,6 +112,51 @@ no request for branding, fonts, or anything else. There is no CDN, no web font, 
 fallback to unbranded text when the machine is offline. The file also runs when opened
 directly — double-clicked from the filesystem — after proving at boot whether the
 browser will keep its cases; see [Running it in an office environment](#running-it-in-an-office-environment).
+
+### Where a change goes
+
+- **A PBGC rule, formula, or date rule** — `src/domain/`, with its citation under
+  `references/rules/` and its entry in the rule registry. A formula exposes units,
+  rounding stage, rule id, inputs, and intermediates; a rule that is not transcribed
+  stays listed and blocked.
+- **Evidence intake, extraction, or citation** — the rule in `src/domain/evidence/`, its
+  parser in `src/adapters/`, and the `src/app/` service that audits the change.
+- **A stage or screen** — one folder under `src/features/`, reading state from
+  `useWorkbench` and calling services. Components render and never compute policy.
+- **Storage** — implement the port from `src/domain/ports/`. The IndexedDB adapters and
+  their in-memory fallbacks both run the same contract tests.
+- **A work product** — `src/domain/work-products/registry.ts` and `readiness.ts` with a
+  spec, plus its template coverage. A product whose inputs are not authorized is
+  registered and blocked, never approximated.
+- **A behavior** — a spec under `specs/` first, then the code. `AGENTS.md` is the short
+  rulebook and `governance/constitution.md` the governing one.
+
+### What a change must satisfy
+
+`AGENTS.md` states the rules and CI enforces the mechanical part. In short: every value
+carries provenance or an explicit assumption status; date and age rules use calendar
+arithmetic, never elapsed milliseconds divided by 365; the domain never imports React,
+storage, parsers, or UI; the workbench fails closed on missing evidence, invalid units,
+inconsistent dates, schema errors, and unreconciled totals; corrections append audit
+events and supersede rather than overwrite; fixtures are synthetic only.
+
+Add unit tests for a domain rule, contract tests for an adapter, an integration test for a
+round trip, and a browser test for the path a reviewer walks. Run `npm run check` and
+`npm run test:e2e` before you push — the **Verify** badge runs those same commands on a
+clean checkout, so green means the pushed tree is the tested tree.
+
+### Documentation
+
+| Document | What it holds |
+| --- | --- |
+| `docs/architecture.md` | dependency direction, ports, storage schema, bundle lifecycle |
+| `docs/design.md` | the experience principles, tokens, interaction patterns, accessibility target |
+| `docs/adr/` | decisions with their rejected alternatives — `0001` single-file local-first, `0002` extraction scope, `0003` file-origin storage |
+| `specs/` | one numbered specification per behavior, with its acceptance tests |
+| `docs/work-products/inventory.md` | every work product, its lifecycle position, and its blocking reason |
+| `docs/real-data-workflow-test.md` | the controlled real-data pilot runbook |
+| `docs/release-candidate.md` | what the current candidate verified, and what it did not |
+| `docs/project-tree.md` | the annotated repository map |
 
 ## The office test walkthrough
 
