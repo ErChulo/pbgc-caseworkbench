@@ -6,9 +6,10 @@
  * this server uses nothing but `node:http` and `node:fs`. No dependencies, no
  * network access, no build step.
  *
- * Why not open `dist/index.html` directly? Chromium blocks IndexedDB for
- * `file://` documents, so a case would appear to save and then vanish on
- * reload. Serving over loopback gives the page a real origin and real storage.
+ * The built file can also be opened directly, by double-clicking it; the app
+ * probes storage at boot and reports whether the browser will keep a case. The
+ * server remains the supported path when the shared `file://` storage area is
+ * not acceptable, and it is what the automated browser suite runs against.
  *
  * Usage:
  *   node scripts/serve.mjs            # http://127.0.0.1:4173
@@ -130,8 +131,8 @@ server.listen(port, HOST, () => {
   console.log(`  Open:  http://${HOST}:${port}`);
   console.log("");
   console.log("  Keep this window open while you work. Press Ctrl+C to stop.");
-  console.log("  Do not open dist/index.html directly: browsers block storage");
-  console.log("  for file:// pages, so nothing would be saved.");
+  console.log("  This loopback origin keeps storage separate from the browser's");
+  console.log("  shared file-page storage, which every local HTML file can read.");
   console.log("");
 });
 

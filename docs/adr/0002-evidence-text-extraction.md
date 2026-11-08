@@ -25,7 +25,12 @@ workstation. And the workbench must make no network request at runtime
    - **XLSX** — cached cell values and shared strings, through the same
      container reader.
 3. **No OCR.** A PDF page with no text layer is refused as a scan. It is never
-   reported as an empty page, and no image is interpreted.
+   reported as an empty page, and no image is interpreted. A reviewer may instead
+   **transcribe** a passage they read (spec 047): the observation records
+   `method: "reviewer-transcription"`, the page, the typed text, and the SHA-256
+   of that text. It is never described as OCR, never replaces a reading, and its
+   excerpt hash proves the typed text has not changed — not that the page says
+   it.
 4. Extraction produces **observations**, not facts. An observation records the
    text, a page/paragraph/cell locator, the method, the extractor version, and
    the SHA-256 of the text. Promotion to a fact is a separate reviewer action.
@@ -57,8 +62,9 @@ workstation. And the workbench must make no network request at runtime
 - Extracted text is stored with the case, travels in a bundle, and is deleted
   when a reviewer discards a stored copy — it is derived from bytes the case no
   longer holds.
-- A scanned document remains usable as evidence but cannot be read. That limit is
-  visible in the UI, not silent.
+- A scanned document remains usable as evidence but cannot be read by the app;
+  a reviewer can transcribe a passage from it and cite that. The limit, and the
+  difference between the two, are visible in the UI, not silent.
 
 ## Revisit when
 

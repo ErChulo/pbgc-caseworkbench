@@ -8,8 +8,10 @@ import { describe, expect, it } from "vitest";
 import {
   dateError,
   daysInMonth,
+  fromEpochDay,
   isLeapYear,
   parseAndNormalizeIsoDate,
+  toEpochDay,
   MAX_YEAR,
   MIN_YEAR,
 } from "../../src/domain/shared/calendar";
@@ -109,5 +111,39 @@ describe("parseAndNormalizeIsoDate", () => {
     expect(parseAndNormalizeIsoDate("2026-01-31T12:30:45-05:00")?.normalized).toBe(
       "2026-01-31",
     );
+  });
+});
+
+describe("fromEpochDay", () => {
+  it("is the inverse of toEpochDay across the supported window", () => {
+    for (const iso of [
+      "1899-12-30",
+      "1900-03-01",
+      "1904-01-01",
+      "1950-03-01",
+      "1970-01-01",
+      "2000-02-29",
+      "2026-11-08",
+      "9999-12-31",
+    ]) {
+      const [year, month, day] = iso.split("-").map(Number) as [
+        number,
+        number,
+        number,
+      ];
+      const date = { year, month, day };
+      expect(fromEpochDay(toEpochDay(date))).toEqual(date);
+    }
+  });
+
+  it("counts calendar days, not elapsed time", () => {
+    expect(fromEpochDay(0)).toEqual({ year: 1970, month: 1, day: 1 });
+    expect(fromEpochDay(-1)).toEqual({ year: 1969, month: 12, day: 31 });
+    expect(fromEpochDay(1)).toEqual({ year: 1970, month: 1, day: 2 });
+  });
+
+  it("refuses a day outside the supported calendar window", () => {
+    expect(() => fromEpochDay(10_000_000)).toThrow(/supported calendar/);
+    expect(() => fromEpochDay(1.5)).toThrow(/safe integer/);
   });
 });

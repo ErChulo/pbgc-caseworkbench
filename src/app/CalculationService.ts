@@ -133,9 +133,10 @@ export class CalculationService {
 
   /**
    * Aggregate Limit on Benefits Payable from PBGC Funds. The maximum
-   * guaranteeable benefit is a provenanced input: the guarantee table and its
-   * age/form factors are not implemented, so this service never looks it up.
-   * A payee with a single plan is refused as not applicable.
+   * guaranteeable benefit is a provenanced input: the §4022.22(a)(2) formula,
+   * its termination-year Social Security base, and the §4022.23 age/form
+   * factors are not implemented, so this service never looks it up. A payee
+   * with a single plan is refused as not applicable.
    */
   async runAggregateLimit(args: {
     caseId: string;
@@ -198,6 +199,13 @@ export class CalculationService {
   ): Promise<T> {
     const caseRecord = await this.cases.getCase(run.caseId);
     if (!caseRecord) throw new Error(`Case not found: ${run.caseId}`);
+    // A purged case keeps only its record and audit trail; a run must not write
+    // new facts, a run, or a case timestamp into it.
+    if (caseRecord.status === "purged") {
+      throw new Error(
+        `Case ${caseRecord.alias} was purged. Its content cannot be changed; only its retained audit trail is available.`,
+      );
+    }
 
     await this.cases.saveBatch(run.caseId, {
       facts: [],

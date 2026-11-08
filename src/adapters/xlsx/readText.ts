@@ -151,25 +151,39 @@ export type SheetExtraction = {
   truncated: boolean;
 };
 
+/** One worksheet cell, with its value resolved and its style index retained. */
+export type SheetCell = {
+  reference: string;
+  row: number;
+  /** 0-based column index. */
+  column: number;
+  /** Cell type attribute; null for the default numeric cell. */
+  type: string | null;
+  /** Resolved text: shared string, inline string, or the stored value. */
+  text: string;
+  /** True when the cell carries a formula; `text` is then its cached value. */
+  hasFormula: boolean;
+  /** Style index from the `s` attribute, when the cell names one. */
+  styleIndex: number | null;
+};
+
 /**
- * Cell values from one worksheet part. Blank cells produce no unit; a formula
- * cell produces its cached value and increments `formulaCount`.
+ * Every cell in one worksheet part, in document order, with named shared
+ * strings resolved. Cells with no stored value are returned with empty text so
+ * the caller decides whether an empty cell is meaningful.
  */
-export function extractSheetCells(args: {
-  xml: string;
-  sheetName: string;
-  sharedStrings: readonly string[];
-  maxUnits: number;
-}): SheetExtraction {
-  const units: ExtractedTextUnit[] = [];
-  let formulaCount = 0;
-  let truncated = false;
+export function readSheetCells(
+  xml: string,
+  sharedStrings: readonly string[],
+): SheetCell[] {
+  const cells: SheetCell[] = [];
   let rowIndex = 0;
   let columnPosition = 0;
 
   type CellState = {
     reference: string | null;
     type: string | null;
+    style: string | null;
     value: string;
     inline: string;
     hasFormula: boolean;
@@ -182,13 +196,12 @@ export function extractSheetCells(args: {
     if (!cell) return;
     const state = cell;
     cell = null;
-    if (state.hasFormula) formulaCount += 1;
 
     let text: string;
     switch (state.type) {
       case "s": {
         const index = Number(state.value);
-        text = Number.isSafeInteger(index) ? (args.sharedStrings[index] ?? "") : "";
+        text = Number.isSafeInteger(index) ? (sharedStrings[index] ?? "") : "";
         break;
       }
       case "inlineStr":
@@ -200,25 +213,23 @@ export function extractSheetCells(args: {
       default:
         text = state.value;
     }
-    if (text === "") return;
 
     const reference = state.reference ?? `${columnName(columnPosition)}${rowIndex}`;
     const match = CELL_REFERENCE.exec(reference);
     if (!match?.[1] || !match[2]) return;
-    const row = Number(match[2]);
-    const column = match[1];
-
-    if (units.length >= args.maxUnits) {
-      truncated = true;
-      return;
-    }
-    units.push({
-      locator: { kind: "cell", sheet: args.sheetName, cell: reference, row, column },
+    const styleIndex = state.style === null ? null : Number(state.style);
+    cells.push({
+      reference,
+      row: Number(match[2]),
+      column: columnIndex(match[1]),
+      type: state.type,
       text,
+      hasFormula: state.hasFormula,
+      styleIndex: Number.isSafeInteger(styleIndex) ? styleIndex : null,
     });
   };
 
-  scanXml(args.xml, {
+  scanXml(xml, {
     onOpen(name, attributes, selfClosing) {
       if (name === "row") {
         rowIndex = Number(attributes["r"] ?? "");
@@ -232,6 +243,7 @@ export function extractSheetCells(args: {
         cell = {
           reference: attributes["r"] ?? null,
           type: attributes["t"] ?? null,
+          style: attributes["s"] ?? null,
           value: "",
           inline: "",
           hasFormula: false,
@@ -260,6 +272,42 @@ export function extractSheetCells(args: {
       else if (inInlineText) cell.inline += text;
     },
   });
+
+  return cells;
+}
+
+/**
+ * Cell values from one worksheet part. Blank cells produce no unit; a formula
+ * cell produces its cached value and increments `formulaCount`.
+ */
+export function extractSheetCells(args: {
+  xml: string;
+  sheetName: string;
+  sharedStrings: readonly string[];
+  maxUnits: number;
+}): SheetExtraction {
+  const units: ExtractedTextUnit[] = [];
+  let formulaCount = 0;
+  let truncated = false;
+
+  for (const cell of readSheetCells(args.xml, args.sharedStrings)) {
+    if (cell.hasFormula) formulaCount += 1;
+    if (cell.text === "") continue;
+    if (units.length >= args.maxUnits) {
+      truncated = true;
+      continue;
+    }
+    units.push({
+      locator: {
+        kind: "cell",
+        sheet: args.sheetName,
+        cell: cell.reference,
+        row: cell.row,
+        column: cell.reference.replace(/[0-9]+$/, ""),
+      },
+      text: cell.text,
+    });
+  }
 
   return { units, formulaCount, truncated };
 }

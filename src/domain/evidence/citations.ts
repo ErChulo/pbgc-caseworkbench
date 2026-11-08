@@ -75,7 +75,7 @@ export function citationProblems(
     problems.push("The citation names a different evidence file than the passage.");
   }
   if (link.observationId !== observation.observationId) {
-    problems.push("The citation names a different extracted passage.");
+    problems.push("The citation names a different stored passage.");
   }
   if (link.locator === null) {
     problems.push("The citation carries no locator.");
@@ -97,7 +97,7 @@ export function citationProblems(
   return problems;
 }
 
-/** Links that cite one extracted passage, in the order they were recorded. */
+/** Links that cite one stored passage, in the order they were recorded. */
 export function linksCitingObservation(
   links: readonly EvidenceLink[],
   observationId: string,
@@ -301,7 +301,7 @@ export type CitationProblem = {
 };
 
 export type CitationAudit = {
-  /** Links that cite an extracted passage rather than a file as a whole. */
+  /** Links that cite a stored passage rather than a file as a whole. */
   total: number;
   resolved: number;
   problems: CitationProblem[];

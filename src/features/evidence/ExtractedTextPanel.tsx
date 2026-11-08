@@ -1,22 +1,30 @@
 /**
- * Extracted text for one evidence file.
+ * Text for one evidence file: what the app read, and what a reviewer typed.
  *
  * The panel is deliberately read-only about values and says so: the text is
- * what the file carries at a page, paragraph, or cell, not a reviewed value.
- * There is no control to copy text into a field, no editing, and no confidence
- * claim. A reviewer may cite a passage for a field that already has a reviewed
- * value; that records provenance and leaves the value alone.
+ * what the file carries at a page, paragraph, or cell, or what a reviewer read
+ * there and transcribed, not a reviewed value. There is no control to copy text
+ * into a field, no editing, and no confidence claim. A reviewer may cite a
+ * passage for a field that already has a reviewed value; that records
+ * provenance and leaves the value alone.
+ *
+ * The two kinds of passage stay distinguishable everywhere: a transcription is
+ * labelled as the reviewer's typing and never as text the app read.
  */
 
 import { useEffect, useRef, useState } from "react";
 import type { PlanFact } from "../../domain/case/types";
 import type { Observation } from "../../domain/evidence/observations";
 import {
+  isTranscription,
   observationsForArtifact,
   observationCharacterCount,
 } from "../../domain/evidence/observations";
 import { activeLinksCitingObservation } from "../../domain/evidence/citations";
-import { describeExtractionLocator } from "../../domain/evidence/extraction";
+import {
+  describeExtractionLocator,
+  MAX_TRANSCRIPTION_CHARACTERS,
+} from "../../domain/evidence/extraction";
 import type { EvidenceLink } from "../../domain/evidence/types";
 import { StatusPill, type StatusTone } from "../../ui/components";
 
@@ -26,6 +34,11 @@ export type ExtractedTextStatus =
   | { status: "refused"; message: string }
   | { status: "error"; message: string }
   | { status: "ready" };
+
+export type TranscriptionOutcome = {
+  status: "recorded" | "error";
+  message: string;
+};
 
 const tone: Record<ExtractedTextStatus["status"], StatusTone> = {
   idle: "muted",
@@ -40,7 +53,7 @@ const label: Record<ExtractedTextStatus["status"], string> = {
   loading: "Reading…",
   refused: "No text read",
   error: "Read failed",
-  ready: "Text observed",
+  ready: "Text available",
 };
 
 export type CitableField = { fieldId: string; label: string };
@@ -55,6 +68,7 @@ export function ExtractedTextPanel({
   citableFields,
   onCite,
   onRetract,
+  onTranscribe,
 }: {
   artifactId: string;
   artifactName: string;
@@ -65,13 +79,24 @@ export function ExtractedTextPanel({
   citableFields: readonly CitableField[];
   onCite: (observationId: string, fieldId: string) => Promise<void>;
   onRetract: (linkId: string, reason: string) => Promise<void>;
+  onTranscribe: (
+    page: number,
+    text: string,
+  ) => Promise<TranscriptionOutcome>;
 }) {
   const units = observationsForArtifact(observations, artifactId);
+  const readings = units.filter((unit) => !isTranscription(unit));
+  const transcribed = units.filter(isTranscription);
   const [citeTarget, setCiteTarget] = useState("");
   const [citing, setCiting] = useState<string | null>(null);
   const [retractTarget, setRetractTarget] = useState<string | null>(null);
   const [retractReason, setRetractReason] = useState("");
   const [retracting, setRetracting] = useState(false);
+  const [page, setPage] = useState("1");
+  const [passage, setPassage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [transcriptionMessage, setTranscriptionMessage] =
+    useState<TranscriptionOutcome | null>(null);
   const reasonRef = useRef<HTMLInputElement>(null);
 
   const fieldLabel = (fieldId: string) =>
@@ -116,18 +141,41 @@ export function ExtractedTextPanel({
     }
   }
 
+  async function handleTranscribe() {
+    if (saving) return;
+    const pageNumber = Number(page);
+    if (!Number.isSafeInteger(pageNumber) || pageNumber < 1) {
+      setTranscriptionMessage({
+        status: "error",
+        message: "Enter the page as a whole number, 1 or greater.",
+      });
+      return;
+    }
+    setSaving(true);
+    setTranscriptionMessage(null);
+    try {
+      const outcome = await onTranscribe(pageNumber, passage);
+      setTranscriptionMessage(outcome);
+      if (outcome.status === "recorded") setPassage("");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <section
       className="extracted-text"
-      aria-label={`Extracted text from ${artifactName}`}
+      aria-label={`Text from ${artifactName}`}
     >
       <div className="extracted-text-heading">
-        <h4>Extracted text</h4>
+        <h4>Text from this file</h4>
         <StatusPill tone={tone[status.status]}>{label[status.status]}</StatusPill>
       </div>
       <p className="extracted-text-note">
-        Observed text, not a case fact. Locators are the file's own page,
-        paragraph, or cell; nothing here has been interpreted.
+        Two kinds of passage can appear here. Text the app read comes from the
+        file's own page, paragraph, or cell. A reviewer transcription is what you
+        read on a page and typed. Neither is a case fact, and neither has been
+        interpreted.
       </p>
 
       {status.status === "refused" || status.status === "error" ? (
@@ -139,16 +187,18 @@ export function ExtractedTextPanel({
       {status.status === "idle" && units.length === 0 ? (
         <p className="extracted-text-message">
           No text has been read from this file in this case. Reading is local and
-          does not change the evidence.
+          does not change the evidence. If the document is a scan, transcribe the
+          passage you need below.
         </p>
       ) : null}
 
       {units.length > 0 ? (
         <>
           <p className="extracted-text-summary">
-            {units.length} unit{units.length === 1 ? "" : "s"} ·{" "}
-            {observationCharacterCount(units).toLocaleString()} characters ·{" "}
-            {units[0]?.extractorVersion ? `extractor ${units[0].extractorVersion}` : ""}
+            {readings.length} unit{readings.length === 1 ? "" : "s"} read ·{" "}
+            {transcribed.length} reviewer transcription
+            {transcribed.length === 1 ? "" : "s"} ·{" "}
+            {observationCharacterCount(units).toLocaleString()} characters
           </p>
 
           <div className="extracted-text-cite">
@@ -193,6 +243,7 @@ export function ExtractedTextPanel({
                 unit.observationId,
               );
               const locator = describeExtractionLocator(unit.locator);
+              const transcription = isTranscription(unit);
               const retractOpen = cited.some(
                 (link) => link.linkId === retractTarget,
               );
@@ -200,8 +251,22 @@ export function ExtractedTextPanel({
                 <li key={unit.observationId}>
                   <span className="extracted-text-locator mono">
                     {locator}
-                  </span>
+                  </span>{" "}
+                  {transcription ? (
+                    <StatusPill tone="warning">
+                      Reviewer transcription
+                    </StatusPill>
+                  ) : (
+                    <StatusPill tone="muted">Read from the file</StatusPill>
+                  )}
                   <pre className="extracted-text-body">{unit.text}</pre>
+                  {transcription ? (
+                    <p className="artifact-meta">
+                      Typed by the reviewer at this page. The excerpt hash shows
+                      the text has not changed since it was recorded; it does not
+                      show that the page says this.
+                    </p>
+                  ) : null}
                   {cited.length > 0 ? (
                     <div className="extracted-text-cited">
                       <ul>
@@ -294,6 +359,72 @@ export function ExtractedTextPanel({
           </ol>
         </>
       ) : null}
+
+      <form
+        className="transcription-form"
+        aria-label={`Transcribe a passage from ${artifactName}`}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void handleTranscribe();
+        }}
+      >
+        <h5>Transcribe a passage</h5>
+        <p className="artifact-meta">
+          For a scan the app cannot read. Open the stored copy, read the page,
+          and type the passage that supports a value. This is your
+          transcription, not OCR: the app does not read the image, and the
+          audit trail records the page and the character count, never the text.
+          Up to {MAX_TRANSCRIPTION_CHARACTERS.toLocaleString()} characters.
+        </p>
+        <div className="transcription-fields">
+          <label className="inline-field page-field">
+            <span>Page</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              step={1}
+              value={page}
+              onChange={(event) => setPage(event.target.value)}
+            />
+          </label>
+          <label className="inline-field grow">
+            <span>Passage as it appears on the page</span>
+            <textarea
+              rows={4}
+              value={passage}
+              maxLength={MAX_TRANSCRIPTION_CHARACTERS}
+              placeholder="Type the passage you are citing…"
+              onChange={(event) => setPassage(event.target.value)}
+            />
+          </label>
+        </div>
+        <div className="form-actions">
+          <button
+            type="submit"
+            className="secondary"
+            disabled={saving || passage.trim() === ""}
+          >
+            {saving ? "Recording…" : "Record transcription"}
+          </button>
+          <span className="artifact-meta">
+            {passage.length.toLocaleString()} /{" "}
+            {MAX_TRANSCRIPTION_CHARACTERS.toLocaleString()}
+          </span>
+        </div>
+        {transcriptionMessage ? (
+          <p
+            className={
+              transcriptionMessage.status === "error"
+                ? "extracted-text-message is-error"
+                : "extracted-text-message"
+            }
+            role="status"
+          >
+            {transcriptionMessage.message}
+          </p>
+        ) : null}
+      </form>
     </section>
   );
 }

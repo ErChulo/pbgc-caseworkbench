@@ -4,8 +4,9 @@
  * fields.
  *
  * Intake is deliberately separate from interpretation: this stage records what
- * the file is and proves it has not changed. It does not extract values, and a
- * class marked present is not a finding that the class applies or is complete.
+ * the file is and proves it has not changed. It can read the file's text and
+ * record a reviewer transcription, but it does not extract values, and a class
+ * marked present is not a finding that the class applies or is complete.
  */
 
 import { useRef, useState, type FormEvent } from "react";
@@ -408,7 +409,7 @@ export function EvidenceStage({ state, actions, fields }: Props) {
                           >
                             {supports
                               ? link.observationId !== undefined
-                                ? "Cites extracted text for"
+                                ? "Cites a passage for"
                                 : "Supports"
                               : "Former citation for"}{" "}
                             <strong>{field?.label ?? link.fieldId}</strong> ·
@@ -437,6 +438,9 @@ export function EvidenceStage({ state, actions, fields }: Props) {
                     citableFields={citableFields}
                     onCite={actions.citeObservation}
                     onRetract={actions.retractCitation}
+                    onTranscribe={(page, text) =>
+                      actions.transcribePassage(artifact.artifactId, page, text)
+                    }
                     status={
                       textStatus[artifact.artifactId] ??
                       (observationsForArtifact(state.observations, artifact.artifactId).length > 0
@@ -784,15 +788,19 @@ export function EvidenceStage({ state, actions, fields }: Props) {
       <Panel
         id="evidence-preview"
         eyebrow="Review note"
-        title="Preview and extraction limits"
-        description="This build stores binary evidence exactly as received and does not extract values from it."
+        title="What this build reads, and what it refuses"
+        description="Extraction is local and produces observed text, never a reviewed value. There is no OCR."
       >
         <p className="panel-prose">
-          Text, CSV, and JSON files can be opened from your own file manager using
-          the recorded name and hash. PDF and spreadsheet extraction requires a
-          parser decision that has not been recorded yet, so no extracted value is
-          proposed here. Values you enter on the plan summary are reviewer-entered
-          and are labelled as such.
+          A PDF's text layer, a DOCX file's paragraphs, and an XLSX file's cached
+          cell values are read in this browser from the bytes the case stores.
+          A scanned page has no text layer, so no text is recorded for it and the
+          app says so; use <strong>Transcribe a passage</strong> to record what you
+          read on that page. A transcription is your typing, labelled as such, and
+          never presented as text the app read. Text, CSV, and JSON files can also
+          be opened from your own file manager using the recorded name and hash.
+          Values you enter on the plan summary are reviewer-entered and are
+          labelled as such.
         </p>
       </Panel>
     </>

@@ -382,7 +382,7 @@ export function CalculationsStage({
         id="aggregate-input"
         eyebrow="PBGC provision"
         title="Aggregate Limit on Benefits Payable from PBGC Funds"
-        description="ERISA §4022B and 29 CFR §4022B.1, from the guidance issued 2024-08-29. The maximum guaranteeable benefit is a required input: the Appendix D table and its age/form factors are not transcribed, so this run never looks the amount up."
+        description="ERISA §4022B and 29 CFR §4022B.1, from the guidance issued 2024-08-29. The maximum guaranteeable benefit is a required input: the §4022.22(a)(2) formula, its termination-year Social Security base, and the §4022.23 age/form factors are not transcribed, so this run never looks the amount up."
         aside={<StatusPill tone="success">Rule implemented</StatusPill>}
       >
         <form className="calc-form" onSubmit={handleAggregate}>
@@ -454,7 +454,7 @@ export function CalculationsStage({
                 required
               />
               <small>
-                Reviewer input with a recorded basis. The guarantee table is not
+                Reviewer input with a recorded basis. The guarantee formula is not
                 implemented, so this value is never looked up here.
               </small>
             </label>
@@ -471,7 +471,7 @@ export function CalculationsStage({
             </label>
 
             <label className="stacked-field">
-              <span>Guarantee basis (table year, age, annuity form)</span>
+              <span>Guarantee basis (guarantee year, age, annuity form)</span>
               <input
                 type="text"
                 value={aggBasis}

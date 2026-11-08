@@ -57,4 +57,15 @@ export class InMemoryPopulationStore implements PopulationStore {
       .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
       .map((record) => ({ ...record }));
   }
+
+  /**
+   * Remove every participant record for one case and report how many were
+   * removed. Not part of the PopulationStore port: only the case purge adapter
+   * calls it, inside its one validated operation.
+   */
+  deletePopulationForCase(caseId: string): number {
+    const existing = this.records.get(caseId)?.length ?? 0;
+    this.records.delete(caseId);
+    return existing;
+  }
 }

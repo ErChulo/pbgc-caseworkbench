@@ -18,7 +18,10 @@ import type {
 } from "../domain/case/types";
 import type { EvidenceLink, SourceArtifact } from "../domain/evidence/types";
 import type { Observation } from "../domain/evidence/observations";
-import { observationProblems } from "../domain/evidence/observations";
+import {
+  isTranscription,
+  observationProblems,
+} from "../domain/evidence/observations";
 import { citationProblems } from "../domain/evidence/citations";
 import type { ObservationStore } from "../domain/ports/ObservationStore";
 import type { PopulationStore } from "../domain/ports/PopulationStore";
@@ -110,6 +113,11 @@ export async function buildCaseBundle(args: {
   observations?: Observation[];
   artifacts: { artifact: SourceArtifact; bytes: ArrayBuffer | null }[];
 }): Promise<CaseBundle> {
+  if (args.caseRecord.status === "purged") {
+    throw new Error(
+      `Case ${args.caseRecord.alias} was purged. Its content was removed; only the retained audit trail remains, and it cannot be exported as a bundle.`,
+    );
+  }
   const decisions = args.decisions ?? [];
   const population = args.population ?? [];
   const calculationRuns = args.calculationRuns ?? [];
@@ -630,7 +638,7 @@ export async function verifyCaseBundleIntegrity(
       if (!observation) {
         fail(
           subject,
-          `It cites extracted passage "${link.observationId}", which is not in this bundle.`,
+          `It cites stored passage "${link.observationId}", which is not in this bundle.`,
         );
       } else {
         for (const problem of citationProblems(link, observation)) fail(subject, problem);
@@ -1091,9 +1099,12 @@ export async function applyCaseBundle(
   if (observations.length > 0) {
     if (!ports.observations) {
       throw new Error(
-        "This bundle contains extracted evidence text, but no observation store was supplied for restore.",
+        "This bundle contains evidence text, but no observation store was supplied for restore.",
       );
     }
+    // Readings replace, because they are derived from the file and a re-read
+    // would produce them again. A reviewer transcription cannot be derived, so
+    // it is appended exactly as the record carried it.
     const byArtifact = new Map<string, Observation[]>();
     for (const observation of observations) {
       const group = byArtifact.get(observation.artifactId) ?? [];
@@ -1101,11 +1112,21 @@ export async function applyCaseBundle(
       byArtifact.set(observation.artifactId, group);
     }
     for (const [artifactId, group] of byArtifact) {
-      await ports.observations.replaceObservationsForArtifact(
-        caseRecord.caseId,
-        artifactId,
-        group,
-      );
+      const readings = group.filter((observation) => !isTranscription(observation));
+      if (readings.length > 0) {
+        await ports.observations.replaceObservationsForArtifact(
+          caseRecord.caseId,
+          artifactId,
+          readings,
+        );
+      }
+      for (const observation of group) {
+        if (!isTranscription(observation)) continue;
+        await ports.observations.appendObservation({
+          ...observation,
+          caseId: caseRecord.caseId,
+        });
+      }
     }
   }
 

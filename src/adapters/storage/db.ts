@@ -12,10 +12,11 @@
  *   v4 — adds population (imported participant records)
  *   v5 — adds calculationRuns (durable calculation traces)
  *   v6 — adds observations (extracted evidence text and locators)
+ *   v7 — adds storageProbe (the boot marker that proves storage commits)
  */
 
 export const DB_NAME = "pbgc-caseworkbench";
-export const DB_VERSION = 6;
+export const DB_VERSION = 7;
 
 export const STORE_CASES = "cases";
 export const STORE_FACTS = "facts";
@@ -26,6 +27,8 @@ export const STORE_DECISIONS = "decisions";
 export const STORE_POPULATION = "population";
 export const STORE_CALCULATION_RUNS = "calculationRuns";
 export const STORE_OBSERVATIONS = "observations";
+/** Boot markers only. Never holds case content. */
+export const STORE_STORAGE_PROBE = "storageProbe";
 
 const connections = new Map<string, Promise<IDBDatabase>>();
 
@@ -84,6 +87,9 @@ function upgrade(db: IDBDatabase): void {
     });
     observations.createIndex("caseId", "caseId", { unique: false });
     observations.createIndex("artifactId", "artifactId", { unique: false });
+  }
+  if (!db.objectStoreNames.contains(STORE_STORAGE_PROBE)) {
+    db.createObjectStore(STORE_STORAGE_PROBE, { keyPath: "id" });
   }
 }
 

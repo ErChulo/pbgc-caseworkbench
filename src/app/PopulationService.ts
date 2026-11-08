@@ -28,6 +28,11 @@ import {
   type PopulationImport,
 } from "../domain/population/imports";
 import { generateId, nowIso } from "../domain/case/validation";
+import {
+  describeMapping,
+  mappingProblems,
+  type CensusColumnMapping,
+} from "../domain/population/workbook";
 
 export class PopulationImportError extends Error {
   readonly issues: PopulationIssue[];
@@ -71,9 +76,62 @@ export class PopulationService {
     sha256: string;
     text: string;
   }): Promise<PopulationImportResult> {
+    return this.importText(args);
+  }
+
+  /**
+   * Import a census that came from a mapped worksheet. The caller supplies the
+   * interchange CSV produced from the reviewer's mapping, so the same
+   * all-or-nothing participant validation runs; this method records the sheet, the
+   * header row, and the mapping in the audit event, and stamps each record with
+   * the sheet it came from.
+   */
+  async importWorkbook(args: {
+    caseId: string;
+    artifactId: string;
+    sha256: string;
+    text: string;
+    sheetName: string;
+    headerRowNumber: number;
+    /** The mapping the normalized text came from; described here for the audit. */
+    mapping: CensusColumnMapping;
+  }): Promise<PopulationImportResult> {
+    if (args.sheetName.trim() === "") {
+      throw new Error("The census import needs the worksheet name.");
+    }
+    if (!Number.isSafeInteger(args.headerRowNumber) || args.headerRowNumber < 1) {
+      throw new Error("The census import needs a header row of 1 or more.");
+    }
+    // The service describes the mapping rather than accepting a description, so
+    // the recorded text cannot drift from the mapping the caller used.
+    const problems = mappingProblems(args.mapping);
+    if (problems.length > 0) {
+      throw new Error(`The census mapping is incomplete: ${problems.join(" ")}`);
+    }
+    return this.importText({
+      ...args,
+      auditDetail: `sheet "${args.sheetName}", header row ${args.headerRowNumber}; mapping: ${describeMapping(args.mapping)}`,
+    });
+  }
+
+  private async importText(args: {
+    caseId: string;
+    artifactId: string;
+    sha256: string;
+    text: string;
+    sheetName?: string;
+    auditDetail?: string;
+  }): Promise<PopulationImportResult> {
     const caseRecord = await this.cases.getCase(args.caseId);
     if (!caseRecord) {
       throw new Error(`Case not found: ${args.caseId}`);
+    }
+    // A purged case is a retained record and audit trail, not a container for
+    // new content; a stale caller fails closed rather than repopulating it.
+    if (caseRecord.status === "purged") {
+      throw new Error(
+        `Case ${caseRecord.alias} was purged. Its content cannot be changed; only its retained audit trail is available.`,
+      );
     }
     if (!/^[0-9a-f]{64}$/.test(args.sha256)) {
       throw new Error("The participant import needs the source artifact's SHA-256.");
@@ -108,6 +166,7 @@ export class PopulationService {
         sha256: args.sha256,
         rowNumber: row.rowNumber,
         importedAt,
+        ...(args.sheetName ? { sheetName: args.sheetName } : {}),
       },
     }));
 
@@ -124,7 +183,9 @@ export class PopulationService {
         artifactId: args.artifactId,
         ...(previous ? { previousArtifactId: previous.artifactId } : {}),
       },
-      after: `${records.length} participant record${records.length === 1 ? "" : "s"}`,
+      after: `${records.length} participant record${
+        records.length === 1 ? "" : "s"
+      }${args.auditDetail ? ` from ${args.auditDetail}` : ""}`,
     });
 
     return {

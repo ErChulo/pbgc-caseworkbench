@@ -5,6 +5,8 @@
  * with no React, browser, or storage dependencies.
  */
 
+import type { PurgeCounts } from "./purge";
+
 /**
  * A synthetic case identifier. Format: CW-NNNN where NNNN is a zero-padded
  * sequence number. Never contains real PII.
@@ -13,8 +15,12 @@ export type CaseAlias = string;
 
 /**
  * Status of a case in the local store.
+ *
+ * `purged` is a retained shell: the case's evidence, population, facts,
+ * decisions, and calculation runs are deleted, while the case record and its
+ * audit trail remain. A purged case opens for audit review only.
  */
-export type CaseStatus = "active" | "archived";
+export type CaseStatus = "active" | "archived" | "purged";
 
 /**
  * A case record stored locally. Contains only synthetic identifiers and
@@ -26,6 +32,12 @@ export type CaseRecord = {
   status: CaseStatus;
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
+  /** When a reviewer purged the case content. */
+  purgedAt?: string; // ISO 8601
+  /** Reviewer reason for the purge; never participant data. */
+  purgeReason?: string;
+  /** Exact content records deleted by the purge. */
+  purgeCounts?: PurgeCounts;
 };
 
 /**
@@ -90,6 +102,7 @@ export type AuditEventType =
   | "case-created"
   | "case-opened"
   | "case-closed"
+  | "case-purged"
   | "plan-fact-saved"
   | "plan-fact-superseded"
   | "artifact-imported"
@@ -102,6 +115,7 @@ export type AuditEventType =
   | "evidence-linked"
   | "citation-retracted"
   | "evidence-text-extracted"
+  | "evidence-passage-transcribed"
   | "calculation-run"
   | "work-product-created"
   | "reviewer-decision-recorded"

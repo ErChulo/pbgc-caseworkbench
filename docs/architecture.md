@@ -232,7 +232,7 @@ A golden output is not automatically correct; its independent review record is p
 
 Vite produces a single-file build with inlined application code and styles. Large assets are copied beside it under a versioned `assets/` directory and referenced by relative URL. Maintain `assets-manifest.json` with SHA-256, license, purpose, and expected size.
 
-The application must start from a small local HTTP server for predictable worker, module, and file behavior. `file://` execution is not a supported production contract. The bundle requires no network after assets are installed.
+The application starts either from a small local HTTP server or by opening the built HTML file directly. Which storage a page gets is not assumed: `adapters/storage/probe.ts` proves at boot that IndexedDB commits and reads back, and the container then builds the services over either the IndexedDB adapters or the in-memory session adapters (ADR 0003). A `file://` page runs PDF.js's main-thread handler, because the bundled blob worker cannot answer from that origin. The bundle requires no network after assets are installed.
 
 ## 17. Architecture decisions to record next
 

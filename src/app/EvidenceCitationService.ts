@@ -1,5 +1,5 @@
 /**
- * EvidenceCitationService — cite one extracted passage for a reviewed field.
+ * EvidenceCitationService — cite one stored passage for a reviewed field.
  *
  * A citation is a provenance change, not a value change. The reviewer has
  * already recorded the field's value; this service records which passage
@@ -58,7 +58,7 @@ export class EvidenceCitationService {
       (entry) => entry.observationId === args.observationId,
     );
     if (!observation) {
-      throw new Error("That extracted passage is not stored for the open case.");
+      throw new Error("That stored passage is not stored for the open case.");
     }
     if ((await sha256HexOfText(observation.text)) !== observation.excerptSha256) {
       throw new Error(
@@ -162,7 +162,7 @@ export class EvidenceCitationService {
     }
     if (link.observationId === undefined) {
       throw new Error(
-        "Only a citation of an extracted passage can be retracted. A file-level link has no passage to withdraw.",
+        "Only a citation of a stored passage can be retracted. A file-level link has no passage to withdraw.",
       );
     }
 
