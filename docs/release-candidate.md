@@ -7,12 +7,12 @@ plan.
 
 | Field | Value |
 |---|---|
-| Source commit | `200ebd96da7e17a26f9ab8245fa75ae6c96f78f6` |
+| Source commit | `e35ec9d1b4424258f3319ce7d3558180d623f80a` |
 | Built | 2026-11-08 — the build stamp the app shows |
-| Artifact | `dist/index.html`, 2,787,473 bytes |
-| SHA-256 | `120bce5123bfa4548d2783f3c6246588cfda7d6fc68350ca4c4a19da40c024f9` |
-| Unit, integration, contract | 610 passed (`npm run check`) |
-| Browser | 21 passed (`npx playwright test`, Chromium against the artifact) |
+| Artifact | `dist/index.html`, 2,798,861 bytes |
+| SHA-256 | `a125dbe2dd33c941b3fda674e0772788bc3353315337e123cbfa1fd585402102` |
+| Unit, integration, contract | 632 passed (`npm run check`) |
+| Browser | 22 passed (`npx playwright test`, Chromium against the artifact) |
 
 ## What this hash covers, and what it does not
 
@@ -46,6 +46,22 @@ The dry run proves the mechanics, not the human pace: it types one short
 passage and does not time a realistic scan page. The office's own synthetic run
 before the real session remains the timing and friction check.
 
+## Pre-import check
+
+Case home has **Check files before importing**. It runs the same readers,
+admission limits, format detection, and Excel census normalization as the
+import, and reports per file whether the import would read it, read it with a
+gap, or refuse it. It creates no case, stores no bytes, and writes no audit
+event, so it can run on the real plan set before a case exists; that property is
+tested by checking three files, one of them refusable, and then asserting the
+workstation still holds no case.
+
+Findings name a file, sheet, column, row, page, or field, never a cell value or
+a line of text, so a verdict can be copied into the findings log. A title or
+merged row above the real header is reported as a choice to make — naming the
+row that maps every required field — not as an unmappable workbook. It is a
+prediction: the import repeats every check against the bytes it stores.
+
 ## Reproduce
 
 ```bash
@@ -71,8 +87,9 @@ npx playwright test
 - [ ] Run [the runbook](real-data-workflow-test.md) end to end on synthetic data
       before touching a real plan. The automated dry run above covers the
       mechanics; this pass is for the office's own timing and friction.
-- [ ] Preflight the real files: text layer, census header shape, and any merged
-      or two-tier header that will refuse.
+- [ ] Preflight the real files on Case home with **Check files before importing**,
+      and record its verdicts: text layer per PDF, the census header row, and any
+      merged or two-tier header that needs a different header row.
 - [ ] Decide the retention path (retain or purge), and who owns every bundle
       copy.
 - [ ] Decide whether the Word plan summary as a draft with "Not recorded" cells
