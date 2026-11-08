@@ -492,6 +492,12 @@ is finished.
   passage again, see exactly one citation counted as current support, and read
   the withdrawal reason and the re-citation note on the passage's card, and
   confirm that a reload writes no audit events.
+- `tests/e2e/dryRun.e2e.ts` — the office runbook's nine steps in one synthetic case: the
+  scan refusal and reviewer transcription, duplicate refusal, citation, ten provision
+  answers, the mapped Excel census, a control-total mismatch and correction, a
+  superseding revision, the age and EPRD calculations, the review copy, the Word
+  summary, the bundle round trip, and the purge, with every request held to the app's
+  own origin.
 - `tests/e2e/prototypeTest.e2e.ts` — the prototype test as a reviewer runs it: start from
   Case home, create the test case, add the two generated sample documents and see them
   typed as plan documents, read the PDF text layer, cite a passage, record Pass and Fail

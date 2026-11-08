@@ -144,7 +144,10 @@ For each file:
    names the page and character count but not the text;
 4. use **Verify integrity** after the import batch;
 5. import a duplicate of one file and confirm it is refused by hash;
-6. record every refusal with its exact message.
+6. record an applicability decision, with its basis, for each class the case
+   actually holds. A stored file is not a decision, and a class named by a
+   work-product policy needs both;
+7. record every refusal with its exact message.
 
 Expected refusals: a scanned PDF's text layer (transcribe the passage instead),
 legacy/macro Office files, empty files, files over 100 MiB, and a case over
@@ -248,8 +251,10 @@ On **Review details**:
   integrity, facts with provenance, blocked provisions, and the census control
   total. A failed hash check is blocking; an unverified file is attention until
   it is re-hashed.
-- **Work products** — generate the review copy only if it is not blocked. Do
-  not record a required-class policy merely to make it ready; a policy is a
+- **Work products** — generate the review copy only if it is not blocked. If a
+  class policy is recorded, confirm every required class has both an
+  applicability decision and its stored file; presence alone does not satisfy
+  the policy. Do not record a policy merely to make it ready; a policy is a
   reviewer decision with a basis.
 - **Review & export** — filter the audit trail to one event type, one evidence
   file, and one text query. Confirm the count says `Showing X of N events` and

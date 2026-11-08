@@ -12,7 +12,7 @@ plan.
 | Artifact | `dist/index.html`, 2,787,473 bytes |
 | SHA-256 | `120bce5123bfa4548d2783f3c6246588cfda7d6fc68350ca4c4a19da40c024f9` |
 | Unit, integration, contract | 610 passed (`npm run check`) |
-| Browser | 20 passed (`npx playwright test`, Chromium against the artifact) |
+| Browser | 21 passed (`npx playwright test`, Chromium against the artifact) |
 
 ## What this hash covers, and what it does not
 
@@ -24,6 +24,27 @@ same stamp in its guided-test notes, so the two can be tied together.
 The hash covers the artifact only. It says nothing about whether the plan data,
 a census mapping, a calculation input, or a reviewer decision is correct, and it
 is not a signature: anyone who can write the file can change the hash.
+
+## Dry run (synthetic)
+
+On 2026-11-08 the nine steps of the runbook were walked in one case, on
+synthetic data, by [dryRun.e2e.ts](../tests/e2e/dryRun.e2e.ts). It covers the
+scan refusal and reviewer transcription, the duplicate refusal, citation and
+linking, ten provision answers, the mapped Excel census, a control-total
+mismatch and correction, a superseding census revision, the age and EPRD
+calculations, the review copy, the Word summary, the bundle round trip, and the
+purge. All 21 browser tests pass against the artifact above. The artifact was
+rebuilt after this test and these notes were added, and hashed identically, so
+the candidate hash still describes this source.
+
+One documentation gap surfaced and was corrected in the runbook: a class named
+by a work-product policy needs its own applicability decision as well as its
+stored file, and the review copy stays blocked until both exist. No product
+defect was found.
+
+The dry run proves the mechanics, not the human pace: it types one short
+passage and does not time a realistic scan page. The office's own synthetic run
+before the real session remains the timing and friction check.
 
 ## Reproduce
 
@@ -48,7 +69,8 @@ npx playwright test
       or newer, and record the artifact's SHA-256 and build stamp in the
       findings log.
 - [ ] Run [the runbook](real-data-workflow-test.md) end to end on synthetic data
-      before touching a real plan.
+      before touching a real plan. The automated dry run above covers the
+      mechanics; this pass is for the office's own timing and friction.
 - [ ] Preflight the real files: text layer, census header shape, and any merged
       or two-tier header that will refuse.
 - [ ] Decide the retention path (retain or purge), and who owns every bundle
