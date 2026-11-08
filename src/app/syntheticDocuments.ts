@@ -11,6 +11,7 @@
  */
 
 import { strToU8, zipSync } from "fflate";
+import { toCalendarDate, toEpochDay } from "../domain/shared/calendar";
 
 const encoder = new TextEncoder();
 
@@ -145,11 +146,21 @@ export type SyntheticCell =
   | string
   | number
   | null
-  | { formula: string; value: number | string };
+  | { formula: string; value: number | string }
+  | { date: string };
+
+export type SyntheticSheet = {
+  name: string;
+  rows: readonly (readonly SyntheticCell[])[];
+};
 
 export type SyntheticXlsxOptions = {
   sheetName?: string;
-  rows: readonly (readonly SyntheticCell[])[];
+  rows?: readonly (readonly SyntheticCell[])[];
+  /** Multiple sheets; takes precedence over `sheetName` and `rows`. */
+  sheets?: readonly SyntheticSheet[];
+  /** Store dates in Excel's 1904 date system. */
+  date1904?: boolean;
 };
 
 function columnName(index: number): string {
@@ -163,12 +174,33 @@ function columnName(index: number): string {
   return name;
 }
 
+const EXCEL_1900_EPOCH = toEpochDay({ year: 1899, month: 12, day: 30 });
+const EXCEL_1904_EPOCH = toEpochDay({ year: 1904, month: 1, day: 1 });
+
+/** Excel date serial for an ISO date, in the requested date system. */
+export function syntheticExcelSerial(isoDate: string, date1904 = false): number {
+  const date = toCalendarDate(isoDate);
+  if (!date) throw new Error(`Not an ISO date: ${isoDate}`);
+  return toEpochDay(date) - (date1904 ? EXCEL_1904_EPOCH : EXCEL_1900_EPOCH);
+}
+
 /**
- * A minimal XLSX container with one sheet, a shared-string table, numbers, and
- * formula cells that carry a cached value.
+ * A minimal XLSX container with one or more sheets, a shared-string table,
+ * numbers, formula cells that carry a cached value, and date cells stored as
+ * serials with a date number format.
  */
 export function createSyntheticXlsx(options: SyntheticXlsxOptions): Uint8Array {
-  const sheetName = options.sheetName ?? "Sheet1";
+  const sheets: SyntheticSheet[] =
+    options.sheets !== undefined
+      ? [...options.sheets]
+      : [
+          {
+            name: options.sheetName ?? "Sheet1",
+            rows: options.rows ?? [],
+          },
+        ];
+  const date1904 = options.date1904 === true;
+
   const shared: string[] = [];
   const sharedIndex = (value: string): number => {
     const existing = shared.indexOf(value);
@@ -177,38 +209,58 @@ export function createSyntheticXlsx(options: SyntheticXlsxOptions): Uint8Array {
     return shared.length - 1;
   };
 
-  const rowXml = options.rows
-    .map((row, rowIndex) => {
-      const cells = row
-        .map((cell, columnIndex) => {
-          const reference = `${columnName(columnIndex)}${rowIndex + 1}`;
-          if (cell === null || cell === undefined) return "";
-          if (typeof cell === "number") {
-            return `<c r="${reference}"><v>${cell}</v></c>`;
-          }
-          if (typeof cell === "string") {
-            return `<c r="${reference}" t="s"><v>${sharedIndex(cell)}</v></c>`;
-          }
-          return `<c r="${reference}"><f>${escapeXml(cell.formula)}</f><v>${cell.value}</v></c>`;
-        })
-        .join("");
-      return `<row r="${rowIndex + 1}">${cells}</row>`;
-    })
-    .join("");
+  const sheetParts: Record<string, string> = {};
+  sheets.forEach((sheet, sheetIndex) => {
+    const rowXml = sheet.rows
+      .map((row, rowIndex) => {
+        const cells = row
+          .map((cell, columnIndex) => {
+            const reference = `${columnName(columnIndex)}${rowIndex + 1}`;
+            if (cell === null || cell === undefined) return "";
+            if (typeof cell === "number") {
+              return `<c r="${reference}"><v>${cell}</v></c>`;
+            }
+            if (typeof cell === "string") {
+              return `<c r="${reference}" t="s"><v>${sharedIndex(cell)}</v></c>`;
+            }
+            if ("date" in cell) {
+              const serial = syntheticExcelSerial(cell.date, date1904);
+              return `<c r="${reference}" s="1"><v>${serial}</v></c>`;
+            }
+            return `<c r="${reference}"><f>${escapeXml(cell.formula)}</f><v>${cell.value}</v></c>`;
+          })
+          .join("");
+        return `<row r="${rowIndex + 1}">${cells}</row>`;
+      })
+      .join("");
 
-  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    sheetParts[`xl/worksheets/sheet${sheetIndex + 1}.xml`] =
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <sheetData>${rowXml}</sheetData>
 </worksheet>`;
+  });
 
   const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-<sheets><sheet name="${escapeXml(sheetName)}" sheetId="1" r:id="rId1"/></sheets>
+${date1904 ? '<workbookPr date1904="1"/>' : ""}
+<sheets>${sheets
+    .map(
+      (sheet, index) =>
+        `<sheet name="${escapeXml(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`,
+    )
+    .join("")}</sheets>
 </workbook>`;
 
   const workbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+${sheets
+    .map(
+      (_sheet, index) =>
+        `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`,
+    )
+    .join("\n")}
+<Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>`;
 
   const sharedStrings = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -216,12 +268,20 @@ export function createSyntheticXlsx(options: SyntheticXlsxOptions): Uint8Array {
 ${shared.map((value) => `<si><t xml:space="preserve">${escapeXml(value)}</t></si>`).join("")}
 </sst>`;
 
+  // Style 0 is the default cell format; style 1 is the built-in date format 14.
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="14" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>
+</styleSheet>`;
+
   return zip({
     "[Content_Types].xml": CONTENT_TYPES,
     "_rels/.rels": ROOT_RELS,
     "xl/workbook.xml": workbook,
     "xl/_rels/workbook.xml.rels": workbookRels,
-    "xl/worksheets/sheet1.xml": sheet,
+    ...sheetParts,
     "xl/sharedStrings.xml": sharedStrings,
+    "xl/styles.xml": styles,
   });
 }

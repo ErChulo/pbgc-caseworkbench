@@ -138,7 +138,7 @@ export const RULES: readonly RuleRecord[] = [
       citation:
         "Aggregate Limit on Benefits Payable from PBGC Funds.pdf (PBGC internal guidance, third edition, issue date 08/29/2024), SHA-256 b9f9f912d6492446ea4c130e4c70e8662df8b2e9468a5909bcf610982d4654d5; ERISA §4022B; 29 CFR §4022B.1",
       note:
-        "Transcription and worked example in references/rules/aggregate-limit.md. Only section F's arithmetic is implemented. The maximum guaranteeable benefit is a provenanced reviewer input because the Appendix D table and §4022.23 age/form factors are not transcribed; §4044 funding percentages, §4022(c) allocation, §4022.8(c)(7) prior-plan normalization, trusteeship-date ordering, and the de minimis lump-sum exclusion are outside this rule.",
+        "Transcription and worked example in references/rules/aggregate-limit.md. Only section F's arithmetic is implemented. The maximum guaranteeable benefit is a provenanced reviewer input because the §4022.22(a)(2) formula, its termination-year Social Security base, and the §4022.23 age/form factors are not transcribed; §4044 funding percentages, §4022(c) allocation, §4022.8(c)(7) prior-plan normalization, trusteeship-date ordering, and the de minimis lump-sum exclusion are outside this rule.",
       checkedOn: "2026-11-04",
     },
     implementedBy: "src/domain/calculations/aggregateLimit.ts",
@@ -146,21 +146,22 @@ export const RULES: readonly RuleRecord[] = [
   },
   {
     ruleId: "pbgc:maximum-guaranteeable-benefit",
-    title: "Maximum guaranteeable benefit (guarantee table and phase-in)",
+    title: "Maximum guaranteeable benefit (formula, phase-in, and adjustments)",
     kind: "pbgc-rule",
     status: "unresolved",
     summary:
-      "The maximum monthly benefit guaranteed under ERISA §4022(b)(3) and 29 CFR §§4022.22–4022.23, including the Appendix D table for the guarantee determination year, the service phase-in, and the age and annuity-form adjustments. The aggregate limit depends on this amount.",
+      "The maximum monthly benefit guaranteed under ERISA §4022(b)(3)(B) and 29 CFR §§4022.22–4022.23: $750 times the termination-year Social Security contribution and benefit base divided by $13,200, adjusted for age and annuity form. The aggregate limit depends on this amount.",
     formula: null,
     units: "USD/month",
     authority: {
-      citation: null,
-      note: "The corpus contains references to Appendix D and §4022.22 but not the table values or the §4022.23 adjustment factors. The annual table also changed every plan year, so no single value may be assumed.",
-      checkedOn: null,
+      citation:
+        "ERISA §4022(b)(3)(B); 29 CFR §4022.22(a)(2); 29 CFR §4022.23(c)–(f); 29 CFR §4022.25 (benefit-increase phase-in). Appendix D to Part 4022 was removed by 74 FR 62697 (2009-12-01).",
+      note: "Public authorities checked against the eCFR on 2026-11-07. The §4022.22(a)(2) formula, the Social Security contribution and benefit base for the termination year, and the §4022.23 age/form factors still need transcription, effective-date handling, and independent review. The PBGC annual maximum table is a derived check, not the source of the rule.",
+      checkedOn: "2026-11-07",
     },
     implementedBy: null,
     blockingReason:
-      "Appendix D guarantee table values and the §4022.22/§4022.23 phase-in and age/form factors are not transcribed; the aggregate limit therefore takes the amount as a provenanced input.",
+      "The §4022.22(a)(2) formula, its termination-year Social Security base, and the §4022.23 age/form factors are not transcribed; the aggregate limit therefore takes the amount as a provenanced input.",
   },
   {
     ruleId: "pbgc:benefit-tiers-priority-categories",

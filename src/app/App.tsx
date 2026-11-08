@@ -45,6 +45,7 @@ export function App() {
   const walkthroughScript =
     walkthrough.record === null ? null : scriptForRecord(walkthrough.record);
   const activeStage = STAGES.find((stage) => stage.id === state.stage) ?? STAGES[0]!;
+  const purgedCase = state.activeCase?.status === "purged";
   const fileOrigin = isFileOrigin();
 
   async function addSampleDocuments() {
@@ -84,6 +85,32 @@ export function App() {
       );
     }
 
+    if (purgedCase && state.stage !== "home" && state.stage !== "review") {
+      return (
+        <section className="intro" aria-labelledby="purged-title">
+          <p className="eyebrow">Purged case</p>
+          <h2 id="purged-title">Only the retained audit trail is available</h2>
+          <p className="lede">
+            The evidence, census records, plan facts, reviewer decisions, and
+            calculation runs for {state.activeCase?.alias} were deleted by the
+            purge. The case record and its audit trail remain.
+          </p>
+          <div className="button-row">
+            <button
+              className="primary"
+              type="button"
+              onClick={() => actions.setStage("review")}
+            >
+              Open retained audit
+            </button>
+            <button className="secondary" type="button" onClick={actions.closeCase}>
+              Close case
+            </button>
+          </div>
+        </section>
+      );
+    }
+
     if (state.stage === "home" || !state.activeCase) {
       return (
         <CaseHome
@@ -95,6 +122,7 @@ export function App() {
           }
           onOpenCase={(caseId) => void actions.openCase(caseId)}
           onCloseCase={actions.closeCase}
+          onPurgeCase={actions.purgeCase}
           onStartWalkthrough={startWalkthrough}
           activeWalkthroughLabel={walkthroughScript?.label ?? null}
           walkthroughBlockedReason={
@@ -221,13 +249,19 @@ export function App() {
           <ol className="stage-list">
             {GUIDED_STEPS.map((step) => {
               const current = step.stageIds.includes(state.stage);
+              const stepDisabled = purgedCase && step.defaultStage !== "home";
               return (
                 <li key={step.number}>
                   <button
                     className={current ? "stage active" : "stage"}
                     type="button"
                     aria-current={current ? "step" : undefined}
-                    title={step.description}
+                    disabled={stepDisabled}
+                    title={
+                      stepDisabled
+                        ? "This case was purged. Only its retained audit trail is available."
+                        : step.description
+                    }
                     onClick={() => actions.setStage(step.defaultStage)}
                   >
                     <span className="stage-number">{step.number}</span>
@@ -250,7 +284,8 @@ export function App() {
                 TECHNICAL_STAGE_IDS.includes(stage.id),
               ).map((stage) => {
                 const current = stage.id === state.stage;
-                const disabled = !stage.implemented;
+                const disabled =
+                  !stage.implemented || (purgedCase && stage.id !== "review");
                 return (
                   <li key={stage.id}>
                     <button
@@ -259,7 +294,13 @@ export function App() {
                       aria-current={current ? "step" : undefined}
                       aria-disabled={disabled || undefined}
                       disabled={disabled}
-                      title={disabled ? stage.blockedBy ?? "Not available" : stage.purpose}
+                      title={
+                        purgedCase && stage.id !== "review"
+                          ? "This case was purged. Only its retained audit trail is available."
+                          : disabled
+                            ? stage.blockedBy ?? "Not available"
+                            : stage.purpose
+                      }
                       onClick={() => actions.setStage(stage.id)}
                     >
                       <span className="stage-label">{stage.label}</span>
@@ -303,7 +344,9 @@ export function App() {
         <div className="case-status" aria-label="Case status">
           {state.activeCase ? (
             <>
-              <StatusPill tone="success">Local case open</StatusPill>
+              <StatusPill tone={purgedCase ? "warning" : "success"}>
+                {purgedCase ? "Purged · audit only" : "Local case open"}
+              </StatusPill>
               <span>
                 Created{" "}
                 {new Date(state.activeCase.createdAt).toLocaleDateString("en-US", {
@@ -312,14 +355,27 @@ export function App() {
                   year: "numeric",
                 })}
               </span>
-              <span>
-                Updated{" "}
-                {new Date(state.activeCase.updatedAt).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-              </span>
+              {purgedCase ? (
+                <span>
+                  Purged{" "}
+                  {new Date(
+                    state.activeCase.purgedAt ?? state.activeCase.updatedAt,
+                  ).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </span>
+              ) : (
+                <span>
+                  Updated{" "}
+                  {new Date(state.activeCase.updatedAt).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </span>
+              )}
             </>
           ) : (
             <StatusPill tone="warning">Create or open a case to begin</StatusPill>
@@ -384,6 +440,7 @@ export function App() {
         ) : null}
 
         {state.activeCase &&
+        !purgedCase &&
         (state.stage === "plan" || state.stage === "population") ? (
           <div className="step-switch" role="group" aria-label="Plan and people">
             <button

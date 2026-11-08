@@ -17,10 +17,24 @@ import { compareCensusImports } from "../../domain/population/changes";
 import { evaluatePopulation, V1_REQUIRED_RULE_IDS } from "../../domain/population/determination";
 import { currentPopulation } from "../../domain/population/imports";
 import { POPULATION_CSV_HEADERS } from "../../domain/population/types";
+import {
+  CENSUS_FIELDS,
+  CENSUS_FIELD_LABELS,
+  CENSUS_REQUIRED_FIELDS,
+  headerLabels,
+  mappingProblems,
+  spreadsheetColumnName,
+  suggestColumnMapping,
+  type CensusColumnMapping,
+} from "../../domain/population/workbook";
 import { activeArtifacts } from "../../domain/evidence/types";
 import { POPULATION_REGISTER_SPEC_ID } from "../../domain/work-products/registry";
 import { buildPopulationRegisterHtml } from "../work-products/populationRegister";
-import type { WorkbenchActions, WorkbenchState } from "../workbench/useWorkbench";
+import type {
+  CensusWorkbookInspection,
+  WorkbenchActions,
+  WorkbenchState,
+} from "../workbench/useWorkbench";
 import { EmptyState, Panel, StatusPill } from "../../ui/components";
 
 type Props = {
@@ -37,6 +51,10 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [generated, setGenerated] = useState<{ fileName: string; sha256: string } | null>(null);
+  const [workbook, setWorkbook] = useState<CensusWorkbookInspection | null>(null);
+  const [headerRow, setHeaderRow] = useState(1);
+  const [mapping, setMapping] = useState<CensusColumnMapping>({});
+  const [importingWorkbook, setImportingWorkbook] = useState(false);
 
   const doptFact = state.planFacts["cust-dopt"];
   const asOfDate = doptFact ? String(doptFact.value) : null;
@@ -68,12 +86,59 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
     if (!file) return;
     setBusy(true);
     try {
-      await actions.importPopulation(file);
+      if (/\.xlsx$/i.test(file.name)) {
+        // A workbook is read first: the reviewer confirms the sheet, header row,
+        // and column mapping before a single participant record is written.
+        const inspection = await actions.inspectCensusWorkbook(file);
+        if (inspection) {
+          setWorkbook(inspection);
+          setHeaderRow(inspection.headerRowNumber);
+          setMapping(inspection.mapping);
+        }
+      } else {
+        await actions.importPopulation(file);
+      }
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
     }
   }
+
+  async function chooseSheet(sheetName: string) {
+    if (!workbook) return;
+    setBusy(true);
+    try {
+      const inspection = await actions.inspectCensusWorkbook(
+        workbook.file,
+        sheetName,
+      );
+      if (inspection) {
+        setWorkbook(inspection);
+        setHeaderRow(inspection.headerRowNumber);
+        setMapping(inspection.mapping);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitWorkbook() {
+    if (!workbook) return;
+    setImportingWorkbook(true);
+    try {
+      const imported = await actions.importCensusWorkbook({
+        inspection: workbook,
+        headerRowNumber: headerRow,
+        mapping,
+      });
+      if (imported) setWorkbook(null);
+    } finally {
+      setImportingWorkbook(false);
+    }
+  }
+
+  const workbookHeaders = workbook ? headerLabels(workbook.grid, headerRow) : [];
+  const workbookProblems = workbook ? mappingProblems(mapping) : [];
 
   async function downloadRegister() {
     const caseRecord = state.activeCase;
@@ -123,7 +188,7 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
         id="population-import"
         eyebrow="Stage 4 · Population"
         title="Import participant records"
-        description="A CSV with one row per participant. The file is stored as evidence first; every record keeps its artifact hash and row number. Any invalid row rejects the whole file. A later import becomes the authoritative census; earlier rows stay stored and exported but are no longer counted."
+        description="A participant CSV, or an Excel census mapped by column. The file is stored as evidence first; every record keeps its artifact hash and row number. Any invalid row rejects the whole file. A later import becomes the authoritative census; earlier rows stay stored and exported but are no longer counted."
         aside={
           <StatusPill tone={activePopulation.length === 0 ? "muted" : "success"}>
             {activePopulation.length} record{activePopulation.length === 1 ? "" : "s"}
@@ -138,10 +203,10 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
             disabled={busy || !state.activeCase}
           >
             {busy
-              ? "Importing…"
+              ? "Reading…"
               : activePopulation.length > 0
                 ? "Import a revised census…"
-                : "Choose participant CSV"}
+                : "Choose participant CSV or Excel census"}
           </button>
           <button
             className="secondary"
@@ -161,10 +226,133 @@ export function PopulationStage({ state, actions, onWorkProductCreated }: Props)
           ref={inputRef}
           className="visually-hidden"
           type="file"
-          accept=".csv,text/csv"
-          aria-label="Choose participant CSV to import"
+          accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          aria-label="Choose participant CSV or Excel census to import"
           onChange={(event) => void handleFile(event.target.files?.[0])}
         />
+
+        {workbook ? (
+          <form
+            className="mapping-form"
+            aria-labelledby="census-mapping-title"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitWorkbook();
+            }}
+          >
+            <h3 id="census-mapping-title">Map the census columns</h3>
+            <p className="panel-prose">
+              <strong>{workbook.file.name}</strong> is stored as evidence unchanged.
+              Choose the worksheet, the row that holds the column labels, and the
+              column for each field. Suggestions come from matching header text;
+              confirm every one before importing.
+            </p>
+
+            {workbook.sheetNames.length > 1 ? (
+              <label className="mapping-field">
+                <span>Worksheet</span>
+                <select
+                  value={workbook.sheetName}
+                  disabled={busy}
+                  onChange={(event) => void chooseSheet(event.target.value)}
+                >
+                  {workbook.sheetNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p className="panel-prose mono">Worksheet: {workbook.sheetName}</p>
+            )}
+
+            <label className="mapping-field">
+              <span>Header row</span>
+              <input
+                type="number"
+                min={1}
+                value={headerRow}
+                disabled={busy}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  if (!Number.isSafeInteger(next) || next < 1) return;
+                  setHeaderRow(next);
+                  setMapping(
+                    suggestColumnMapping(headerLabels(workbook.grid, next)),
+                  );
+                }}
+              />
+            </label>
+
+            {workbookHeaders.length === 0 ? (
+              <p className="field-error" role="alert">
+                Row {headerRow} has no column labels. Choose the row that holds
+                them.
+              </p>
+            ) : null}
+
+            <div className="mapping-grid">
+              {CENSUS_FIELDS.map((field) => {
+                const required = CENSUS_REQUIRED_FIELDS.includes(field);
+                return (
+                  <label key={field} className="mapping-field">
+                    <span>
+                      {CENSUS_FIELD_LABELS[field]}
+                      {required ? " (required)" : " (optional)"}
+                    </span>
+                    <select
+                      value={mapping[field] ?? ""}
+                      disabled={busy}
+                      onChange={(event) => {
+                        const raw = event.target.value;
+                        setMapping((previous) => {
+                          const next = { ...previous };
+                          if (raw === "") delete next[field];
+                          else next[field] = Number(raw);
+                          return next;
+                        });
+                      }}
+                    >
+                      <option value="">Not mapped</option>
+                      {workbookHeaders.map((header) => (
+                        <option key={header.column} value={header.column}>
+                          {spreadsheetColumnName(header.column)} — {header.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                );
+              })}
+            </div>
+
+            {workbookProblems.length > 0 ? (
+              <ul className="mapping-problems">
+                {workbookProblems.map((problem) => (
+                  <li key={problem}>{problem}</li>
+                ))}
+              </ul>
+            ) : null}
+
+            <div className="button-row">
+              <button
+                className="primary"
+                type="submit"
+                disabled={importingWorkbook || workbookProblems.length > 0}
+              >
+                {importingWorkbook ? "Importing…" : "Import mapped census"}
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => setWorkbook(null)}
+                disabled={importingWorkbook}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : null}
 
         {authoritative ? (
           <p className="panel-prose">

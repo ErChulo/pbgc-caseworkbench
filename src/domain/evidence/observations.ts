@@ -9,35 +9,63 @@
  */
 
 import type {
-  ExtractionFormat,
   ExtractionLocator,
-  ExtractionMethod,
+  ObservationFormat,
+  ObservationMethod,
 } from "./extraction";
+import {
+  MAX_TRANSCRIPTION_CHARACTERS,
+  MAX_TRANSCRIPTION_PAGE,
+} from "./extraction";
+
+/**
+ * Where an observation's text came from. A reader produces `extraction`; a
+ * reviewer typing a passage from a page produces `reviewer-transcription`.
+ * The two are never interchangeable in display or in reasoning about whether
+ * the app has read the file.
+ *
+ * Records written before this field existed carry no origin and are readings;
+ * `observationOrigin` supplies that default so old bundles stay restorable.
+ */
+export type ObservationOrigin = "extraction" | "reviewer-transcription";
 
 export type Observation = {
   observationId: string;
   caseId: string;
   artifactId: string;
   locator: ExtractionLocator;
-  /** Normalized text exactly as extracted; never edited in place. */
+  /** Normalized text exactly as extracted or typed; never edited in place. */
   text: string;
   /** SHA-256 of `text`, so a restore can prove the excerpt is unchanged. */
   excerptSha256: string;
-  method: ExtractionMethod;
-  format: ExtractionFormat;
+  method: ObservationMethod;
+  format: ObservationFormat;
   extractorVersion: string;
   extractedAt: string; // ISO 8601
+  /** Absent on records written before reviewer transcription existed. */
+  origin?: ObservationOrigin;
   /** Per-case monotonic sequence assigned by the storage adapter. */
   sequence?: number;
 };
 
+/** The origin an observation records, defaulting a legacy record to a reading. */
+export function observationOrigin(observation: Observation): ObservationOrigin {
+  return observation.origin ?? "extraction";
+}
+
+/** True when a reviewer typed the text rather than the app reading it. */
+export function isTranscription(observation: Observation): boolean {
+  return observationOrigin(observation) === "reviewer-transcription";
+}
+
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 const CELL_REFERENCE = /^([A-Z]{1,3})([1-9][0-9]*)$/;
 
-const METHOD_LOCATOR: Record<ExtractionMethod, ExtractionLocator["kind"]> = {
+const METHOD_LOCATOR: Record<ObservationMethod, ExtractionLocator["kind"]> = {
   "pdf-text-layer": "page",
   "docx-paragraphs": "paragraph",
   "xlsx-cells": "cell",
+  "reviewer-transcription": "page",
 };
 
 /** Column letters of a cell reference, e.g. `C12` → `C`. */
@@ -76,6 +104,14 @@ export function observationProblems(observation: Observation): string[] {
   if (!SHA256_HEX.test(observation.excerptSha256)) {
     problems.push("The observation has no valid SHA-256 of its text.");
   }
+  const origin = observation.origin;
+  if (
+    origin !== undefined &&
+    origin !== "extraction" &&
+    origin !== "reviewer-transcription"
+  ) {
+    problems.push(`Unsupported observation origin "${String(origin)}".`);
+  }
   if (!(observation.method in METHOD_LOCATOR)) {
     problems.push(`Unsupported extraction method "${String(observation.method)}".`);
   } else if (observation.locator?.kind !== METHOD_LOCATOR[observation.method]) {
@@ -83,6 +119,25 @@ export function observationProblems(observation: Observation): string[] {
       `The observation's locator is a ${String(
         observation.locator?.kind,
       )} but its method records a ${METHOD_LOCATOR[observation.method]}.`,
+    );
+  }
+  if (observation.method === "reviewer-transcription") {
+    if (origin !== "reviewer-transcription") {
+      problems.push(
+        "A transcription method is only valid for a reviewer transcription.",
+      );
+    }
+    if (
+      typeof observation.text === "string" &&
+      observation.text.length > MAX_TRANSCRIPTION_CHARACTERS
+    ) {
+      problems.push(
+        `The transcribed passage is longer than the ${MAX_TRANSCRIPTION_CHARACTERS.toLocaleString()}-character limit.`,
+      );
+    }
+  } else if (origin === "reviewer-transcription") {
+    problems.push(
+      "A reviewer transcription must record the transcription method.",
     );
   }
   if (typeof observation.extractorVersion !== "string" || observation.extractorVersion === "") {
@@ -101,6 +156,13 @@ export function observationProblems(observation: Observation): string[] {
   } else if (locator.kind === "page") {
     if (!Number.isSafeInteger(locator.page) || locator.page < 1) {
       problems.push("The page locator is not a positive whole number.");
+    } else if (
+      observation.method === "reviewer-transcription" &&
+      locator.page > MAX_TRANSCRIPTION_PAGE
+    ) {
+      problems.push(
+        `The transcribed page is above the ${MAX_TRANSCRIPTION_PAGE.toLocaleString()}-page limit.`,
+      );
     }
   } else if (locator.kind === "paragraph") {
     if (!Number.isSafeInteger(locator.index) || locator.index < 1) {
@@ -150,6 +212,12 @@ function locatorRank(locator: ExtractionLocator): number {
 function compareObservations(a: Observation, b: Observation): number {
   const byLocator = locatorRank(a.locator) - locatorRank(b.locator);
   if (byLocator !== 0) return byLocator;
+  // On the same page, text the app read comes before a passage a reviewer
+  // typed, so a reader is never left wondering which one the file itself says.
+  const originRank = (observation: Observation) =>
+    isTranscription(observation) ? 1 : 0;
+  const byOrigin = originRank(a) - originRank(b);
+  if (byOrigin !== 0) return byOrigin;
   return a.observationId.localeCompare(b.observationId);
 }
 

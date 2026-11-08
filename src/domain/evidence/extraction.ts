@@ -20,11 +20,24 @@
 /** A file family the workbench can read text from. */
 export type ExtractionFormat = "pdf" | "docx" | "xlsx";
 
-/** How a unit's text was obtained. Recorded on every observation. */
+/**
+ * A file family an observation can name. `other` exists only for a reviewer
+ * transcription of a file no reader applies to; no reader ever returns it.
+ */
+export type ObservationFormat = ExtractionFormat | "other";
+
+/** How one of the readers obtained a unit's text. */
 export type ExtractionMethod =
   | "pdf-text-layer"
   | "docx-paragraphs"
   | "xlsx-cells";
+
+/**
+ * How an observation's text was obtained. Readers produce their own method; a
+ * reviewer typing a passage from a page produces the transcription method, and
+ * nothing may present the two as the same thing.
+ */
+export type ObservationMethod = ExtractionMethod | "reviewer-transcription";
 
 /**
  * Where a unit sits in its file. A locator is the reviewer-visible coordinate;
@@ -79,6 +92,22 @@ export const MAX_UNIT_CHARACTERS = 20_000;
 
 /** Version stamped on observations, so a re-read can be told apart. */
 export const EXTRACTOR_VERSION = "1.0.0";
+
+/**
+ * Version stamped on a reviewer transcription, kept separate from the reader
+ * version so a transcription is never mistaken for a reading.
+ */
+export const TRANSCRIPTION_VERSION = "reviewer-transcription 1.0.0";
+
+/**
+ * Longest passage a reviewer may transcribe at once. A transcription is meant
+ * to support a citation, not to reproduce a document; a longer passage is
+ * refused rather than truncated, so the recorded text is always what was typed.
+ */
+export const MAX_TRANSCRIPTION_CHARACTERS = 4_000;
+
+/** Highest page number a transcription may name. */
+export const MAX_TRANSCRIPTION_PAGE = 20_000;
 
 const PDF_MEDIA_TYPES = new Set([
   "application/pdf",
@@ -165,7 +194,7 @@ export function describeExtractionLocator(locator: ExtractionLocator): string {
 }
 
 /** One-line description of a format, for notices. */
-export function extractionFormatLabel(format: ExtractionFormat): string {
+export function extractionFormatLabel(format: ObservationFormat): string {
   switch (format) {
     case "pdf":
       return "PDF text layer";
@@ -173,6 +202,8 @@ export function extractionFormatLabel(format: ExtractionFormat): string {
       return "Word document text";
     case "xlsx":
       return "Spreadsheet cell values";
+    case "other":
+      return "File type with no reader";
   }
 }
 

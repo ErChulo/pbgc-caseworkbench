@@ -46,6 +46,17 @@ import type {
 import { isArtifactBytesPurged } from "../../domain/evidence/types";
 import type { Observation } from "../../domain/evidence/observations";
 import type { ParticipantRecord } from "../../domain/population/types";
+import { PopulationImportError } from "../../app/PopulationService";
+import {
+  headerLabels,
+  mappingProblems,
+  normalizeWorkbookCensus,
+  suggestColumnMapping,
+  suggestHeaderRow,
+  type CensusColumnMapping,
+  type CensusHeader,
+  type WorkbookGrid,
+} from "../../domain/population/workbook";
 import {
   currentPopulation,
   groupPopulationImports,
@@ -57,6 +68,11 @@ import {
   type EvidenceIntegrityCheck,
 } from "../../domain/evidence/integrity";
 import { generateId, nowIso } from "../../domain/case/validation";
+import { purgeCountsSummary } from "../../domain/case/purge";
+
+/** MIME type stored with an imported Excel census. */
+const XLSX_MEDIA_TYPE =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 import { supportingLinksForField } from "../../domain/evidence/citations";
 import { isFileOrigin } from "../../app/environment";
 import { SYNTHETIC_R5_CASE_ALIAS } from "../../domain/demo/r5SyntheticProfile";
@@ -96,6 +112,22 @@ export type WorkbenchState = {
   calculationRuns: StoredCalculationRun[];
 };
 
+/**
+ * A chosen Excel census, read but not yet imported. The reviewer confirms the
+ * sheet, the header row, and the column mapping before any record is written.
+ */
+export type CensusWorkbookInspection = {
+  file: File;
+  sheetNames: string[];
+  sheetName: string;
+  grid: WorkbookGrid;
+  /** Suggested header row; the reviewer may change it. */
+  headerRowNumber: number;
+  headers: CensusHeader[];
+  /** Suggested mapping; the reviewer must confirm or correct it. */
+  mapping: CensusColumnMapping;
+};
+
 export type WorkbenchActions = {
   createCase: () => Promise<void>;
   createSyntheticDemoCase: (profileAlias?: string) => Promise<void>;
@@ -107,6 +139,12 @@ export type WorkbenchActions = {
   createPrototypeTestCase: () => Promise<void>;
   openCase: (caseId: string) => Promise<void>;
   closeCase: () => void;
+  /** Remove the case's content, retaining its record and audit trail. */
+  purgeCase: (
+    caseId: string,
+    aliasConfirmation: string,
+    reason: string,
+  ) => Promise<void>;
   savePlanFields: (values: Record<string, unknown>) => Promise<void>;
   importFiles: (files: File[], documentClass?: DocumentClass) => Promise<void>;
   classifyArtifact: (
@@ -126,11 +164,28 @@ export type WorkbenchActions = {
     status: "extracted" | "refused" | "error";
     message: string;
   }>;
+  /** Record a passage the reviewer typed from a page of one evidence file. */
+  transcribePassage: (
+    artifactId: string,
+    page: number,
+    text: string,
+  ) => Promise<{ status: "recorded" | "error"; message: string }>;
   citeObservation: (observationId: string, fieldId: string) => Promise<void>;
   retractCitation: (linkId: string, reason: string) => Promise<void>;
   verifyArtifactIntegrity: (artifactId: string) => Promise<void>;
   verifyAllEvidenceIntegrity: () => Promise<void>;
   importPopulation: (file: File) => Promise<void>;
+  /** Read a chosen workbook without importing; resolves null and reports on failure. */
+  inspectCensusWorkbook: (
+    file: File,
+    sheetName?: string,
+  ) => Promise<CensusWorkbookInspection | null>;
+  /** Import the confirmed mapping; resolves false and reports on failure. */
+  importCensusWorkbook: (args: {
+    inspection: CensusWorkbookInspection;
+    headerRowNumber: number;
+    mapping: CensusColumnMapping;
+  }) => Promise<boolean>;
   linkEvidence: (artifactId: string, fieldId: string) => Promise<void>;
   importPlanDataSnapshot: (file: File) => Promise<void>;
   confirmPlanDataCandidate: (input: {
@@ -307,7 +362,12 @@ export function useWorkbench(): {
       planDataSnapshot: snapshotResult.value,
       planDataSnapshotError: snapshotResult.error,
       saveStatus: "idle",
-      stage: previous.stage === "home" ? "plan" : previous.stage,
+      stage:
+        record.status === "purged"
+          ? "review"
+          : previous.stage === "home"
+            ? "plan"
+            : previous.stage,
     }));
   }, []);
 
@@ -427,6 +487,63 @@ export function useWorkbench(): {
       }
     },
     [loadCase],
+  );
+
+  const purgeCase = useCallback(
+    async (caseId: string, aliasConfirmation: string, reason: string) => {
+      const result = await services.casePurgeService.purgeCase({
+        caseId,
+        aliasConfirmation,
+        reason,
+      });
+      const cases = await services.caseService.listCases();
+      const notice = `Purged ${result.record.alias}: ${purgeCountsSummary(
+        result.counts,
+      )}. The case record and its audit trail were retained.`;
+
+      if (activeCaseIdRef.current === caseId) {
+        activeCaseIdRef.current = null;
+        try {
+          localStorage.removeItem(ACTIVE_CASE_KEY);
+        } catch {
+          // Ignore: the purge is already committed.
+        }
+        setState((previous) => ({
+          ...previous,
+          cases,
+          activeCase: null,
+          planFacts: {},
+          artifacts: [],
+          observations: [],
+          evidenceIntegrity: {},
+          links: [],
+          auditEvents: [],
+          decisions: [],
+          population: [],
+          populationImports: [],
+          planDataSnapshot: null,
+          planDataSnapshotError: null,
+          lastRun: null,
+          lastEprdRun: null,
+          lastAggregateRun: null,
+          lastAddInRun: null,
+          calculationRuns: [],
+          stage: "home",
+          saveStatus: "idle",
+          error: null,
+          notice,
+        }));
+        return;
+      }
+
+      setState((previous) => ({
+        ...previous,
+        cases,
+        error: null,
+        notice,
+      }));
+    },
+    [],
   );
 
   const closeCase = useCallback(() => {
@@ -804,6 +921,40 @@ export function useWorkbench(): {
     }
   }, []);
 
+  const transcribePassage = useCallback(
+    async (artifactId: string, page: number, text: string) => {
+      const caseId = activeCaseIdRef.current;
+      if (!caseId) return { status: "error" as const, message: "No case is open." };
+      try {
+        const { observation } =
+          await services.transcriptionService.recordPassage({
+            caseId,
+            artifactId,
+            page,
+            text,
+          });
+        const [observations, auditEvents] = await Promise.all([
+          services.extractionService.listObservations(caseId),
+          services.caseService.getAuditEvents(caseId),
+        ]);
+        const message = `Recorded a reviewer transcription of ${observation.text.length.toLocaleString()} characters at page ${page}. It is your typing, not text the app read; cite it for a field when it supports that value.`;
+        setState((previous) => ({
+          ...previous,
+          observations,
+          auditEvents,
+          error: null,
+          notice: message,
+        }));
+        return { status: "recorded" as const, message };
+      } catch (error) {
+        const message = messageOf(error);
+        setState((previous) => ({ ...previous, error: message }));
+        return { status: "error" as const, message };
+      }
+    },
+    [],
+  );
+
   const citeObservation = useCallback(
     async (observationId: string, fieldId: string) => {
       const caseId = activeCaseIdRef.current;
@@ -989,6 +1140,116 @@ export function useWorkbench(): {
       setState((previous) => ({ ...previous, error: messageOf(error) }));
     }
   }, []);
+
+  const inspectCensusWorkbook = useCallback(
+    async (
+      file: File,
+      sheetName?: string,
+    ): Promise<CensusWorkbookInspection | null> => {
+      setState((previous) => ({ ...previous, error: null, notice: null }));
+      try {
+        services.evidenceService.assertFileCanBeRead(file.name, file.size);
+        const bytes = await file.arrayBuffer();
+        const read = services.workbookReader.readGrid({
+          bytes,
+          ...(sheetName ? { sheetName } : {}),
+        });
+        if (read.status !== "ok") throw new Error(read.message);
+        const headerRowNumber = suggestHeaderRow(read.grid) ?? 1;
+        const headers = headerLabels(read.grid, headerRowNumber);
+        return {
+          file,
+          sheetNames: read.sheetNames,
+          sheetName: read.grid.sheetName,
+          grid: read.grid,
+          headerRowNumber,
+          headers,
+          mapping: suggestColumnMapping(headers),
+        };
+      } catch (error) {
+        setState((previous) => ({ ...previous, error: messageOf(error) }));
+        return null;
+      }
+    },
+    [],
+  );
+
+  const importCensusWorkbook = useCallback(
+    async (args: {
+      inspection: CensusWorkbookInspection;
+      headerRowNumber: number;
+      mapping: CensusColumnMapping;
+    }): Promise<boolean> => {
+      const caseId = activeCaseIdRef.current;
+      if (!caseId) return false;
+      setState((previous) => ({ ...previous, error: null, notice: null }));
+      try {
+        const problems = mappingProblems(args.mapping);
+        if (problems.length > 0) throw new Error(problems.join(" "));
+        const normalized = normalizeWorkbookCensus({
+          grid: args.inspection.grid,
+          headerRowNumber: args.headerRowNumber,
+          mapping: args.mapping,
+        });
+        if (normalized.status === "refused") {
+          throw new PopulationImportError(normalized.issues);
+        }
+
+        const file = args.inspection.file;
+        services.evidenceService.assertFileCanBeRead(file.name, file.size);
+        const bytes = await file.arrayBuffer();
+        // The workbook itself is the evidence of record; the mapping lives in
+        // the audit event and each record names the sheet and row it came from.
+        const evidence = await services.evidenceService.importFile(caseId, {
+          fileName: file.name,
+          mediaType: file.type || XLSX_MEDIA_TYPE,
+          bytes,
+        });
+        const outcome = await services.populationService.importWorkbook({
+          caseId,
+          artifactId: evidence.artifact.artifactId,
+          sha256: evidence.artifact.sha256,
+          text: normalized.csvText,
+          sheetName: args.inspection.sheetName,
+          headerRowNumber: args.headerRowNumber,
+          mapping: args.mapping,
+        });
+        const [population, artifacts, auditEvents] = await Promise.all([
+          services.populationService.list(caseId),
+          services.evidenceService.listArtifacts(caseId),
+          services.caseService.getAuditEvents(caseId),
+        ]);
+        const supersededFile = outcome.superseded
+          ? artifacts.find(
+              (artifact) => artifact.artifactId === outcome.superseded?.artifactId,
+            )?.fileName
+          : undefined;
+        const importedRecords = `${outcome.imported} participant record${
+          outcome.imported === 1 ? "" : "s"
+        }`;
+        setState((previous) => ({
+          ...previous,
+          population,
+          populationImports: groupPopulationImports(population),
+          artifacts,
+          auditEvents,
+          error: null,
+          notice: outcome.superseded
+            ? `Imported ${importedRecords} from sheet “${args.inspection.sheetName}” of ${file.name}. This import supersedes ${
+                supersededFile ? `“${supersededFile}”` : "the earlier census"
+              } (${outcome.superseded.recordCount} row${
+                outcome.superseded.recordCount === 1 ? "" : "s"
+              }), which stays stored and exported but is no longer counted.`
+            : `Imported ${importedRecords} from sheet “${args.inspection.sheetName}” of ${file.name}.`,
+        }));
+        return true;
+      } catch (error) {
+        setState((previous) => ({ ...previous, error: messageOf(error) }));
+        return false;
+      }
+    },
+    [],
+  );
 
   const runAge = useCallback(async (dateOfBirth: string, asOfDate: string) => {
     const caseId = activeCaseIdRef.current;
@@ -1334,6 +1595,7 @@ export function useWorkbench(): {
       createPrototypeTestCase,
       openCase,
       closeCase,
+      purgeCase,
       savePlanFields,
       importFiles,
       classifyArtifact,
@@ -1343,11 +1605,14 @@ export function useWorkbench(): {
       reattachArtifactBytes,
       downloadStoredCopy,
       readArtifactText,
+      transcribePassage,
       citeObservation,
       retractCitation,
       verifyArtifactIntegrity,
       verifyAllEvidenceIntegrity,
       importPopulation,
+      inspectCensusWorkbook,
+      importCensusWorkbook,
       linkEvidence,
       importPlanDataSnapshot,
       confirmPlanDataCandidate,

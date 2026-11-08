@@ -30,12 +30,17 @@ export type PopulationStatus =
   | "nonvested"
   | "not-in-population";
 
-/** Where one record came from: the artifact, its hash, and the CSV row. */
+/** Where one record came from: the artifact, its hash, and the source row. */
 export type PopulationSource = {
   artifactId: string;
   sha256: string;
   rowNumber: number;
   importedAt: string;
+  /**
+   * Worksheet the row came from, when the census was a mapped workbook. Absent
+   * for a CSV import, where the row number alone identifies the source line.
+   */
+  sheetName?: string;
 };
 
 /** A normalized participant record for one case. Synthetic values only. */

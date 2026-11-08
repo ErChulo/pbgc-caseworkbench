@@ -2,19 +2,23 @@
  * IndexedDB implementation of the ObservationStore port.
  *
  * One object store keyed by observation id, indexed by case and artifact.
- * Replacement deletes the artifact's previous observations and writes the new
+ * Replacement deletes the artifact's previous readings and writes the new
  * batch in a single transaction, so a reader never sees half a re-extraction.
- * A per-case monotonic sequence is stamped here, exactly as fact, audit, and
- * calculation sequences are.
+ * Reviewer transcriptions are not readings: replacement leaves them alone, and
+ * they are added through `appendObservation`. A per-case monotonic sequence is
+ * stamped here, exactly as fact, audit, and calculation sequences are.
  */
 
 import type { ObservationStore } from "../../domain/ports/ObservationStore";
 import type { Observation } from "../../domain/evidence/observations";
-import { observationProblems } from "../../domain/evidence/observations";
+import {
+  isTranscription,
+  observationProblems,
+} from "../../domain/evidence/observations";
 import { generateId } from "../../domain/case/validation";
 import { DB_NAME, openCaseworkbenchDb, STORE_OBSERVATIONS } from "./db";
 
-function assertUsable(
+function assertReadings(
   caseId: string,
   artifactId: string,
   observations: readonly Observation[],
@@ -33,10 +37,25 @@ function assertUsable(
         "An observation names a different evidence file than the one it is being stored for.",
       );
     }
+    if (isTranscription(observation)) {
+      throw new Error(
+        "A reviewer transcription cannot be stored as a reading. Append it instead.",
+      );
+    }
     const problems = observationProblems(observation);
     if (problems.length > 0) {
       throw new Error(`Invalid observation: ${problems.join(" ")}`);
     }
+  }
+}
+
+function assertAppendable(observation: Observation): void {
+  const problems = observationProblems(observation);
+  if (problems.length > 0) {
+    throw new Error(`Invalid observation: ${problems.join(" ")}`);
+  }
+  if (typeof observation.observationId !== "string" || observation.observationId === "") {
+    throw new Error("An appended observation needs an id.");
   }
 }
 
@@ -52,7 +71,7 @@ export class IndexedDBObservationStore implements ObservationStore {
     artifactId: string,
     observations: readonly Observation[],
   ): Promise<Observation[]> {
-    assertUsable(caseId, artifactId, observations);
+    assertReadings(caseId, artifactId, observations);
     const db = await this.getDB();
 
     return new Promise((resolve, reject) => {
@@ -67,9 +86,13 @@ export class IndexedDBObservationStore implements ObservationStore {
         nextSequence =
           existing.reduce((max, record) => Math.max(max, record.sequence ?? 0), 0) + 1;
 
-        const artifactRequest = store.index("artifactId").getAllKeys(artifactId);
+        const artifactRequest = store.index("artifactId").getAll(artifactId);
         artifactRequest.onsuccess = () => {
-          for (const key of artifactRequest.result) store.delete(key);
+          for (const record of artifactRequest.result as Observation[]) {
+            // A transcription was not produced by this read, so this read
+            // cannot replace it.
+            if (!isTranscription(record)) store.delete(record.observationId);
+          }
           for (const observation of observations) {
             const record: Observation = {
               ...observation,
@@ -92,6 +115,48 @@ export class IndexedDBObservationStore implements ObservationStore {
       tx.onabort = () =>
         reject(new Error("Local storage aborted while writing observations."));
       tx.oncomplete = () => resolve(stamped.map((record) => ({ ...record })));
+    });
+  }
+
+  async appendObservation(observation: Observation): Promise<Observation> {
+    assertAppendable(observation);
+    const db = await this.getDB();
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_OBSERVATIONS, "readwrite");
+      const store = tx.objectStore(STORE_OBSERVATIONS);
+      let stored: Observation | null = null;
+
+      const duplicate = store.get(observation.observationId);
+      duplicate.onsuccess = () => {
+        if (duplicate.result) {
+          reject(
+            new Error(
+              `Observation already exists: ${observation.observationId}. Nothing was written.`,
+            ),
+          );
+          tx.abort();
+          return;
+        }
+        const caseRequest = store.index("caseId").getAll(observation.caseId);
+        caseRequest.onsuccess = () => {
+          const existing = (caseRequest.result as Observation[]) ?? [];
+          const nextSequence =
+            existing.reduce((max, record) => Math.max(max, record.sequence ?? 0), 0) + 1;
+          stored = { ...observation, sequence: nextSequence };
+          store.put(stored);
+        };
+        caseRequest.onerror = () =>
+          reject(caseRequest.error ?? new Error("Failed to read observations."));
+      };
+      duplicate.onerror = () =>
+        reject(duplicate.error ?? new Error("Failed to read observations."));
+
+      tx.onabort = () =>
+        reject(new Error("Local storage aborted while writing the observation."));
+      tx.oncomplete = () => {
+        if (stored) resolve({ ...stored });
+      };
     });
   }
 

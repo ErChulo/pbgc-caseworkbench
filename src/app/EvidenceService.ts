@@ -79,6 +79,15 @@ export class EvidenceService {
    * twice; the existing artifact is returned so the UI can say so plainly.
    */
   async importFile(caseId: string, file: ImportableFile): Promise<ImportResult> {
+    const caseRecord = await this.cases.getCase(caseId);
+    if (!caseRecord) throw new Error(`Case not found: ${caseId}`);
+    // A purge removes the case's evidence; a stale import must not put new
+    // bytes back into a case that is now a retained record and audit trail.
+    if (caseRecord.status === "purged") {
+      throw new Error(
+        `Case ${caseRecord.alias} was purged. Its content cannot be changed; only its retained audit trail is available.`,
+      );
+    }
     this.assertFileCanBeRead(file.fileName, file.bytes.byteLength);
 
     const sha256 = await sha256Hex(file.bytes);
@@ -356,7 +365,7 @@ export class EvidenceService {
   }
 
   /**
-   * Cite one extracted passage for a field. The link carries the passage id and
+   * Cite one stored passage for a field. The link carries the passage id and
    * its own locator and excerpt hash; nothing is copied and no fact is written
    * here. Re-recording the field's reviewed value is the caller's transaction.
    */
@@ -366,7 +375,7 @@ export class EvidenceService {
     fieldId: string;
   }): Promise<EvidenceLink> {
     if (args.observation.caseId !== args.caseId) {
-      throw new Error("That extracted passage belongs to a different case.");
+      throw new Error("That stored passage belongs to a different case.");
     }
     await this.requireLinkableArtifact(args.caseId, args.observation.artifactId);
     return this.recordEvidenceLink({

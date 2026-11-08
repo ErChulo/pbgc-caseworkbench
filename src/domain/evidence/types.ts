@@ -151,7 +151,7 @@ export type EvidenceLink = {
   createdAt: string;
   note?: string;
   /**
-   * The extracted passage this link cites, when the reviewer cited text rather
+   * The stored passage this link cites, when the reviewer cited text rather
    * than the file as a whole. The locator and its excerpt hash must then match
    * that observation; the text itself is never copied onto the link or fact.
    */

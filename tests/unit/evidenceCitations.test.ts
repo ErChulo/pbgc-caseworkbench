@@ -232,7 +232,7 @@ describe("observation citations", () => {
 
     expect(
       citationProblems({ ...link, observationId: "observation-9" }, observation),
-    ).toContain("The citation names a different extracted passage.");
+    ).toContain("The citation names a different stored passage.");
 
     expect(
       citationProblems({ ...link, artifactId: "artifact-9" }, observation),
@@ -747,7 +747,7 @@ describe("observation citations", () => {
         linkId: link.linkId,
         reason: "Not a passage.",
       }),
-    ).rejects.toThrow("Only a citation of an extracted passage");
+    ).rejects.toThrow("Only a citation of a stored passage");
   });
 
   it("refuses to retract a link that is not stored in the case", async () => {

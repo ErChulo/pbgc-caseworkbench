@@ -56,10 +56,14 @@ still outstanding.
 >    the Current Plan.
 > 3. PBGC's factors as specified in this section and Section H ... will be used to
 >    make any needed actuarial adjustments to the Prior Plan's Benefit Payable from
->    PBGC Funds.
-> 4. As an intermediate step, PBGC will, without regard to the Aggregate Limit,
+>    PBGC Funds.> 4. As an intermediate step, PBGC will, without regard to the Aggregate Limit,
 >    calculate guaranteed benefits for all payees, allocate plan assets according to
->    ERISA § 4044, and determine unfunded guaranteed benefits in the Current Plan."
+>    ERISA § 4044, and determine unfunded guaranteed benefits in the Current Plan.
+
+Appendix D was removed from Part 4022 by 74 FR 62697 (December 1, 2009). The
+guidance's reference to it is historical; the current formula is recorded under
+*Current authority* below.
+"
 
 > "PBGC will determine whether a Payee is affected by the Aggregate Limit by first
 > calculating the Payee's 'benefit from the Current Plan that is subject to the
@@ -134,6 +138,26 @@ The aggregate-limit workbook in the corpus (`PBGC_AggregateLimit_Workbook_v8.xls
 SHA-256 `b2c9a7fca2f73cc332e299126af3ea9b4f89b7005e99fc9cb515c6cb9bcb74e9`)
 implements the same arithmetic and was used only to confirm the formula order.
 
+## Current authority for the maximum guaranteeable benefit
+
+The guidance above refers to Appendix D to Part 4022, but that appendix was removed
+from the regulation by 74 FR 62697 (December 1, 2009). It is a historical list, not
+current authority. The amount is determined by the formula in ERISA §4022(b)(3)(B)
+and 29 CFR §4022.22(a)(2):
+
+> $750 multiplied by x/$13,200, where “x” is the Social Security contribution and
+> benefit base determined under section 230 of the Social Security Act in effect at
+> the termination date of the plan.
+
+The formula produces a monthly life annuity commencing at age 65. PBGC's published
+annual maximum table is a derived convenience and a useful regression check, not an
+independent source of the rule. The §4022.23(c)–(f) age and annuity-form factors
+are public and apply to that amount. The five-year phase-in of benefit increases is
+29 CFR §4022.25, not §4022.22(b)–(d): §4022.22(b) is the PPA 2006
+bankruptcy-termination rule. These authorities were checked against the eCFR on
+2026-11-07. The Social Security contribution and benefit base must still be recorded
+by termination year before the formula can run.
+
 ## What is implemented, and what is not
 
 Implemented (`pbgc:aggregate-limit`):
@@ -148,18 +172,19 @@ Implemented (`pbgc:aggregate-limit`):
 Not implemented, and why no number is produced:
 
 1. **Maximum guaranteeable benefit (`pbgc:maximum-guaranteeable-benefit`).**
-   Appendix D to Part 4022 and the §4022.23 age/form adjustment factors are not in
-   the corpus. The table is also updated annually, and the guidance's own examples
-   use 1997–2001 values. The amount is therefore a required input with a recorded
-   basis, not a lookup.
-2. **Phase-in of the guarantee.** 29 CFR §4022.22(b)–(d) phase-in factors and the
-   §4022.23 form/age factors are absent from the corpus. The input must already
-   reflect them; the workbench cannot verify it.
-3. **§4044 funding percentages and §4022(c) allocation.** Needed for the
-   termination benefit after the limit, blocked by
-   `pbgc:benefit-tiers-priority-categories`.
-4. **Prior-plan normalization.** §4022.8(c)(7) factors are absent; prior-plan
-   amounts are supplied already normalized to the current form.
+   The authority is identified above, but the §4022.22(a)(2) formula, its
+   termination-year Social Security base, and the §4022.23 age/form factors are not
+   yet transcribed or tested here. The amount remains a required input with a
+   recorded basis. The PBGC annual table is not used as a lookup.
+2. **Phase-in of benefit increases.** 29 CFR §4022.25 is not modeled. The input
+   must already reflect any phase-in; the workbench cannot verify it.
+3. **§4044 funding percentages and §4022(c) allocation.** Public authorities
+   (ERISA §4044 and 29 CFR Part 4044; ERISA §4022(c) and 29 CFR §4022.51) are
+   identified but not transcribed. Needed for the termination benefit after the
+   limit, blocked by `pbgc:benefit-tiers-priority-categories`.
+4. **Prior-plan normalization.** §4022.8(c)(7) conversion factors (1983 GAM unisex
+   mortality and 6% interest) are recorded but not applied; prior-plan amounts are
+   supplied already normalized to the current form.
 5. **Trusteeship-date ordering and de minimis lump-sum exclusion.** Not modeled;
    the caller decides the current/prior split and excludes de minimis lump sums.
 
@@ -173,3 +198,7 @@ Not implemented, and why no number is produced:
   for pre-2002 determinations rather than the current single-participant input
   model.
 - Confirm the current edition (08/29/2024) has not been superseded.
+- Record the Social Security contribution and benefit base for each termination year
+  in scope, with its source and effective date, before implementing the formula.
+- Compare the computed §4022.22(a)(2) amount with the PBGC annual table for the same
+  years as a regression check.

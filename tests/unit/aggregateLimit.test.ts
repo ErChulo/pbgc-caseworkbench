@@ -24,7 +24,7 @@ const example = {
   maximumGuaranteeableBenefit: {
     monthlyAmount: 3035.88,
     determinationDate: "2001-04-05",
-    basis: "2001 maximum guarantee table, age 62, straight life annuity",
+    basis: "2001 guarantee year, age 62, straight life annuity",
     provenanceIds: ["artifact-0001"],
   },
 };
@@ -216,11 +216,11 @@ describe("aggregate limit", () => {
     ).toThrow(/not a valid ISO 8601 date/);
   });
 
-  it("warns that the guarantee table is an input and that prior plans are not converted", () => {
+  it("warns that the guarantee formula is an input and that prior plans are not converted", () => {
     const result = computeAggregateLimit(example);
     const warnings = result.warnings.join(" ");
 
-    expect(warnings).toMatch(/Appendix D/);
+    expect(warnings).toMatch(/4022\.22/);
     expect(warnings).toMatch(/normalized to the current plan's annuity form/);
     expect(result.inputs.map((input) => input.id)).toContain(
       "maximum-guaranteeable-benefit",

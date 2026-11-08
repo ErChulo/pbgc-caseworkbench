@@ -18,7 +18,10 @@ import type { DocumentExtractor } from "../domain/ports/DocumentExtractor";
 import type { ObservationStore } from "../domain/ports/ObservationStore";
 import { isArtifactBytesPurged, type SourceArtifact } from "../domain/evidence/types";
 import type { Observation } from "../domain/evidence/observations";
-import { observationsForArtifact } from "../domain/evidence/observations";
+import {
+  isTranscription,
+  observationsForArtifact,
+} from "../domain/evidence/observations";
 import {
   citedPassagesAtRisk,
   reusableObservationIds,
@@ -138,11 +141,13 @@ export class ExtractionService {
 
     // A citation names a passage, not a read. Re-reading the same text at the
     // same coordinate keeps the observation id so the link still resolves; a
-    // new or changed passage needs a new id.
+    // new or changed passage needs a new id. Reviewer transcriptions are not
+    // produced by this read and are never replaced by it, so they are excluded
+    // from both the id reuse and the at-risk check.
     const previous = observationsForArtifact(
       await this.observations.listObservations(args.caseId),
       artifact.artifactId,
-    );
+    ).filter((observation) => !isTranscription(observation));
     const reusedIds = reusableObservationIds(previous, fingerprints);
     const preservedIds = new Set(
       reusedIds.filter((id): id is string => id !== null),

@@ -184,7 +184,7 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   // Population: import participant records, see the age, keep benefits blocked.
   await openStage(page, /Plan & people/);
   await page.getByRole("button", { name: "People", exact: true }).click();
-  await page.getByLabel("Choose participant CSV to import").setInputFiles({
+  await page.getByLabel("Choose participant CSV or Excel census to import").setInputFiles({
     name: "synthetic-participants.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(
@@ -302,8 +302,8 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   await page.getByLabel("Maximum guaranteeable benefit (monthly)").fill("3035.88");
   await page.getByLabel("Guarantee determination date").fill("2001-04-05");
   await page
-    .getByLabel("Guarantee basis (table year, age, annuity form)")
-    .fill("2001 table, age 62, straight life annuity");
+    .getByLabel("Guarantee basis (guarantee year, age, annuity form)")
+    .fill("2001 guarantee year, age 62, straight life annuity");
   await page.getByLabel("Prior plan 1 identifier").fill("Plan ABC");
   await page.getByLabel("Prior plan 1 DOPT").fill("1997-06-16");
   await page
@@ -311,7 +311,7 @@ test("completes the plan-field slice end to end", async ({ page }) => {
     .fill("1269.27");
   await page.getByRole("button", { name: "Run aggregate limit calculation" }).click();
   await expect(page.locator("#aggregate-input .result-value")).toHaveText("1766.61");
-  await expect(page.getByText(/Appendix D/).first()).toBeVisible();
+  await expect(page.getByText(/4022\.22/).first()).toBeVisible();
 
   // BCV add-in: a documented example runs with its page citation and rule.
   await page.getByLabel("BCV function").selectOption("ANB");
@@ -367,7 +367,7 @@ test("completes the plan-field slice end to end", async ({ page }) => {
   // register counts only the authoritative rows and the history keeps both.
   await openStage(page, /Plan & people/);
   await page.getByRole("button", { name: "People", exact: true }).click();
-  await page.getByLabel("Choose participant CSV to import").setInputFiles({
+  await page.getByLabel("Choose participant CSV or Excel census to import").setInputFiles({
     name: "synthetic-participants-revised.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(
@@ -925,12 +925,14 @@ test("reads a stored PDF's text layer and keeps it as observations", async ({ pa
 
   await page.getByRole("button", { name: "Read text" }).click();
   const panel = page.locator(".extracted-text");
-  await expect(panel.getByText("Text observed", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Text available", { exact: true })).toBeVisible();
   await expect(panel.getByText("Page 1", { exact: true })).toBeVisible();
   await expect(panel.getByText("Synthetic plan page one")).toBeVisible();
   await expect(panel.getByText("Page 2", { exact: true })).toBeVisible();
   await expect(panel.getByText("Synthetic page two")).toBeVisible();
-  await expect(panel.getByText(/Observed text, not a case fact/)).toBeVisible();
+  await expect(
+    panel.getByText(/Text the app read comes from the file's own page/),
+  ).toBeVisible();
 
   // Cite page one for the saved plan name and page two for the case number.
   // Neither value is copied or changed; each field gains a source pointer.
@@ -940,7 +942,9 @@ test("reads a stored PDF's text layer and keeps it as observations", async ({ pa
   await panel.getByRole("button", { name: "Cite Page 1" }).click();
   await expect(page.getByText(/The passage is cited for that field/)).toBeVisible();
   await expect(panel.getByText("Cited for Plan Name of Customer Plan")).toBeVisible();
-  await expect(panel.getByText(/Observed text, not a case fact/)).toBeVisible();
+  await expect(
+    panel.getByText(/Text the app read comes from the file's own page/),
+  ).toBeVisible();
 
   await panel
     .getByLabel("Cite a passage for")
@@ -979,7 +983,7 @@ test("reads a stored PDF's text layer and keeps it as observations", async ({ pa
     .locator(".artifact-card")
     .filter({ hasText: "synthetic-plan.pdf" });
   await expect(
-    pdfCard.locator(".extracted-text").getByText("Text observed", { exact: true }),
+    pdfCard.locator(".extracted-text").getByText("Text available", { exact: true }),
   ).toBeVisible();
   await expect(
     pdfCard.locator(".extracted-text").getByText("Synthetic plan page one"),
@@ -1087,7 +1091,7 @@ test("reads a stored PDF's text layer and keeps it as observations", async ({ pa
   // supported by evidence.
   await openStage(page, /Reconciliation/);
   await expect(
-    page.getByText(/No reviewed value cites an extracted passage/),
+    page.getByText(/No reviewed value cites a stored passage/),
   ).toBeVisible();
 
   // The retraction is a stored record, not a transient view.
@@ -1145,7 +1149,7 @@ test("reads a stored PDF's text layer and keeps it as observations", async ({ pa
 
   await openStage(page, /Reconciliation/);
   await expect(
-    page.getByText(/No reviewed value cites an extracted passage/),
+    page.getByText(/No reviewed value cites a stored passage/),
   ).toBeVisible();
 
   await openStage(page, /Plan & people/);

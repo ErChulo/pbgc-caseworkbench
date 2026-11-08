@@ -14,11 +14,12 @@
  *    under § 4022.22 without regard to § 4022.22(a) ..."
  *
  * Only the arithmetic of section F is implemented. The Maximum Guaranteeable
- * Benefit itself is an input with a recorded basis, never computed here: its
- * table (Appendix D to Part 4022) and the § 4022.23 age/form adjustment factors
- * are not transcribed in the corpus, so looking them up would require inventing
- * them. Section F's § 4044 funding percentages and § 4022(c) allocation are also
- * outside this rule; the result stops at the guaranteed and Title IV amounts.
+ * Benefit itself is an input with a recorded basis, never computed here: the
+ * §4022.22(a)(2) formula, its termination-year Social Security base, and the
+ * §4022.23 age/form factors are not implemented, so looking the amount up would
+ * require inventing it. Section F's §4044 funding percentages and §4022(c)
+ * allocation are also outside this rule; the result stops at the guaranteed and
+ * Title IV amounts.
  *
  * Pure domain: no React, storage, or parser imports.
  */
@@ -30,7 +31,7 @@ import { toCalendarDate } from "../shared/calendar";
 /** Stable rule identifier, matching the rule registry. */
 export const AGGREGATE_LIMIT_RULE_ID = "pbgc:aggregate-limit";
 
-/** The guarantee table the aggregate limit depends on, still unresolved. */
+/** The guarantee formula the aggregate limit depends on, still unresolved. */
 export const MAXIMUM_GUARANTEE_RULE_ID = "pbgc:maximum-guaranteeable-benefit";
 
 /** A plan whose benefit is being tested, in the current plan's annuity form. */
@@ -62,7 +63,7 @@ export type MaximumGuaranteeInput = {
   monthlyAmount: number;
   /** Date the amount was determined: latest of the plans' DOPTs. */
   determinationDate: string;
-  /** Why this amount applies, e.g. the table year and age it came from. */
+  /** Why this amount applies, e.g. the guarantee year and age it came from. */
   basis: string;
   provenanceIds?: string[];
 };
@@ -229,7 +230,7 @@ export function computeAggregateLimit(input: {
   if (basis === "") {
     throw new DomainError(
       "MISSING_BASIS",
-      "Cannot apply the Aggregate Limit: the maximum guaranteeable benefit has no recorded basis (table year, age, and annuity form).",
+      "Cannot apply the Aggregate Limit: the maximum guaranteeable benefit has no recorded basis (guarantee year, age, and annuity form).",
     );
   }
 
@@ -264,7 +265,7 @@ export function computeAggregateLimit(input: {
   const limitedByAggregateLimit = subjectAmount > remainingAggregateLimit;
 
   const warnings: string[] = [
-    "The maximum guaranteeable benefit is a provenanced input. The Appendix D guarantee table and the § 4022.23 age/form adjustment factors are not implemented, so this run does not look the amount up or adjust it.",
+    "The maximum guaranteeable benefit is a provenanced input. The §4022.22(a)(2) formula, its termination-year Social Security base, and the §4022.23 age/form factors are not implemented, so this run does not look the amount up or adjust it.",
   ];
   if (priorPlans.length > 0) {
     warnings.push(
@@ -278,7 +279,7 @@ export function computeAggregateLimit(input: {
   }
   if (guaranteeProvenance.length === 0) {
     warnings.push(
-      "No evidence is linked to the maximum guaranteeable benefit. Record the table year, age, form, and source before relying on this run.",
+      "No evidence is linked to the maximum guaranteeable benefit. Record the guarantee year, age, form, and source before relying on this run.",
     );
   }
   if (provenanceIds.length === 0) {

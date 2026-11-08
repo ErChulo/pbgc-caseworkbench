@@ -226,7 +226,7 @@ export function ReconciliationStage({ state, actions, fields }: Props) {
       label: "Cited passages resolve to stored text",
       detail:
         citationAudit.total === 0
-          ? "No reviewed value cites an extracted passage. Provenance rests on file-level links or reviewer entry."
+          ? "No reviewed value cites a stored passage. Provenance rests on file-level links or reviewer entry."
           : citationAudit.problems.length === 0
             ? `${citationAudit.total} cited passage${
                 citationAudit.total === 1 ? " resolves" : "s resolve"

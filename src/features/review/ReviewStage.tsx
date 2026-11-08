@@ -69,6 +69,7 @@ export function ReviewStage({ state, actions }: Props) {
     ? (state.artifacts.find((artifact) => artifact.artifactId === auditFilter.artifactId) ??
       null)
     : null;
+  const purged = state.activeCase?.status === "purged";
 
   async function handleImport(file: File | undefined) {
     if (!file) return;
@@ -87,14 +88,23 @@ export function ReviewStage({ state, actions }: Props) {
         id="bundle-export"
         eyebrow="Stage 9 · Review & export"
         title="Case bundle"
-        description="One JSON file containing the case record, every plan fact, the full audit trail, and the original evidence bytes with a SHA-256 manifest for each part."
+        description={
+          purged
+            ? "This case was purged. Its content is gone and only the retained audit trail remains; no bundle can be exported."
+            : "One JSON file containing the case record, every plan fact, the full audit trail, and the original evidence bytes with a SHA-256 manifest for each part."
+        }
         aside={<StatusPill tone="info">{state.auditEvents.length} audit events</StatusPill>}
       >
         <div className="button-row">
           <button
             className="primary"
             type="button"
-            disabled={busy}
+            disabled={busy || purged}
+            title={
+              purged
+                ? "A purged case has no content to export. Its audit trail is retained on this workstation."
+                : undefined
+            }
             onClick={() => {
               setBusy(true);
               void actions.exportBundle().finally(() => setBusy(false));
@@ -120,14 +130,26 @@ export function ReviewStage({ state, actions }: Props) {
           />
         </div>
 
-        <div className="warning-block" role="note">
-          <strong>This file contains case data</strong>
-          <p>
-            A bundle is readable JSON and may contain participant-level
-            information you entered plus the raw evidence files. Store it where
-            your office policy allows, and never commit it to a repository.
-          </p>
-        </div>
+        {purged ? (
+          <div className="warning-block" role="note">
+            <strong>This case was purged</strong>
+            <p>
+              Its evidence, extracted and transcribed text, census records, plan facts,
+              reviewer decisions, and calculation runs were deleted. The audit
+              trail below is retained. Restore a bundle to create a new active
+              case.
+            </p>
+          </div>
+        ) : (
+          <div className="warning-block" role="note">
+            <strong>This file contains case data</strong>
+            <p>
+              A bundle is readable JSON and may contain participant-level
+              information you entered plus the raw evidence files. Store it where
+              your office policy allows, and never commit it to a repository.
+            </p>
+          </div>
+        )}
       </Panel>
 
       <Panel

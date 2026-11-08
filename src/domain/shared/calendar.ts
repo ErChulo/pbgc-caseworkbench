@@ -181,6 +181,39 @@ export function toEpochDay(date: CalendarDate): number {
   return era * 146097 + dayOfEra - 719468;
 }
 
+/**
+ * Inverse of `toEpochDay`: the calendar date `days` days from 1970-01-01, using
+ * integer arithmetic only (Howard Hinnant's civil-from-days). Throws
+ * RangeError when the result falls outside the supported year window.
+ */
+export function fromEpochDay(days: number): CalendarDate {
+  if (!Number.isSafeInteger(days)) {
+    throw new RangeError("days must be a safe integer");
+  }
+  const z = days + 719468;
+  const era = Math.floor(z / 146097);
+  const dayOfEra = z - era * 146097;
+  const yearOfEra = Math.floor(
+    (dayOfEra -
+      Math.floor(dayOfEra / 1460) +
+      Math.floor(dayOfEra / 36524) -
+      Math.floor(dayOfEra / 146096)) /
+      365,
+  );
+  const year = yearOfEra + era * 400;
+  const dayOfYear =
+    dayOfEra - (365 * yearOfEra + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100));
+  const monthIndex = Math.floor((5 * dayOfYear + 2) / 153);
+  const day = dayOfYear - Math.floor((153 * monthIndex + 2) / 5) + 1;
+  const month = monthIndex < 10 ? monthIndex + 3 : monthIndex - 9;
+  const result = { year: month <= 2 ? year + 1 : year, month, day };
+  const error = dateError(result.year, result.month, result.day);
+  if (error) {
+    throw new RangeError(`epoch day ${days} is outside the supported calendar: ${error}`);
+  }
+  return result;
+}
+
 /** Signed number of calendar days from `from` to `to` (positive when later). */
 export function daysBetween(from: CalendarDate, to: CalendarDate): number {
   return toEpochDay(to) - toEpochDay(from);

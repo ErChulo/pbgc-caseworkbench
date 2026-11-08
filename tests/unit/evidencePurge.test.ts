@@ -149,6 +149,27 @@ async function retire(
 }
 
 describe("evidence retention (discarding a stored copy)", () => {
+  it("refuses a new import once the case is purged", async () => {
+    const { cases, service, caseId } = await setup();
+    const record = await cases.getCase(caseId);
+    if (!record) throw new Error("The synthetic case was not created.");
+    await cases.updateCase({
+      ...record,
+      status: "purged",
+      purgedAt: "2026-11-08T12:00:00.000Z",
+      purgeReason: "Pilot closeout",
+    });
+
+    await expect(
+      service.importFile(caseId, {
+        fileName: "synthetic-after-purge.txt",
+        mediaType: "text/plain",
+        bytes: bytesOf("Synthetic content that must not be stored.\n"),
+      }),
+    ).rejects.toThrow(/purged/);
+    expect(await service.listArtifacts(caseId)).toHaveLength(1);
+  });
+
   it("discards a retired copy while keeping its identity, record, and audit event", async () => {
     const { service, cases, caseId, artifact } = await setup();
     await retire(service, caseId, artifact.artifactId);

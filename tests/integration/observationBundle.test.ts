@@ -14,6 +14,7 @@ import { InMemoryCaseStore } from "../../src/adapters/storage/InMemoryCaseStore"
 import { InMemoryObservationStore } from "../../src/adapters/storage/InMemoryObservationStore";
 import { sha256Hex, sha256HexOfText } from "../../src/adapters/hashing/sha256";
 import { supportingLinks } from "../../src/domain/evidence/citations";
+import { TRANSCRIPTION_VERSION } from "../../src/domain/evidence/extraction";
 
 const AT = "2026-11-06T10:00:00.000Z";
 
@@ -304,6 +305,52 @@ describe("observation bundles", () => {
     expect(restoredLink?.observationId).not.toBe(observation.observationId);
     expect(restoredLink?.locator?.excerptHash).toBe(restoredObservation?.excerptSha256);
     expect(restoredFact?.provenanceIds).toEqual([restoredLink?.linkId]);
+  });
+
+  it("carries a reviewer transcription and keeps its origin through restore", async () => {
+    const transcription = await observationFor(
+      "Section 3.2(b): Normal retirement age is 65.",
+      {
+        locator: { kind: "page", page: 4 },
+        method: "reviewer-transcription",
+        origin: "reviewer-transcription",
+        extractorVersion: TRANSCRIPTION_VERSION,
+      },
+    );
+    const bundle = await bundleWith([transcription]);
+
+    expect((await verifyCaseBundleManifest(bundle)).status).toBe("pass");
+    expect((await verifyCaseBundleIntegrity(bundle)).status).toBe("pass");
+
+    const cases = new InMemoryCaseStore();
+    const artifacts = new InMemoryArtifactStore();
+    const observations = new InMemoryObservationStore();
+    const restored = await applyCaseBundle(bundle, { cases, artifacts, observations });
+
+    const stored = (await observations.listObservations(restored.caseId))[0];
+    expect(stored?.origin).toBe("reviewer-transcription");
+    expect(stored?.method).toBe("reviewer-transcription");
+    expect(stored?.locator).toEqual({ kind: "page", page: 4 });
+    expect(stored?.extractorVersion).toBe(TRANSCRIPTION_VERSION);
+    expect(stored?.text).toBe("Section 3.2(b): Normal retirement age is 65.");
+  });
+
+  it("refuses a bundle that records a transcription as a reading", async () => {
+    const transcription = await observationFor(
+      "Section 3.2(b): Normal retirement age is 65.",
+      {
+        method: "reviewer-transcription",
+        origin: "extraction",
+        extractorVersion: TRANSCRIPTION_VERSION,
+      },
+    );
+    const bundle = await bundleWith([transcription]);
+
+    const integrity = await verifyCaseBundleIntegrity(bundle);
+    expect(integrity.status).toBe("fail");
+    expect(integrity.detail).toContain(
+      "A transcription method is only valid for a reviewer transcription.",
+    );
   });
 
   it("refuses a citation whose passage is not in the bundle", async () => {

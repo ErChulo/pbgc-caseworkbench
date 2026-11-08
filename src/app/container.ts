@@ -6,6 +6,7 @@
  * make effect dependencies unstable; both were real defects in the first slice.
  */
 
+import { IndexedDBCasePurgeStore } from "../adapters/storage/IndexedDBCasePurgeStore";
 import { IndexedDBCaseStore } from "../adapters/storage/IndexedDBCaseStore";
 import { IndexedDBEvidenceStore } from "../adapters/storage/IndexedDBEvidenceStore";
 import { IndexedDBObservationStore } from "../adapters/storage/IndexedDBObservationStore";
@@ -13,17 +14,21 @@ import { IndexedDBPopulationStore } from "../adapters/storage/IndexedDBPopulatio
 import { docxTextExtractor } from "../adapters/docx/readText";
 import { pdfTextLayerExtractor } from "../adapters/pdf/textLayer";
 import { xlsxTextExtractor } from "../adapters/xlsx/readText";
+import { readWorkbookGrid } from "../adapters/xlsx/workbookGrid";
 import { SyntheticPlanDataRepository } from "../adapters/plan-data/SyntheticPlanDataRepository";
 import { CalculationService } from "./CalculationService";
+import { CasePurgeService } from "./CasePurgeService";
 import { CaseService } from "./CaseService";
 import { EvidenceCitationService } from "./EvidenceCitationService";
 import { EvidenceService } from "./EvidenceService";
 import { ExtractionService } from "./ExtractionService";
 import { PlanDataMappingService } from "./PlanDataMappingService";
 import { PopulationService } from "./PopulationService";
+import { TranscriptionService } from "./TranscriptionService";
 import { catalog } from "./catalog";
 
 const caseStore = new IndexedDBCaseStore();
+const casePurgeStore = new IndexedDBCasePurgeStore();
 const artifactStore = new IndexedDBEvidenceStore();
 const observationStore = new IndexedDBObservationStore();
 const populationStore = new IndexedDBPopulationStore();
@@ -40,6 +45,7 @@ export const services = {
   caseStore,
   artifactStore,
   caseService,
+  casePurgeService: new CasePurgeService(caseStore, casePurgeStore),
   evidenceService,
   evidenceCitationService: new EvidenceCitationService(
     observationStore,
@@ -49,9 +55,15 @@ export const services = {
   ),
   observationStore,
   extractionService,
+  transcriptionService: new TranscriptionService(
+    artifactStore,
+    observationStore,
+    caseStore,
+  ),
   calculationService: new CalculationService(caseStore),
   populationStore,
   populationService: new PopulationService(populationStore, caseStore),
+  workbookReader: { readGrid: readWorkbookGrid },
   planDataMappingService: new PlanDataMappingService(
     artifactStore,
     caseService,

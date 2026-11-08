@@ -34,10 +34,12 @@ reviewer can see whether the cap actually bound.
 
 ## Deliberately outside this slice
 
-- **Maximum Guaranteeable Benefit lookup.** Appendix D to Part 4022 and the
-  §4022.23 age/form adjustment factors are not in the corpus. The amount is a
-  required, provenanced input with a recorded basis. The registry records this
-  gap as its own unresolved rule, `pbgc:maximum-guaranteeable-benefit`.
+- **Maximum Guaranteeable Benefit lookup.** The authority is ERISA
+  §4022(b)(3)(B) and 29 CFR §4022.22(a)(2); Appendix D was removed in 2009. The
+  formula, its termination-year Social Security base, and the §4022.23 age/form
+  adjustment factors are not transcribed. The amount is a required, provenanced
+  input with a recorded basis. The registry records this gap as its own unresolved
+  rule, `pbgc:maximum-guaranteeable-benefit`.
 - **Prior-plan normalization.** §4022.8(c)(7) conversion factors are not
   transcribed. Prior plans supply the benefit already payable from PBGC funds
   in the current plan's form, and the result warns that no conversion was made.
@@ -75,8 +77,8 @@ A refused run appends no audit event.
 - Cap-exhaustion, no-limitation, rounding, and every refusal path are unit
   tested.
 - The service records one `calculation-run` audit event per successful run.
-- The UI exposes the inputs, the warning about the missing guarantee table, the
-  formula, intermediates, and the run id, using labelled fields and a submit
-  button reachable by keyboard.
-- V1 population blockers move from the aggregate limit to the missing guarantee
-  table, so no benefit figure is implied.
+- The UI exposes the inputs, the warning that the guarantee formula is not
+  implemented, the formula, intermediates, and the run id, using labelled fields
+  and a submit button reachable by keyboard.
+- V1 population blockers move from the aggregate limit to the untranscribed
+  guarantee formula, so no benefit figure is implied.

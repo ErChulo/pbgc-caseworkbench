@@ -323,6 +323,11 @@ export class CaseService {
     if (!caseRecord) {
       throw new Error(`Case not found: ${caseId}`);
     }
+    if (caseRecord.status === "purged") {
+      throw new Error(
+        `Case ${caseRecord.alias} was purged. Its content cannot be changed; only its retained audit trail is available.`,
+      );
+    }
     await this.store.saveBatch(caseId, {
       facts: savedFacts,
       events,
@@ -359,6 +364,11 @@ export class CaseService {
 
     const caseRecord = await this.store.getCase(input.caseId);
     if (!caseRecord) throw new Error(`Case not found: ${input.caseId}`);
+    if (caseRecord.status === "purged") {
+      throw new Error(
+        `Case ${caseRecord.alias} was purged. Its content cannot be changed; only its retained audit trail is available.`,
+      );
+    }
 
     const citation = await this.validateCitation(input.caseId, input.citation);
     const existing = await this.store.getDecisions(input.caseId);
