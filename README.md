@@ -83,6 +83,15 @@ use the [real-data workflow runbook](docs/real-data-workflow-test.md). It covers
 preflight format and size checks, the expected refusals, the privacy and closeout
 rules, and the exit criteria. It deliberately claims no benefit amount.
 
+Case home also has **Check files before importing**. It reads the files you choose
+with the same readers, size limits, and census column normalization the import
+uses, and reports per file whether the import would read it, read it with a gap,
+or refuse it — naming a page, sheet, column, and row, never a cell value or a
+line of text. It creates no case and writes no audit event, so it is safe to run
+on the real plan set before the session starts. A suggested header row that lands
+on a title row is reported as a choice to make, with the row that maps every
+required field, rather than as an unmappable workbook.
+
 Case home also has **Purge case data** for a case that must leave the workstation.
 It requires the case alias typed exactly and a reason, then deletes the evidence
 files and stored bytes, extracted text, census records, plan facts, reviewer
@@ -444,13 +453,17 @@ is finished.
   Word package (ZIP structure, escaping, inserted values, byte reproducibility),
   reviewer decisions, participant CSV parsing
   and determination, Excel census mapping (header aliases, duplicate and missing
-  columns, 1900 and 1904 serial dates, the 1900 leap-gap refusal, worksheet row
-  alignment, and CSV escaping), derived catalog integrity.
+  columns, 1900 and 1904 serial dates, the 1900 leap-gap refusal,  worksheet row alignment, and CSV escaping), the pre-import file check (a text
+  page, a scan, a partly scanned PDF, a title row above a real header row, and
+  cell issues reported by column and row without their values), derived catalog
+  integrity.
 - `tests/contract` — `CaseStore`, `PopulationStore`, and `ObservationStore` behavior
   across the in-memory and IndexedDB adapters, including a calculation run saved with
   its audit event in one atomic batch and a transcription surviving a re-read in both
   stores.
-- `tests/integration` — the plan-field slice end to end, a mapped Excel census
+- `tests/integration` — the plan-field slice end to end, the pre-import check over
+  the real PDF, DOCX, and workbook readers including a batch that refuses one
+  file and still reports the others, a mapped Excel census
   importing its worksheet rows with their sheet and row provenance and writing
   nothing when a row is invalid, a retired artifact
   restoring retired with its bytes and audit reference, a purged artifact restoring

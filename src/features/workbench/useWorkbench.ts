@@ -45,6 +45,7 @@ import type {
 } from "../../domain/evidence/types";
 import { isArtifactBytesPurged } from "../../domain/evidence/types";
 import type { Observation } from "../../domain/evidence/observations";
+import type { PreflightReport } from "../../domain/evidence/preflight";
 import type { ParticipantRecord } from "../../domain/population/types";
 import { PopulationImportError } from "../../app/PopulationService";
 import {
@@ -146,6 +147,8 @@ export type WorkbenchActions = {
     reason: string,
   ) => Promise<void>;
   savePlanFields: (values: Record<string, unknown>) => Promise<void>;
+  /** Reads chosen files and reports what the import would do with each. */
+  preflightFiles: (files: File[]) => Promise<PreflightReport[]>;
   importFiles: (files: File[], documentClass?: DocumentClass) => Promise<void>;
   classifyArtifact: (
     artifactId: string,
@@ -674,6 +677,31 @@ export function useWorkbench(): {
         planDataSnapshotError: null,
         notice: "Repository value confirmed and audited.",
       }));
+    },
+    [],
+  );
+
+  /**
+   * Read chosen files and report what the import would do with each. Creates no
+   * case and stores nothing, so it is safe on real material before a session.
+   */
+  const preflightFiles = useCallback(
+    async (files: File[]): Promise<PreflightReport[]> => {
+      setState((previous) => ({ ...previous, error: null, notice: null }));
+      try {
+        const inputs = [];
+        for (const file of files) {
+          inputs.push({
+            fileName: file.name,
+            mediaType: file.type,
+            bytes: await file.arrayBuffer(),
+          });
+        }
+        return await services.preflightService.assessFiles(inputs);
+      } catch (error) {
+        setState((previous) => ({ ...previous, error: messageOf(error) }));
+        return [];
+      }
     },
     [],
   );
@@ -1597,6 +1625,7 @@ export function useWorkbench(): {
       closeCase,
       purgeCase,
       savePlanFields,
+      preflightFiles,
       importFiles,
       classifyArtifact,
       retireArtifact,

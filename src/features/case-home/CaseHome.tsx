@@ -17,6 +17,8 @@ import {
   PROTOTYPE_TEST_SCRIPT,
   type WalkthroughScriptId,
 } from "../../app/walkthrough";
+import type { PreflightReport } from "../../domain/evidence/preflight";
+import { PreflightPanel } from "../preflight/PreflightPanel";
 import { EmptyState, Panel, StatusPill } from "../../ui/components";
 
 type Props = {
@@ -31,6 +33,7 @@ type Props = {
     aliasConfirmation: string,
     reason: string,
   ) => Promise<void>;
+  onPreflightFiles: (files: File[]) => Promise<PreflightReport[]>;
   onStartWalkthrough: (scriptId: WalkthroughScriptId) => void;
   /** The test currently holding the browser record, if one is running. */
   activeWalkthroughLabel: string | null;
@@ -60,6 +63,7 @@ export function CaseHome({
   onOpenCase,
   onCloseCase,
   onPurgeCase,
+  onPreflightFiles,
   onStartWalkthrough,
   activeWalkthroughLabel,
   walkthroughBlockedReason,
@@ -138,6 +142,8 @@ export function CaseHome({
           ) : null}
         </div>
       </section>
+
+      <PreflightPanel onAssess={onPreflightFiles} />
 
       <section className="home-test" aria-labelledby="home-test-title">
         <div>

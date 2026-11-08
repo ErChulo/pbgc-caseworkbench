@@ -45,7 +45,19 @@ workbench says it cannot compute one, stop and report it.
 
 ## 3. Preflight the documents
 
-Check each file before the session. Record every refusal as a finding; do not
+On **Case home**, open **Check files before importing** and choose the plan
+documents and the census workbook together. It reads each file with the same
+readers, size limits, and census column normalization the import uses, and
+reports per file whether the import would read it, read it with a gap, or refuse
+it. It creates no case, stores no bytes, and writes no audit event, so it is safe
+to run on the real files before a case exists. Record its verdicts in the
+findings log; they are a prediction, and the import's own checks decide.
+
+The check also finds the header row. If the first row with two or more labels is
+a title row, it names the row that maps every required field; choose that row at
+step 5 rather than letting the first row stand.
+
+Check each file by hand as well. Record every refusal as a finding; do not
 work around it by converting the file externally unless the office approves the
 conversion and the converted copy is imported as a new, separate artifact.
 

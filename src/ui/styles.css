@@ -3095,6 +3095,85 @@ button.extracted-text-cite-button {
   min-width: 17rem;
 }
 
+.home-preflight {
+  margin-bottom: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-raised);
+}
+
+.home-preflight > summary {
+  padding: var(--space-3) var(--space-6);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.home-preflight-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-6) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-3);
+}
+
+.home-preflight-body > p {
+  max-width: 72ch;
+  margin: 0;
+}
+
+.preflight-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.preflight-report {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.preflight-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.preflight-name {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.preflight-summary {
+  margin: var(--space-2) 0 0;
+}
+
+.preflight-findings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: var(--space-2) 0 0;
+  padding-left: 1.1rem;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.preflight-finding.refusal {
+  color: var(--color-danger);
+}
+
+.preflight-finding.attention {
+  color: var(--color-warning);
+}
+
 .home-test-actions button {
   width: 100%;
 }

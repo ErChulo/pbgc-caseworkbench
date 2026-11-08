@@ -123,6 +123,7 @@ export function App() {
           onOpenCase={(caseId) => void actions.openCase(caseId)}
           onCloseCase={actions.closeCase}
           onPurgeCase={actions.purgeCase}
+          onPreflightFiles={actions.preflightFiles}
           onStartWalkthrough={startWalkthrough}
           activeWalkthroughLabel={walkthroughScript?.label ?? null}
           walkthroughBlockedReason={

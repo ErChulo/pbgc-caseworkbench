@@ -23,6 +23,7 @@ import { EvidenceCitationService } from "./EvidenceCitationService";
 import { EvidenceService } from "./EvidenceService";
 import { ExtractionService } from "./ExtractionService";
 import { PlanDataMappingService } from "./PlanDataMappingService";
+import { PreflightService } from "./PreflightService";
 import { PopulationService } from "./PopulationService";
 import { TranscriptionService } from "./TranscriptionService";
 import { catalog } from "./catalog";
@@ -64,6 +65,10 @@ export const services = {
   populationStore,
   populationService: new PopulationService(populationStore, caseStore),
   workbookReader: { readGrid: readWorkbookGrid },
+  preflightService: new PreflightService(
+    [pdfTextLayerExtractor, docxTextExtractor, xlsxTextExtractor],
+    readWorkbookGrid,
+  ),
   planDataMappingService: new PlanDataMappingService(
     artifactStore,
     caseService,
