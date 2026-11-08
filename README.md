@@ -552,6 +552,11 @@ is finished.
   real `file://` path, the probe's answer, a case, a synthetic PDF read in the tab, a
   reviewed value and the evidence still open after a reload, and the review bundle
   download — with no console error.
+- `tests/e2e/fileOriginRestart.e2e.ts` — the storage claim a reviewer depends on: the
+  whole browser is closed and reopened on the same dedicated profile, and the case, its
+  SHA-256-verified evidence bytes, and its audit trail survive, with a new import
+  succeeding afterwards. If the browser refuses file-page storage, the test checks the
+  honest session-only banner and skips, because there is no persistence to prove.
 
 Playwright needs browser dependencies. On a normal desktop or CI image:
 
@@ -576,10 +581,12 @@ artifacts; the audit log is append-only.
 
 - Storage on a `file://` page is the browser's decision, not the app's. The workbench
   proves it at boot: a marker is written, committed, and read back in a later
-  transaction, and anything less is reported as this-tab-only. It cannot establish that
-  storage survives a full browser restart or survives a profile change, and a
-  double-clicked page shares its storage area with every local HTML document on that
-  computer. Export the case bundle for any record you must keep.
+  transaction, and anything less is reported as this-tab-only. A browser test closes and
+  reopens the whole browser on a dedicated profile and confirms the case, its evidence
+  bytes, and its audit trail survive on Chromium; another browser or a changed profile
+  is still the browser's decision, and a double-clicked page shares its storage area
+  with every local HTML document on that computer. Export the case bundle for any
+  record you must keep.
 - One plan per case. Participant records can be imported from a CSV in the
   workbench's documented interchange format; the BCV column layout mapping is not
   transcribed. Census row-count reconciliation is implemented as a reviewer-recorded

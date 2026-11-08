@@ -56,8 +56,11 @@ keeps it, cases are saved and the page states that local file pages share one
 storage area, readable by every HTML document opened from that computer. If the
 browser refuses — private window, site-data settings, or policy — the app runs a
 full session from memory and warns that closing or reloading the tab discards the
-case. The probe cannot prove survival across a browser restart, so the exported
-bundle remains the record to keep.
+case. The probe alone cannot prove survival across a browser restart; a browser
+test now closes and reopens the whole browser on a dedicated profile and confirms
+the case, its SHA-256-verified evidence bytes, and its audit trail survive, on
+Chromium. On another browser or a changed profile it is still the browser's
+decision, so the exported bundle remains the record to keep.
 
 A file page also needs pdf.js's main-thread worker: Chromium constructs the
 bundled blob worker from `file://` but it never answers, so a PDF would read
@@ -66,7 +69,10 @@ forever. That path is what grows the artifact from 2.8 MB to 4.1 MB.
 `fileOrigin.e2e.ts` walks the handover in Chromium from the artifact's real
 path: the probe's answer, a case, a synthetic PDF's text layer, the review copy
 with its hash, the reviewed value and evidence after a reload, and the review
-bundle download, with no console error.
+bundle download, with no console error. `fileOriginRestart.e2e.ts` then closes
+the browser completely and reopens the same profile: the case, the evidence bytes
+re-hashed on demand, and the audit trail survive, and a new import succeeds after
+the restart.
 
 ## Pre-import check
 
