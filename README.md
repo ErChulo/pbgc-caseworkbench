@@ -17,7 +17,7 @@ to produce one and says why.
 | --- | --- |
 | Plan-field slice (4 dictionary-mapped fields) | Working, validated, audited |
 | R5 plan-data mapping | Working: synthetic repository snapshot import, three versioned header bindings, per-value confirmation and correction, and source locators. The 71 reviewer decisions and 7 blocked/calculation cells are unchanged; the R5 notice remains blocked. |
-| Evidence intake (size admission, hash, duplicate detection, linking, passage citation and audited retraction, stored-byte integrity verification, reviewer retirement and reinstatement, retention by discarding a retired, unlinked stored copy, and hash-verified reattachment of that copy) | Working |
+| Evidence intake (size admission, hash, duplicate detection, linking, passage citation and audited retraction, reviewer transcription of a page the app cannot read, stored-byte integrity verification, reviewer retirement and reinstatement, retention by discarding a retired, unlinked stored copy, and hash-verified reattachment of that copy) | Working |
 | Plan-data classes | Working: 18 intake classes in three groups — 13 Image Viewer classes, 4 PBGC plan-record classes, and salary data. Batch or per-file classification, reclassification audited, and a grouped checklist with separate `X of 18 classes added` and `X of 18 applicability reviewed` totals. Each class applicability decision requires a basis and is append-only; class-level readiness is distinct from presence. Salary data is intake only. |
 | Calendar age and calendar interval identities | Working, 138 tests |
 | BCV add-in functions | 9 of 54 implemented (ANB, ATT, NRD, NRDA, RETDATE, COMPM, COMPYM, COMPAYM, G515V), each tested against the source's examples |
@@ -25,9 +25,9 @@ to produce one and says why.
 | BCV add-in tool | Working in Calculations: run any of the nine transcribed functions and see value, formula, source page, rules, intermediates, warnings; audited |
 | Calculation traces | Durable: every run is stored with its case and its audit event in one batch, survives a reload, appears in run history, and travels in the bundle |
 | Earliest PBGC retirement date (EPRD) | Implemented: cited age-55 rule; facts-and-circumstances remains a reviewer decision |
-| Aggregate limit on PBGC funds | Implemented: cited §4022B arithmetic; the guarantee table itself is a required, provenanced input |
-| Other PBGC provisions (§4022(c), guarantee table, §4044 tiers) | Listed and **blocked** |
-| Population stage | Working: CSV import, per-record provenance, calendar age, versioned census imports (a revised file becomes authoritative; earlier rows stay stored, exported, and listed as superseded), and a field-level comparison with the import it superseded; benefit amounts **blocked** |
+| Aggregate limit on PBGC funds | Implemented: cited §4022B arithmetic; the maximum guaranteeable benefit is a required, provenanced input because the §4022.22(a)(2) formula is not yet transcribed |
+| Other PBGC provisions (§4022(c), maximum guarantee, §4044 tiers) | Listed and **blocked** |
+| Population stage | Working: CSV import, an Excel census mapped by the reviewer, per-record provenance, calendar age, versioned census imports (a revised file becomes authoritative; earlier rows stay stored, exported, and listed as superseded), and a field-level comparison with the import it superseded; benefit amounts **blocked** |
 | Guided flow and final document | Four steps — Case, Documents, Plan & people, Final document. The final document inserts the case's plan data into the transcribed R5 shell structure and downloads a real `.docx`; every unrecorded cell is marked "Not recorded". Its Plan provisions view asks all 71 reviewer questions in plain language with a required source, plus an optional citation to an imported file and page or section. It is generated from the manifest, not a byte-preserving fill of the corpus shell file. |
 | Work products | 15 contracts registered: review copy, R5 template coverage, and participant register producible; R1/R5 notice/V1/DEL/PF/BSRS/§436/EBA/AMB/closeout/memo blocked with reasons; reviewer decisions recordable per cell. Each implemented product can have an optional, reviewer-recorded required-class policy; no policy leaves the gate inactive. |
 | Field dictionary | 1,172 records across 12 tables |
@@ -78,6 +78,24 @@ copy, and filter the audit trail to one event type. It needs no prepared files. 
 one test holds a record at a time: exit or restart the first before starting the
 second. Its notes download as `advanced-test-notes-<date>.txt`.
 
+For a controlled real-data pilot — one real plan, one reviewer, one workstation —
+use the [real-data workflow runbook](docs/real-data-workflow-test.md). It covers the
+preflight format and size checks, the expected refusals, the privacy and closeout
+rules, and the exit criteria. It deliberately claims no benefit amount.
+
+Case home also has **Purge case data** for a case that must leave the workstation.
+It requires the case alias typed exactly and a reason, then deletes the evidence
+files and stored bytes, extracted text, census records, plan facts, reviewer
+decisions, and calculation runs. The case record and its audit trail remain, the
+case reopens in a review-only state, and bundle export is refused. New evidence,
+census files, plan values, and calculation runs are refused afterwards, so the
+removed content cannot quietly return. The retained trail still names imported
+file names and records the plan values, calculation results, and decision values
+saved during the case; clearing site data is the only way to remove it. It is not a
+secure erase: IndexedDB and the operating system may retain deleted pages until
+they are overwritten, so full-disk encryption is still required. Full audit
+erasure is a separate policy decision and is not implemented.
+
 The complete manual script for the first test follows.
 
 1. **Case** — create a case. It receives a synthetic alias such as `CW-0001`.
@@ -126,10 +144,16 @@ The complete manual script for the first test follows.
    candidates. The snapshot is stored as immutable evidence; each value must be
    confirmed or corrected individually, with its source locator. This does not fill
    any reviewer decision or calculation cell.
-4. **Plan & people → People** — import a participant CSV (one row per person, synthetic or
-   pseudonymous keys only). The file is stored as evidence first, every record keeps its
-   artifact hash and row number, and an invalid row rejects the whole file. Ages at the
-   DOPT are computed; every benefit amount is shown as blocked by the unresolved rules.
+4. **Plan & people → People** — import a participant CSV, or an Excel census and map its
+   columns (one row per person, synthetic or pseudonymous keys only). A workbook is read
+   without being changed: choose the worksheet, the header row, and the column for each
+   field. Suggestions come only from exact header matches, and every one is the
+   reviewer's to confirm. The file is stored as evidence first, every record keeps its
+   artifact hash, worksheet, and row number, and an invalid row rejects the whole file.
+   A date column must hold date-formatted cells or ISO text; a bare number, a numeric
+   participant key, and an unmapped required field are refused rather than interpreted.
+   Ages at the DOPT are computed; every benefit amount is shown as blocked by the
+   unresolved rules.
    Download the participant register from here. Importing a corrected census does not
    overwrite the first one: the new file becomes the authoritative census, the register
    and reconciliation count only its rows, and the earlier rows stay stored and exported,
@@ -146,8 +170,9 @@ The complete manual script for the first test follows.
    Earliest Annuity Date and age 55, with the facts-and-circumstances exception left as a
    reviewer decision. The Aggregate Limit applies ERISA §4022B to a payee with two or more
    plans: the subject amount is capped at the maximum guaranteeable benefit less prior-plan
-   benefits payable. The guarantee amount is a provenanced input — the Appendix D table is
-   not transcribed — and a single-plan payee is refused as not applicable. Each run records
+   benefits payable. The guarantee amount is a provenanced input — the §4022.22(a)(2)
+   formula and the §4022.23 factors are not transcribed — and a single-plan payee is
+   refused as not applicable. Each run records
    inputs, units, rule, intermediates, engine version, and warnings, and appends an audit
    event. Values without evidence are labelled reviewer-entered. A DOPT before 2002-06-01 is
    refused by the EPRD rather than valued under a rule that does not apply. The add-in
@@ -209,9 +234,10 @@ with its blocking reason:
   the §4044 tiers have no recorded citation, so no benefit, guarantee, or
   priority-category figure is computed. The register says so on every row.
 - **`pbgc:4022c-amounts`** — §4022(c) methodology and recovery-ratio periods not transcribed.
-- **`pbgc:maximum-guaranteeable-benefit`** — the Appendix D table, its service
-  phase-in, and the §4022.23 age/form factors are not transcribed, so the aggregate
-  limit requires the amount as a provenanced input.
+- **`pbgc:maximum-guaranteeable-benefit`** — the §4022.22(a)(2) formula, its
+  termination-year Social Security base, the §4022.25 phase-in of benefit increases,
+  and the §4022.23 age/form factors are not transcribed, so the aggregate limit
+  requires the amount as a provenanced input.
 - **`pbgc:benefit-tiers-priority-categories`** — §4044 allocation ordering not reviewed.
 - **Work product engines** — every deliverable is registered as a contract with its
   purpose, lifecycle position, dependencies, and blocking reason. R1, R5, V1, DEL, PF,
@@ -397,7 +423,10 @@ is finished.
   required reason that keeps the link and earlier fact, re-citing a withdrawn
   or detached passage without reviving the earlier link, and the evidence card's
   citation outcomes (current, re-cited, withdrawn with its recorded reason, and
-  unnamed after a value edit)), both guided tests' step order, outcome and note
+  unnamed after a value edit), reviewer transcription (its origin and method
+  rules, a transcription kept across a re-read and never accepted as a reading,
+  and the service's page, length, duplicate, wrong-case, and discarded-copy
+  refusals)), both guided tests' step order, outcome and note
   recording, refusal to advance without a result, progress counts, script-owned
   notes serialization and file names, and tolerant reading of a stored record,
   evidence retirement and
@@ -414,17 +443,24 @@ is finished.
   plan-summary document model and its
   Word package (ZIP structure, escaping, inserted values, byte reproducibility),
   reviewer decisions, participant CSV parsing
-  and determination, derived catalog integrity.
-- `tests/contract` — `CaseStore` and `PopulationStore` behavior across the in-memory and
-  IndexedDB adapters, including a calculation run saved with its audit event in
-  one atomic batch.
-- `tests/integration` — the plan-field slice end to end, a retired artifact
+  and determination, Excel census mapping (header aliases, duplicate and missing
+  columns, 1900 and 1904 serial dates, the 1900 leap-gap refusal, worksheet row
+  alignment, and CSV escaping), derived catalog integrity.
+- `tests/contract` — `CaseStore`, `PopulationStore`, and `ObservationStore` behavior
+  across the in-memory and IndexedDB adapters, including a calculation run saved with
+  its audit event in one atomic batch and a transcription surviving a re-read in both
+  stores.
+- `tests/integration` — the plan-field slice end to end, a mapped Excel census
+  importing its worksheet rows with their sheet and row provenance and writing
+  nothing when a row is invalid, a retired artifact
   restoring retired with its bytes and audit reference, a purged artifact restoring
   as a record without bytes, a reattached artifact exporting with bytes, a revised
   census exporting both imports and restoring with the newest authoritative, and bundle
   round trip
   including a retracted citation restoring with its retained link, fact history, and
-  audit reason, a document-class applicability decision, a superseded required-class
+  audit reason, a reviewer transcription restoring with its origin, method, and page,
+  refusal of a bundle that records a transcription as a reading,
+  a document-class applicability decision, a superseded required-class
   policy that remains current after restore, a stored calculation run whose audit
   reference is remapped on restore, a 1.0.0 bundle read without runs, refusal of a
   tampered manifest,
@@ -432,10 +468,14 @@ is finished.
   dangling evidence, participant, and audit references, and fact-id remapping in
   restored supersession pointers.
 - `tests/e2e` — Playwright in real Chromium against the production build: create, validate,
-  save, reload, import classified evidence, download the stored copy and check its
+  save, reload, import classified evidence, map and import a generated Excel census
+  (and refuse a mapping that leaves a required field out or a date column holding a
+  bare serial), download the stored copy and check its
   bytes, reclassify a file, retire a file and return
   it to active evidence, discard a retired file's stored copy, refuse a mismatched
-  reattach and reattach the original by hash, link evidence, refuse a duplicate by
+  reattach and reattach the original by hash, transcribe a passage from a file the
+  build cannot read, cite it, confirm it survives a reload, and refuse the identical
+  passage twice, link evidence, refuse a duplicate by
   hash, supersede the census with a revised import and see only the authoritative rows
   counted, run a calculation
   and a BCV add-in function, answer a plan provision and confirm it appears in the
@@ -510,7 +550,14 @@ artifacts; the audit log is append-only.
   correct.
 - Text extraction is local and deliberately narrow (ADR 0002): the PDF text layer via
   `pdfjs-dist`, DOCX paragraphs, and XLSX cached cell values via `fflate`. There is no
-  OCR, so a scanned page is refused as having no text layer; no layout, reading order,
+  OCR, so a scanned page is refused as having no text layer. A reviewer may instead
+  **transcribe a passage**: they open the stored copy, enter the page, and type the
+  passage they need. The record is marked `reviewer-transcription`, keeps the page and
+  the SHA-256 of the typed text, is capped at 4,000 characters, and can be cited
+  exactly like a reading; it is always labelled as the reviewer's typing and never as
+  text the app read. Re-reading a file keeps its transcriptions, and discarding the
+  stored copy deletes both readings and transcriptions. There is
+  no layout, reading order,
   or table grid is reconstructed; macro-enabled and legacy Office formats are refused;
   a formula cell reads its cached value and is never recalculated. Extraction produces
   observations with a page, paragraph, or cell locator, never case facts. Limits are
@@ -557,7 +604,8 @@ artifacts; the audit log is append-only.
 - There is no in-app document viewer or renderer. **Download stored copy** hands the
   stored bytes back and the workstation's own application opens them. **Read text**
   records the text a file carries as observations; it does not render a page, show an
-  image, or reproduce layout.
+  image, or reproduce layout. **Transcribe a passage** records text the reviewer typed;
+  it does not read the image either, and the record says so.
 - Evidence intake caps one file at 100 MiB and one case at 1 GiB of stored bytes.
   The limits protect the tab and local store; they say nothing about whether a file
   is sufficient evidence. An oversized or empty file is refused before it is read;
@@ -572,7 +620,8 @@ artifacts; the audit log is append-only.
   stays retired. Reviewer-decision citations and participant sources do not block
   a discard; they keep pointing at the record and its hash, whose bytes are gone
   until a reattach succeeds. A case with no retired files and no discardable
-  copies still cannot shed evidence.
+  copies can shed evidence only by purging the whole case, which also removes its
+  census, plan facts, reviewer decisions, extracted text, and calculation runs.
 - The final document reproduces the transcribed R5 shell's sections, labels, and
   placeholders from `src/domain/work-products/r5/manifest.ts`; it does not modify the
   corpus `.docx` itself, which is not in this repository. The shell's header rates and
@@ -589,9 +638,10 @@ artifacts; the audit log is append-only.
   blocked: the `BCVATPBGC` tables and the Actuarial Technical Manual sections they cite
   are not in the corpus, and ANB's half-birthday direction is a recorded assumption.
 - The aggregate limit is implemented only for a supplied maximum guaranteeable benefit.
-  The guarantee table, its phase-in, and the §4022.23 age/form adjustments are not
-  transcribed; prior-plan amounts must arrive already normalized; and the de minimis
-  lump-sum exclusion is not modeled. A payee with one plan is refused.
+  The §4022.22(a)(2) formula, its annual Social Security base, the §4022.25 phase-in,
+  and the §4022.23 age/form adjustments are not transcribed; prior-plan amounts must
+  arrive already normalized; and the de minimis lump-sum exclusion is not modeled. A
+  payee with one plan is refused.
 - Plan-data repository intake is a synthetic JSON snapshot only. There is no production
   repository connector, live refresh, credential handling, or automatic mapping; only
   the three R5 header facts are bound. The 71 reviewer decisions and 7 blocked or
