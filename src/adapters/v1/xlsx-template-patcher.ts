@@ -104,8 +104,18 @@ export function patchV1WorkbookTemplate(
     return fail("TEMPLATE_SIZE_INVALID", "The template is absent or exceeds the approved size limit.");
   }
   let files: Record<string, Uint8Array>;
-  try { files = unzipSync(original); }
-  catch { return fail("TEMPLATE_NOT_ZIP", "The template is not a readable OOXML archive."); }
+  // Filter archive entries before allocation; reject zip-bombs and large hidden parts.
+  let totalUncompressed = 0;
+  let rejectedEntries = 0;
+  try {
+    files = unzipSync(original, { filter: (entry) => {
+      totalUncompressed += entry.originalSize;
+      const safe = entry.originalSize <= 100 * 1024 * 1024 && totalUncompressed <= 200 * 1024 * 1024;
+      if (!safe) rejectedEntries++;
+      return safe;
+    }});
+  } catch { return fail("TEMPLATE_NOT_ZIP", "The template is not a readable OOXML archive."); }
+  if (rejectedEntries) return fail("TEMPLATE_EXPANSION_LIMIT", "An archive entry exceeds the approved uncompressed limit.");
 
   const paths = Object.keys(files);
   if (paths.length > 15000) return fail("TEMPLATE_TOO_COMPLEX", "The archive has too many entries.");
