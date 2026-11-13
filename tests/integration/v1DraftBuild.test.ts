@@ -48,6 +48,7 @@ describe("offline V1 compiler-to-template integration",()=>{
     const out=unzipSync(result.workbook);
     expect(strFromU8(out["xl/worksheets/sheet1.xml"]!))
       .toContain("<c r=\"C2\" s=\"7\"><f>ROUND((\u0027Retirees\u0027!B2*2),2)</f></c>");
+  });
   it("fails if the supplied template hash differs from the reviewed version",async()=>{
     const result=await compileAndBuildDraftV1({
       compilerInput:{batch:caseData},template,expectedTemplateSha256:"0".repeat(64),
