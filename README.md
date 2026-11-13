@@ -17,6 +17,25 @@ plan interpretation, PBGC rule, and generated work product must pass evidence-ba
 review before production use. Where the workbench cannot justify a number, it refuses
 to produce one and says why.
 
+## R1-centered architecture revision (design in progress)
+
+The long-term goal is the complete PBGC case lifecycle, **not** only an R5 prototype.
+The target R1 is the **Actuarial Case Memo**, assembled from reviewed conclusions
+and evidence published by prior work products. The architecture uses explicit case
+state transitions (the Physics Paradigm), typed computational effects, versioned
+work-product dependencies, and a shared evidence-and-findings ledger. LLM assistance
+stays at the edges; calculations, validation, source citations, and approvals stay
+deterministic and reviewable.
+
+- [Full workflow / Physics Paradigm / typed-effects design](docs/architecture/physics-effects-work-products.md)
+- [R1 contribution contract, section routing, and Image Viewer citation rules](docs/work-products/r1-contribution-contract.md)
+- [Actual work-product implementation status](docs/work-products/inventory.md)
+
+**Status:** These documents and the initial pure contribution-planning functions
+are a development slice, **not a complete R1 memo generator or case-processing system**.
+Most work-product generators remain blocked. The registry's historical R5/DEL/PF/R1
+labels require a controlled semantic migration before being treated as final.
+
 ### V1 compiler integration (development slice)
 
 The first selective code port from

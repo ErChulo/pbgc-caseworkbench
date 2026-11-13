@@ -1,5 +1,24 @@
 # Work-product inventory
 
+> **Terminology and architecture revision (2026-11-13):** This inventory
+> faithfully reports the **existing** registry and its current blocked/implemented
+> states. It is not an approved naming system for the finished casework app.
+> In the intended workflow, **R5 = Plan Summary; DEL = Data Element List;
+> PF = Plan Factors; R1 = final Actuarial Case Memo**. The registry currently
+> labels some products as notices, determination letters, plan financial reports,
+> or an R1 data request. Those titles and assumptions need a reviewed migration
+> from the official templates. Do not conflate an R1 data request with the final
+> R1 memo. The [revised architecture](../architecture/physics-effects-work-products.md)
+> and [R1 evidence contribution contract](r1-contribution-contract.md)
+> provide the migration target. BET, L1, and R0 remain to be classified against
+> their official source contracts.
+>
+> The current 15 entries do **not** exhaust the intended case lifecycle. The
+> correct architecture must accept reviewed contributions from prior-administrator
+> interviews, R5, DEL, §436, Plan Factors, PA_AMB analysis, estimated
+> administration/adjustment, V1/BCV, BSRS, and additional applicable products
+> before assembling the final R1.
+
 The deliverables this workbench knows about, in lifecycle order. The source of truth is
 `src/domain/work-products/registry.ts`; this page is the reviewable narrative. A
 product is only producible when its spec is `implemented`, cited, and backed by an
