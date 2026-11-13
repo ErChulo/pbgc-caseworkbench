@@ -47,7 +47,7 @@ describe("offline V1 compiler-to-template integration",()=>{
     expect(result.requiredExternalChecks).toEqual(expect.arrayContaining([expect.stringMatching(/BCV/)]));
     const out=unzipSync(result.workbook);
     expect(strFromU8(out["xl/worksheets/sheet1.xml"]!))
-      .toContain("<c r=\"C2\" s=\"7\"><f>ROUND((\u0027Retirees\u0027!B2*2),2)</f></c>");
+      .toContain('<c r="C2" s="7"><f>ROUND((&apos;Retirees&apos;!B2*2),2)</f></c>');
   });
   it("fails if the supplied template hash differs from the reviewed version",async()=>{
     const result=await compileAndBuildDraftV1({
