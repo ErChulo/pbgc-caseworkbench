@@ -188,19 +188,19 @@ export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
   {
     specId: "wp.v1-valuation-summary",
     version: "0.1.0",
-    title: "V1 valuation summary",
+    title: "V1 BCV workbook and valuation summary",
     family: "V1",
     purpose:
-      "Produce the valuation summary that carries participant benefit determinations, priority-category amounts, and the plan's aggregated valuation results.",
+      "Generate the official-template-compatible V1 workbook, scenario formulas, validation package, and participant-level valuation summary from reviewed case facts and plan/PBGC rules.",
     whyNeeded:
-      "V1 is the valuation backbone: the benefit determinations it produces feed the R5 notice, the determination letter, and the plan financial work products.",
+      "V1 is the benefit-calculation and valuation backbone. Its approved persisted results support BSRS, the R1 Actuarial Case Memo, benefit statements, and related casework.",
     usedWhen:
-      "After the participant population is loaded and the plan rules and assumptions are authorized; before R5, DEL, and plan financial outputs.",
+      "After the R5 plan provisions, DEL fields, PF factors, applicable §436 and PA_AMB findings, participant population, plan rules, and assumptions are sufficiently reviewed for the required scenarios.",
     determination:
-      "Deterministic calculation over the participant population using the authorized plan provisions, PBGC guarantee rules, assumption sets, and the calendar-date engine. Each participant result keeps its rule, assumption, and calculation-run identifiers.",
+      "The governed V1 pipeline selects population tabs, scenarios and per-run I/O/B fields; produces BuildSpec 2.0.0; compiles approved formulas and dependencies; writes a template-preserving XLSX workbook; then independently validates BCV/ATPBGC results. Every stage retains a versioned hash, governed inputs, review decisions, and provenance. Specification: docs/v1/compiler-integration-from-caseworkbench2.md.",
     status: "blocked",
     blockingReason:
-      "The population schema, CSV import, the cited EPRD age-55 rule, and the aggregate-limit arithmetic now exist, but the guarantee formula (`pbgc:maximum-guaranteeable-benefit`) is cited yet not transcribed, the §4044 priority-category rule remains uncited, nine of the 54 BCV add-in functions are implemented, no per-participant Earliest Annuity Date is captured, and no benefit-amount or assumption model is authorized.",
+      "The governed Architecture Selector, BuildSpec adapter, approved BCV/ATPBGC-compatible formula compiler, template-preserving workbook writer, independent actuarial validation, and V1-to-BSRS/R1 handoffs are not integrated or validated. Source Case Workbench 2 has reusable designs but provisional scenario/IOB rules and a scalar grammar that excludes BCV add-ins. Existing PBGC guarantee and §4044 calculation gaps remain unresolved.",
     dependencies: [
       ...PLAN_FIELDS,
       { kind: "rule", ruleId: "pbgc:earliest-retirement-date", required: true },

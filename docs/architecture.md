@@ -166,6 +166,19 @@ Never depend on browser storage as the only durable copy. The application shows 
 
 OCR confidence is not correctness. Regex matches are not identity proof. PII detection must be context-sensitive and include a manual review surface.
 
+### Governed V1 compiler integration
+
+The V1 implementation follows a reviewed **architecture selector → BuildSpec 2.0.0
+→ formula compiler → official-template-preserving workbook builder → BCV
+verification** pipeline, with approved findings and reproducible lineage for
+BSRS and the final R1 memo.
+
+The implementation and migration requirements are specified in
+[Case Workbench 2 V1 integration](v1/compiler-integration-from-caseworkbench2.md).
+These are **design requirements, not completed V1 functionality**. In particular,
+the current source compiler excludes BCV/ATPBGC add-in functions and the source
+scenario/IOB policy is provisional. Do not import either without review.
+
 ## 12. Work-product pipeline
 
 Support work products through typed renderers, not UI scraping. Initial output families are Plan Summary/R5, Plan Factors, DEL, §436 materials, estimated administration, estimated adjustment, V1 inputs/summary, valuation listings, BSRS configuration, and case memo.
