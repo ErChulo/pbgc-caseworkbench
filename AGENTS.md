@@ -49,6 +49,30 @@ Before completion:
 
 Adapters implement domain/application ports. The domain must never depend on adapters, UI, storage engines, OCR engines, spreadsheet libraries, or specific document formats.
 
+## Full-lifecycle architecture (2026-11-13 revision)
+
+Read [the Physics Paradigm + typed-effects architecture](docs/architecture/physics-effects-work-products.md)
+and [the R1 contribution contract](docs/work-products/r1-contribution-contract.md)
+before changing a casework module or output.
+
+- The final **R1 Actuarial Case Memo** consumes approved findings from upstream
+  products. Work-product generators must publish both their normal artifact and
+  structured, versioned findings for later reuse.
+- Keep distinct R5 (Plan Summary), DEL (Data Element List), PF (Plan Factors),
+  PA_AMB analysis, §436, estimated administration, estimated adjustment,
+  V1/BCV, BSRS and final R1. Do not infer official definitions for BET/L1/R0.
+- The current registry has legacy product labels; do not rename stable IDs without
+  reviewing templates, persisted data, callers, and migration tests.
+- Preserve original source identity, page/sheet locator, and **verified Image Viewer
+  document number** for every applicable R1 citation. Missing numbers block
+  Image Viewer citation; they must never be fabricated.
+- A new source/rule/calculation version invalidates dependent published findings;
+  recalculation and human reapproval are required before final R1 inclusion.
+- Keep derived work-product states immutable, effect composition typed, and
+  side effects behind ports. A calculated value is not an approved determination.
+- Do not mark a feature implemented because its contract or template exists.
+  Verify reproducibility, template fidelity, offline operation, and review gates.
+
 ## External tools
 
 MCP servers are optional and disabled by default. Never send case content through GitHub, web search, browser automation, or another external service. Use external tools only for public documentation, repository engineering, or synthetic test pages.
