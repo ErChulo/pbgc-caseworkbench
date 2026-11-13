@@ -49,7 +49,7 @@ describe("selectively ported V1 formula core",()=>{
     if(parsed.ok)expect(emitCanonicalFormula(parsed.ast,new Map())).toBe("IF((A1>0),ROUND(A1,2),0)");
   });
   it("rejects unsupported external, dynamic array and volatile syntax",()=>{
-    for(const expression of ["=A1#","=A1@","=[external.xlsx]Sheet1!A1"]){
+    for(const expression of ["=A1#","=A1@"]){
       const parsed=parseFormula(expression,excelScalarV1Policy);
       expect(parsed.ok).toBe(false);
     }
@@ -66,6 +66,12 @@ describe("governed V1 compilation batch",()=>{
     ]);
     expect(result.compiled[1]?.dependencies).toEqual(["F1"]);
     expect(result.issues).toEqual([]);
+  });
+  it("rejects external workbook references during semantic resolution",()=>{
+    const batch=patchFormula(inputs(),"F1",{formulaText:"=[external.xlsx]Sheet1!B2"});
+    const result=compileV1FormulaBatch(request(batch));
+    expect(result.status).toBe("blocked");
+    expect(result.issues.map(x=>x.code)).toContain("EXTERNAL_REFERENCE_PROHIBITED");
   });
   it("does not allow an unapproved formula or its downstream dependent",()=>{
     const batch=patchFormula(inputs(),"F1",{provenance:{...provenance,status:"draft",approvalId:null}});
