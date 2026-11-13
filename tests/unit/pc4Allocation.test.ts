@@ -119,8 +119,7 @@ describe("PC4(A) Tier 1 and PC4(B) Tier 2 waterfall", () => {
     for (const value of ["1.234","-0.01","1e4","01.00","NaN","$100","1,000.00"," 3.00"]) {
       expect(() => previewPc4TierAllocation(input({assetsAvailableToPc4PV:value}))).toThrow(Pc4AllocationError);
     }
-    const exact=previewPc4TierAllocation(input({assetsAvailableToPc4PV:"100.005"}));
-    expect(exact).toBeDefined();
+    expect(() => previewPc4TierAllocation(input({assetsAvailableToPc4PV:"100.005"}))).toThrow(/at most two decimal/);
   });
   it("rejects non-majority owners with a positive Tier 2 liability", () => {
     const sample=input();
