@@ -54,6 +54,24 @@ The V1 work product remains blocked in the registry.
 See [ported V1 code and acceptance gates](docs/v1/ported-compiler-implementation.md)
 and [full V1 implementation requirements](docs/v1/compiler-integration-from-caseworkbench2.md).
 
+### PC4(A) / Tier 1 and PC4(B) / Tier 2 preview
+
+The Calculations stage includes a **draft-only** PC4 present-value asset allocation
+preview. Under ERISA §4044(a)(4) and (b)(3), PC4(A)/Tier 1 includes the net
+guaranteed PC4 benefit and the increment caused by the aggregate limit; PC4(B)/
+Tier 2 covers the increment caused by the majority-owner limit. PC4(B) receives
+plan assets only after PC4(A) is fully funded. In a partially funded Tier 2,
+the software preserves exact pro rata present-value fractions without inventing
+a rounding rule.
+
+This feature uses exact cents for PV inputs. The existing aggregate-limit
+module calculates **monthly** benefits, not PC4 liability PVs; those amounts
+must not be combined without a reviewed valuation conversion. The preview
+does not complete §4044 allocation, BCV, V1 or BSRS. R1 contributions remain
+unapproved until independent actuarial review.
+
+See [source citations and exact model](references/rules/pc4-tier-priority.md).
+
 ## State of development
 
 Badges report the live repository, not a claim: **Verify** runs the same `npm run check`

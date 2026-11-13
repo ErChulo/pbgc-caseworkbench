@@ -164,6 +164,26 @@ export const RULES: readonly RuleRecord[] = [
       "The §4022.22(a)(2) formula, its termination-year Social Security base, and the §4022.23 age/form factors are not transcribed; the aggregate limit therefore takes the amount as a provenanced input.",
   },
   {
+    ruleId: "pbgc:pc4-a-b-allocation-order",
+    title: "PC4(A) Tier 1 precedes PC4(B) Tier 2 in §4044 asset allocation",
+    kind: "pbgc-rule",
+    status: "implemented",
+    summary:
+      "For PC4 net present-value liabilities, plan assets available after PC1-PC3 fund PC4(A) first: guaranteed benefits and the nonguaranteed amounts excluded solely by the aggregate limit. PC4(B) adds majority-owner limitation amounts and receives assets only after PC4(A) is fully satisfied. The preview does not certify any participant benefit or full §4044 allocation.",
+    formula:
+      "A = guaranteedPC4PV + aggregateLimitPC4PV; B = majorityOwnerIncrementalPC4PV; fundedA = min(availablePC4, A); fundedB = min(max(0, availablePC4 - A), B) only if fundedA = A",
+    units: "USD present value at allocation date",
+    authority: {
+      citation:
+        "ERISA §4044(a)(4)(A)-(B), §4044(b)(3), 29 U.S.C. §1344; 29 CFR §§4044.10(c),(e),(f), 4044.14",
+      note:
+        "Verified against current statutory and regulatory text 2026-11-13. Implements only a total-liability funding sequence and exact, unrounded PC4(B) pro rata shares. Classification, DOPT applicability, expense loads, PC4(A) individual allocations when underfunded, and BCV validation require independent actuarial approval. See references/rules/pc4-tier-priority.md.",
+      checkedOn: "2026-11-13",
+    },
+    implementedBy: "src/domain/calculations/pc4Allocation.ts",
+    blockingReason: null,
+  },
+  {
     ruleId: "pbgc:benefit-tiers-priority-categories",
     title: "Benefit tiers by ERISA §4044 priority category",
     kind: "pbgc-rule",

@@ -18,6 +18,7 @@ import {
   type BcvAddInInput,
 } from "../../domain/calculations/bcv";
 import { calculationRunLabel } from "../../domain/calculations/runs";
+import { Pc4AllocationPanel } from "./Pc4AllocationPanel";
 import { EmptyState, KeyValue, Panel, StatusPill } from "../../ui/components";
 
 type Props = {
@@ -938,6 +939,8 @@ export function CalculationsStage({
           </>
         )}
       </Panel>
+
+      <Pc4AllocationPanel planDopt={typeof planDopt === "string" ? planDopt : undefined} />
 
       <Panel
         id="calculation-history"

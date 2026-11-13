@@ -200,7 +200,7 @@ export const WORK_PRODUCTS: readonly WorkProductSpec[] = [
       "The governed V1 pipeline selects population tabs, scenarios and per-run I/O/B fields; produces BuildSpec 2.0.0; compiles approved formulas and dependencies; writes a template-preserving XLSX workbook; then independently validates BCV/ATPBGC results. Every stage retains a versioned hash, governed inputs, review decisions, and provenance. Specification: docs/v1/compiler-integration-from-caseworkbench2.md.",
     status: "blocked",
     blockingReason:
-      "The governed Architecture Selector, BuildSpec adapter, approved BCV/ATPBGC-compatible formula compiler, template-preserving workbook writer, independent actuarial validation, and V1-to-BSRS/R1 handoffs are not integrated or validated. Source Case Workbench 2 has reusable designs but provisional scenario/IOB rules and a scalar grammar that excludes BCV add-ins. Existing PBGC guarantee and §4044 calculation gaps remain unresolved.",
+      "The governed Architecture Selector, BuildSpec adapter, approved BCV/ATPBGC-compatible formula compiler, template-preserving workbook writer, independent actuarial validation, and V1-to-BSRS/R1 handoffs are not integrated or validated. Source Case Workbench 2 has reusable designs but provisional scenario/IOB rules and a scalar grammar that excludes BCV add-ins. PC4(A)-before-PC4(B) is now available only as an exact-PV preview (rule pbgc:pc4-a-b-allocation-order); full §4044 benefit assignment, actuarial valuation, PC1-PC6 allocation, and the remaining PBGC guarantee calculations are still unresolved.",
     dependencies: [
       ...PLAN_FIELDS,
       { kind: "rule", ruleId: "pbgc:earliest-retirement-date", required: true },
