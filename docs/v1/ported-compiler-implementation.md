@@ -26,9 +26,11 @@ Instead, the new `src/domain/v1/formula-compiler/compile-batch.ts` composes the 
 | `src/domain/v1/formula-compiler/compile-batch.ts` | End-to-end scalar formula syntax/reference verification, dictionary checks, approval gate, dependency graph, canonical emission |
 | `src/adapters/v1/xlsx-template-patcher.ts` | Conservative OOXML patching of existing XLSX formula cells using locally bundled `fflate` |
 | `src/app/V1DraftBuildService.ts` | Integration: compile, verify template SHA-256, patch workbook or block, output a review-required draft |
+| `src/domain/v1/r1-draft-handoff.ts` | Publish unresolved V1 draft metadata to the R1 findings contract; does not authorize final R1 narration |
 | `tests/unit/v1CompilerPort.test.ts` | Pure compiler contract, provenance, dependency and add-in tests |
 | `tests/unit/v1TemplatePatcher.test.ts` | Synthetic workbook preservation and failure cases |
 | `tests/integration/v1DraftBuild.test.ts` | Synthetic offline compiler → authenticated template → XLSX and failure gates |
+| `tests/integration/v1R1DraftHandoff.test.ts` | The R1 ledger rejects an unapproved compiler-only draft finding |
 
 No new dependency, server, external data transfer, or actual PBGC participant data was added.
 
