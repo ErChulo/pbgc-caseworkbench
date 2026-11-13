@@ -36,6 +36,24 @@ are a development slice, **not a complete R1 memo generator or case-processing s
 Most work-product generators remain blocked. The registry's historical R5/DEL/PF/R1
 labels require a controlled semantic migration before being treated as final.
 
+### V1 compiler integration (development slice)
+
+The first selective code port from
+[Case Workbench 2](https://github.com/ErChulo/pbgc-caseworkbench2)
+now provides a **real deterministic scalar formula parser/compiler**, reviewed
+function-signature policy, scenario-scoped reference resolution, dependency
+blocking, and an offline **draft XLSX patcher** for existing cells in a
+reviewed template. The integration service verifies the template's SHA-256
+and labels generated files `draft-review-required`.
+
+This is **not** a complete or BCV-validated V1 generator. The actual scenario
+selector, official BuildSpec 2.0.0 import, full ATPBGC function catalog, BCV
+execution, official workbook compatibility and BSRS/R1 handoffs are unfinished.
+The V1 work product remains blocked in the registry.
+
+See [ported V1 code and acceptance gates](docs/v1/ported-compiler-implementation.md)
+and [full V1 implementation requirements](docs/v1/compiler-integration-from-caseworkbench2.md).
+
 ## State of development
 
 Badges report the live repository, not a claim: **Verify** runs the same `npm run check`
